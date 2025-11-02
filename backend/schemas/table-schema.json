@@ -1,0 +1,66 @@
+{
+    "Table": {
+        "AttributeDefinitions": [
+            {
+                "AttributeName": "category",
+                "AttributeType": "S"
+            },
+            {
+                "AttributeName": "stand_id",
+                "AttributeType": "S"
+            }
+        ],
+        "TableName": "ai-pavilion-stands",
+        "KeySchema": [
+            {
+                "AttributeName": "stand_id",
+                "KeyType": "HASH"
+            }
+        ],
+        "TableStatus": "ACTIVE",
+        "CreationDateTime": "2025-11-01T15:50:02.494000+00:00",
+        "ProvisionedThroughput": {
+            "NumberOfDecreasesToday": 0,
+            "ReadCapacityUnits": 5,
+            "WriteCapacityUnits": 5
+        },
+        "TableSizeBytes": 7065,
+        "ItemCount": 10,
+        "TableArn": "arn:aws:dynamodb:us-east-1:789382030021:table/ai-pavilion-stands",
+        "TableId": "f6b03351-5599-4a1c-9ff5-6c948268c75e",
+        "GlobalSecondaryIndexes": [
+            {
+                "IndexName": "category-index",
+                "KeySchema": [
+                    {
+                        "AttributeName": "category",
+                        "KeyType": "HASH"
+                    }
+                ],
+                "Projection": {
+                    "ProjectionType": "ALL"
+                },
+                "IndexStatus": "ACTIVE",
+                "ProvisionedThroughput": {
+                    "NumberOfDecreasesToday": 0,
+                    "ReadCapacityUnits": 5,
+                    "WriteCapacityUnits": 5
+                },
+                "IndexSizeBytes": 7065,
+                "ItemCount": 10,
+                "IndexArn": "arn:aws:dynamodb:us-east-1:789382030021:table/ai-pavilion-stands/index/category-index",
+                "WarmThroughput": {
+                    "ReadUnitsPerSecond": 5,
+                    "WriteUnitsPerSecond": 5,
+                    "Status": "ACTIVE"
+                }
+            }
+        ],
+        "DeletionProtectionEnabled": false,
+        "WarmThroughput": {
+            "ReadUnitsPerSecond": 5,
+            "WriteUnitsPerSecond": 5,
+            "Status": "ACTIVE"
+        }
+    }
+}

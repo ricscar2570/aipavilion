@@ -1,0 +1,11 @@
+node_modules/
+venv/
+*.zip
+.aws/
+*.pem
+.vscode/
+.idea/
+.DS_Store
+.env
+*.log
+__pycache__/

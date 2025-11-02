@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Pavilion - Gaming Expo 2025</title>
+    <link rel="stylesheet" href="/public/css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Initial Loader -->
+    <div id="initialLoader" class="global-loader">
+        <div class="global-loader-content">
+            <div class="spinner"></div>
+            <p>Loading Gaming Expo...</p>
+        </div>
+    </div>
+
+    <!-- NAVBAR -->
+    <nav id="navbar" class="main-navbar">
+        <div class="navbar-container">
+            <div class="navbar-brand">
+                <a href="#/">🎮 Gaming Expo 2025</a>
+            </div>
+            
+            <ul class="navbar-menu" id="navbarMenu">
+                <li><a href="#/" class="nav-link">Home</a></li>
+                <li><a href="#/search" class="nav-link">Search</a></li>
+                <li>
+                    <button id="cartBtn" class="nav-btn">
+                        🛒 Cart <span id="cartCount" class="cart-badge">0</span>
+                    </button>
+                </li>
+                <li>
+                    <button id="loginBtn" class="nav-btn-primary">Login</button>
+                </li>
+            </ul>
+            
+            <button class="mobile-menu-toggle" id="mobileMenuToggle">☰</button>
+        </div>
+    </nav>
+
+    <!-- Main App -->
+    <main id="app">
+        <!-- Home View: Stand Grid -->
+        <section id="stands-view">
+            <div class="container">
+                <header class="page-header">
+                    <h1>Welcome to Gaming Expo 2025</h1>
+                    <p>Explore amazing gaming stands from around the world</p>
+                </header>
+                
+                <div id="sponsoredStandsGrid" class="stands-grid">
+                    <!-- Stands loaded here by JS -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Detail View: Single Stand -->
+        <section id="stand-detail-view" style="display: none;">
+            <!-- Stand detail loaded here by JS -->
+        </section>
+    </main>
+
+    <!-- Scripts -->
+    <script type="module" src="/src/app.js"></script>
+    <script src="/src/navbar.js"></script>
+</body>
+</html>
