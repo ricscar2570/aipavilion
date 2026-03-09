@@ -1,11 +1,49 @@
+# Dependencies
 node_modules/
-venv/
-*.zip
-.aws/
-*.pem
+npm-debug.log*
+package-lock.json
+
+# Environment
+.env
+.env.local
+.env.*.local
+*.env
+
+# AWS
+.aws-sam/
+samconfig.toml
+
+# IDE
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
+
+# OS
 .DS_Store
-.env
+Thumbs.db
+
+# Logs
 *.log
-__pycache__/
+logs/
+
+# Build
+dist/
+build/
+*.zip
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# Backup
+*.backup
+*.bak
+
+# Secrets (NEVER commit!)
+*secret*
+*credential*
+*key.json

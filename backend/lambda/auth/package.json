@@ -1,0 +1,7 @@
+{
+  "name": "ai-pavilion-auth",
+  "version": "1.0.0",
+  "dependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.450.0"
+  }
+}
