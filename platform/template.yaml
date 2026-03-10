@@ -1,0 +1,456 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: AI Pavilion — serverless backend (Lambda + API Gateway + DynamoDB)
+
+# ─── Parameters ───────────────────────────────────────────────────────────────
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+    Description: Deployment environment
+
+  AllowedOrigin:
+    Type: String
+    Default: '*'
+    Description: >
+      CORS allowed origin. Set to your CloudFront domain in production,
+      e.g. https://d1234abcd.cloudfront.net
+
+  StripeSecretKeyArn:
+    Type: String
+    Description: >
+      ARN of the AWS Secrets Manager secret that holds the Stripe secret key.
+      Create with: aws secretsmanager create-secret --name ai-pavilion/stripe-secret-key --secret-string sk_...
+
+  StripeWebhookSecret:
+    Type: String
+    NoEcho: true
+    Description: Stripe webhook signing secret (whsec_...)
+
+  CognitoUserPoolId:
+    Type: String
+    Description: ID of the Cognito User Pool (created separately or imported)
+
+  CognitoClientId:
+    Type: String
+    Description: ID of the Cognito User Pool App Client
+
+# ─── Globals ──────────────────────────────────────────────────────────────────
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    Architectures: [arm64]          # Graviton2 — cheaper + faster for Node
+    Timeout: 30
+    MemorySize: 256
+    Environment:
+      Variables:
+        NODE_ENV: !Ref Environment
+        ALLOWED_ORIGIN: !Ref AllowedOrigin
+    Layers:
+      - !Ref CommonLayer
+
+  Api:
+    Cors:
+      AllowOrigin: !Sub "'${AllowedOrigin}'"
+      AllowHeaders: "'Content-Type,Authorization,X-Stripe-Signature'"
+      AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+
+# ─── Resources ────────────────────────────────────────────────────────────────
+Resources:
+
+  # ── Shared Lambda layer (common/cors.js + common/dynamo.js) ─────────────────
+  CommonLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: !Sub ai-pavilion-common-${Environment}
+      ContentUri: backend/lambda/common/
+      CompatibleRuntimes: [nodejs20.x]
+      RetentionPolicy: Delete
+
+  # ── API Gateway ──────────────────────────────────────────────────────────────
+  ApiGateway:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub ai-pavilion-api-${Environment}
+      StageName: !Ref Environment
+      TracingEnabled: true
+      # Throttle at gateway level to protect DynamoDB on-demand capacity
+      MethodSettings:
+        - ResourcePath: '/*'
+          HttpMethod: '*'
+          ThrottlingRateLimit: 100
+          ThrottlingBurstLimit: 200
+
+  # ── DynamoDB tables ──────────────────────────────────────────────────────────
+  StandsTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    Properties:
+      TableName: !Sub ai-pavilion-stands-${Environment}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: stand_id, AttributeType: S }
+        - { AttributeName: category,  AttributeType: S }
+      KeySchema:
+        - { AttributeName: stand_id, KeyType: HASH }
+      GlobalSecondaryIndexes:
+        - IndexName: category-index
+          KeySchema:
+            - { AttributeName: category, KeyType: HASH }
+          Projection: { ProjectionType: ALL }
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: !Equals [!Ref Environment, prod]
+
+  OrdersTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    Properties:
+      TableName: !Sub ai-pavilion-orders-${Environment}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: order_id, AttributeType: S }
+        - { AttributeName: user_id,  AttributeType: S }
+        - { AttributeName: created_at, AttributeType: S }
+      KeySchema:
+        - { AttributeName: order_id, KeyType: HASH }
+      GlobalSecondaryIndexes:
+        - IndexName: user-orders-index
+          KeySchema:
+            - { AttributeName: user_id,     KeyType: HASH }
+            - { AttributeName: created_at,  KeyType: RANGE }
+          Projection: { ProjectionType: ALL }
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: !Equals [!Ref Environment, prod]
+
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    Properties:
+      TableName: !Sub ai-pavilion-users-${Environment}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: user_id, AttributeType: S }
+      KeySchema:
+        - { AttributeName: user_id, KeyType: HASH }
+
+  InteractionsTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Delete          # Analytics data — ok to lose on stack deletion
+    Properties:
+      TableName: !Sub ai-pavilion-interactions-${Environment}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: interaction_id, AttributeType: S }
+      KeySchema:
+        - { AttributeName: interaction_id, KeyType: HASH }
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true               # Auto-expire old interactions after 90 days
+
+
+  SavedStandsTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    Properties:
+      TableName: !Sub ai-pavilion-saved-stands-${Environment}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: user_id,  AttributeType: S }
+        - { AttributeName: stand_id, AttributeType: S }
+      KeySchema:
+        - { AttributeName: user_id,  KeyType: HASH }
+        - { AttributeName: stand_id, KeyType: RANGE }
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: false
+
+  # ── Lambda functions ─────────────────────────────────────────────────────────
+
+  GetStandsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ai-pavilion-get-stands-${Environment}
+      CodeUri: backend/lambda/get-stands/
+      Handler: index.handler
+      Description: GET /stands — paginated list of all stands
+      Environment:
+        Variables:
+          STANDS_TABLE: !Ref StandsTable
+      Policies:
+        - DynamoDBReadPolicy: { TableName: !Ref StandsTable }
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /stands
+            Method: GET
+
+  GetStandDetailFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ai-pavilion-get-stand-detail-${Environment}
+      CodeUri: backend/lambda/get-stand-detail/
+      Handler: index.handler
+      Description: GET /stands/{standId} — single stand with full product list
+      Environment:
+        Variables:
+          STANDS_TABLE: !Ref StandsTable
+      Policies:
+        - DynamoDBReadPolicy: { TableName: !Ref StandsTable }
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /stands/{standId}
+            Method: GET
+
+  SearchStandsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ai-pavilion-search-stands-${Environment}
+      CodeUri: backend/lambda/search-stands/
+      Handler: index.handler
+      Description: GET /stands/search?q=... — full-text search across stands
+      Environment:
+        Variables:
+          STANDS_TABLE: !Ref StandsTable
+      Policies:
+        - DynamoDBReadPolicy: { TableName: !Ref StandsTable }
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /stands/search
+            Method: GET
+
+  CheckoutFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ai-pavilion-checkout-${Environment}
+      CodeUri: backend/lambda/checkout/
+      Handler: index.handler
+      Description: >
+        POST /checkout/create-intent — create Stripe PaymentIntent
+        POST /checkout/confirm-order — confirm order after client-side payment
+        GET  /checkout/order/{id}    — retrieve order by ID
+        POST /checkout/webhook       — Stripe webhook (server-to-server)
+      Environment:
+        Variables:
+          ORDERS_TABLE: !Ref OrdersTable
+          STRIPE_SECRET_KEY_ARN: !Ref StripeSecretKeyArn
+          STRIPE_WEBHOOK_SECRET: !Ref StripeWebhookSecret
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref OrdersTable }
+        - Statement:
+            Effect: Allow
+            Action: secretsmanager:GetSecretValue
+            Resource: !Ref StripeSecretKeyArn
+      Events:
+        CreateIntent:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /checkout/create-intent
+            Method: POST
+        ConfirmOrder:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /checkout/confirm-order
+            Method: POST
+        GetOrder:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /checkout/order/{orderId}
+            Method: GET
+        Webhook:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /checkout/webhook
+            Method: POST
+
+  AuthFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ai-pavilion-auth-${Environment}
+      CodeUri: backend/lambda/auth/
+      Handler: index.handler
+      Description: >
+        POST /auth/token — exchange Cognito auth code for tokens
+        POST /auth/refresh — refresh access token
+      Environment:
+        Variables:
+          COGNITO_CLIENT_ID: !Ref CognitoClientId
+      Policies:
+        - Statement:
+            Effect: Allow
+            Action:
+              - cognito-idp:InitiateAuth
+              - cognito-idp:RespondToAuthChallenge
+            Resource: !Sub arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}
+      Events:
+        Token:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /auth/token
+            Method: POST
+        Refresh:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /auth/refresh
+            Method: POST
+
+  AdminFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ai-pavilion-admin-${Environment}
+      CodeUri: backend/lambda/admin/
+      Handler: index.handler
+      Description: >
+        Admin-only endpoints for stands and user management.
+        All routes require a valid Cognito JWT with the 'admin' group claim.
+      Environment:
+        Variables:
+          STANDS_TABLE:          !Ref StandsTable
+          ORDERS_TABLE:          !Ref OrdersTable
+          USERS_TABLE:           !Ref UsersTable
+          COGNITO_USER_POOL_ID:  !Ref CognitoUserPoolId
+          COGNITO_CLIENT_ID:     !Ref CognitoClientId
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref StandsTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref OrdersTable }
+        - DynamoDBReadPolicy:  { TableName: !Ref UsersTable }
+        - Statement:
+            Effect: Allow
+            Action: cognito-idp:ListUsers
+            Resource: !Sub arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}
+      Events:
+        Dashboard:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /admin/dashboard
+            Method: GET
+        Stands:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /admin/stands
+            Method: ANY
+        StandById:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /admin/stands/{standId}
+            Method: ANY
+        Users:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /admin/users
+            Method: GET
+
+  UserSavedStandsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ai-pavilion-user-saved-stands-${Environment}
+      CodeUri: backend/lambda/user-saved-stands/
+      Handler: index.handler
+      Description: >
+        GET    /user/saved-stands           — list user's saved stands
+        POST   /user/saved-stands           — save a stand
+        DELETE /user/saved-stands/:standId  — remove a saved stand
+      Environment:
+        Variables:
+          SAVED_STANDS_TABLE: !Ref SavedStandsTable
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref SavedStandsTable }
+      Events:
+        List:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /user/saved-stands
+            Method: GET
+        Save:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /user/saved-stands
+            Method: POST
+        Delete:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /user/saved-stands/{standId}
+            Method: DELETE
+
+  UserStatsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ai-pavilion-user-stats-${Environment}
+      CodeUri: backend/lambda/user-stats/
+      Handler: index.handler
+      Description: GET /user/stats — aggregated stats computed from orders + saved stands
+      Environment:
+        Variables:
+          ORDERS_TABLE:       !Ref OrdersTable
+          SAVED_STANDS_TABLE: !Ref SavedStandsTable
+      Policies:
+        - DynamoDBReadPolicy: { TableName: !Ref OrdersTable }
+        - DynamoDBReadPolicy: { TableName: !Ref SavedStandsTable }
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /user/stats
+            Method: GET
+
+  TrackInteractionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ai-pavilion-track-interaction-${Environment}
+      CodeUri: backend/lambda/track-interaction/
+      Handler: index.handler
+      Description: POST /interactions — fire-and-forget interaction events (view, click, purchase)
+      # Low memory is intentional — this is a write-only append Lambda
+      MemorySize: 128
+      Environment:
+        Variables:
+          TABLE_INTERACTIONS: !Ref InteractionsTable
+      Policies:
+        - DynamoDBWritePolicy: { TableName: !Ref InteractionsTable }
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /interactions
+            Method: POST
+
+# ─── Outputs ──────────────────────────────────────────────────────────────────
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway base URL — set this as API_GATEWAY_URL in your .env
+    Value: !Sub https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/${Environment}
+    Export:
+      Name: !Sub ai-pavilion-api-endpoint-${Environment}
+
+  StandsTableName:
+    Value: !Ref StandsTable
+    Export:
+      Name: !Sub ai-pavilion-stands-table-${Environment}
+
+  OrdersTableName:
+    Value: !Ref OrdersTable
+    Export:
+      Name: !Sub ai-pavilion-orders-table-${Environment}

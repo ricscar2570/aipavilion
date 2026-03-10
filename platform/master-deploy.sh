@@ -203,7 +203,6 @@ if [ "$FULL_DEPLOY" = true ] || [ "$DEPLOY_BACKEND" = "y" ]; then
     # Core services
     ./01-deploy-auth.sh
     ./02-deploy-payments.sh
-    ./03-deploy-products.sh
     ./04-deploy-https.sh
     
     # Features
@@ -243,18 +242,39 @@ if [ "$FULL_DEPLOY" = true ] || [ "$DEPLOY_FRONTEND" = "y" ]; then
         aws s3 mb s3://$BUCKET_NAME --region $AWS_REGION
     fi
     
-    echo "Uploading frontend files to S3..."
-    aws s3 sync frontend/ s3://$BUCKET_NAME/ \
+    # Build the frontend with Vite before uploading.
+    # This injects __APP_CONFIG__ and produces the dist/ bundle.
+    echo "Building frontend..."
+    if [ -f "package.json" ]; then
+        npm install --silent
+        npm run build
+    else
+        echo -e "${RED}❌ package.json not found — run this script from the platform/ directory${NC}"
+        exit 1
+    fi
+
+    if [ ! -d "dist" ]; then
+        echo -e "${RED}❌ Build failed — dist/ directory not found${NC}"
+        exit 1
+    fi
+    echo -e "${GREEN}✅ Frontend built successfully${NC}"
+
+    echo "Uploading frontend build to S3..."
+    # Upload all built assets with long-lived cache (content-hashed filenames)
+    aws s3 sync dist/ s3://$BUCKET_NAME/ \
+        --exclude "*.html" \
         --exclude "*.md" \
-        --exclude ".git/*" \
-        --cache-control "max-age=31536000" \
+        --cache-control "max-age=31536000,immutable" \
         --metadata-directive REPLACE
-    
-    # Upload HTML with no-cache
-    aws s3 cp frontend/index.html s3://$BUCKET_NAME/index.html \
-        --cache-control "no-cache" \
-        --content-type "text/html"
-    
+
+    # Upload HTML files with no-cache so users always get the latest entry point
+    aws s3 sync dist/ s3://$BUCKET_NAME/ \
+        --exclude "*" \
+        --include "*.html" \
+        --cache-control "no-cache,no-store,must-revalidate" \
+        --content-type "text/html" \
+        --metadata-directive REPLACE
+
     echo -e "${GREEN}✅ Frontend uploaded to: $BUCKET_NAME${NC}"
     echo ""
 fi

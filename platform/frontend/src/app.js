@@ -1,191 +1,425 @@
-// AI Pavilion - Main Application
-import { config } from './config/config.js';
+/**
+ * AI Pavilion - Application entry point
+ *
+ * Responsibilities: routing, session management, event binding.
+ * No HTML lives here — all markup is in core/templates.js.
+ *
+ * Routes:
+ *   #/               → Homepage with stand grid
+ *   #/stand/:id      → Stand detail
+ *   #/search         → Search
+ *   #/cart           → Cart
+ *   #/checkout       → Checkout (requires auth)
+ *   #/dashboard      → User dashboard (requires auth)
+ *   #/login          → Virtual route: opens login modal from any page
+ */
 
-class AIPayilion {
+import { config }                          from './core/config.js';
+import { escapeHtml }                      from './core/helpers.js';
+import { EVENT_TYPES }                     from './core/constants.js';
+import { validateEmail, validatePassword } from './core/validators.js';
+import {
+    shellHTML,
+    loginFormHTML,
+    confirmationFormHTML,
+    forgotPasswordFormHTML,
+    forgotPasswordSentHTML,
+    homepageHTML,
+    cartHTML,
+    checkoutHTML,
+    authGateHTML,
+    notFoundHTML,
+    userMenuHTML,
+} from './core/templates.js';
+
+import { authService }        from './account/auth.js';
+import { apiService }         from './core/api.js';
+import { cartManager }        from './checkout/cart.js';
+import { checkoutManager }    from './checkout/checkout.js';
+import { standDetailManager } from './stands/detail.js';
+import { userDashboard }      from './account/dashboard.js';
+import { uiManager }          from './ui/ui.js';
+import { renderStandCard }    from './stands/card.js';
+import SearchModule           from './stands/search.js';
+
+const searchModule = new SearchModule();
+
+class AIPavilion {
     constructor() {
-        this.currentPage = 'home';
+        this._currentUser = null;
         this.init();
     }
-    
+
     async init() {
-        console.log('🚀 AI Pavilion initializing...');
-        this.renderApp();
-        this.setupRouting();
-        await this.loadStands();
+        document.getElementById('app').innerHTML = shellHTML();
+        // init() creates toast/modal containers in the DOM.
+        // Must run after shellHTML() so document.body is ready,
+        // and before any module that might fire a toast on load.
+        uiManager.init();
+        this._bindAuthEvents();
+        this._bindCartEvents();
+        this._setupRouting();
+        await this._restoreSession();
     }
-    
-    renderApp() {
-        const app = document.getElementById('app');
-        
-        app.innerHTML = `
-            <!-- Navigation -->
-            <nav class="glass-card fixed top-0 left-0 right-0 z-50">
-                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div class="flex justify-between items-center h-16">
-                        <div class="flex items-center space-x-8">
-                            <a href="#/" class="flex items-center space-x-2">
-                                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
-                                    <span class="text-white font-bold text-xl">AI</span>
-                                </div>
-                                <span class="text-xl font-bold gradient-text">Pavilion</span>
-                            </a>
-                            
-                            <div class="hidden md:flex space-x-6">
-                                <a href="#/" class="text-gray-700 hover:text-purple-600 font-medium transition">Stands</a>
-                                <a href="#/search" class="text-gray-700 hover:text-purple-600 font-medium transition">Search</a>
-                                <a href="#/featured" class="text-gray-700 hover:text-purple-600 font-medium transition">Featured</a>
-                            </div>
-                        </div>
-                        
-                        <div class="flex items-center space-x-4">
-                            <a href="#/cart" class="relative p-2 rounded-lg hover:bg-gray-100 transition">
-                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/>
-                                </svg>
-                                <span class="absolute -top-1 -right-1 bg-pink-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center" id="cart-count">0</span>
-                            </a>
-                            
-                            <button class="btn-primary" id="auth-button">Login</button>
-                        </div>
-                    </div>
-                </div>
-            </nav>
-            
-            <!-- Main Content -->
-            <div class="pt-16" id="main-content">
-                <div class="loading-skeleton h-96"></div>
-            </div>
-        `;
+
+    // ─── Auth ────────────────────────────────────────────────────────────────
+
+    async _restoreSession() {
+        this._currentUser = await authService.getCurrentUser();
+        this._updateAuthUI();
+        this._handleRoute();
     }
-    
-    setupRouting() {
-        window.addEventListener('hashchange', () => this.handleRoute());
-        this.handleRoute();
+
+    _bindAuthEvents() {
+        document.addEventListener('click', e => {
+            const btn = e.target.closest('#auth-btn');
+            if (!btn) return;
+            if (this._currentUser) {
+                this._showUserMenu(btn);
+            } else {
+                this._showLoginModal();
+            }
+        });
+
+        document.getElementById('auth-modal').addEventListener('click', e => {
+            if (e.target === e.currentTarget) this._hideAuthModal();
+        });
+        document.getElementById('auth-modal-close').addEventListener('click', () => this._hideAuthModal());
+
+        authService.subscribe((event) => {
+            if (event === EVENT_TYPES.USER_LOGGED_IN) {
+                authService.getCurrentUser().then(user => {
+                    this._currentUser = user;
+                    this._updateAuthUI();
+                    this._hideAuthModal();
+                });
+            }
+            if (event === EVENT_TYPES.USER_LOGGED_OUT) {
+                this._currentUser = null;
+                this._updateAuthUI();
+                window.location.hash = '/';
+            }
+        });
     }
-    
-    handleRoute() {
-        const hash = window.location.hash.slice(1) || '/';
-        
-        if (hash === '/') {
-            this.renderHomepage();
-        } else if (hash.startsWith('/stand/')) {
-            this.renderStandDetail(hash.split('/')[2]);
+
+    _updateAuthUI() {
+        const btn = document.getElementById('auth-btn');
+        if (!btn) return;
+        if (this._currentUser) {
+            const email = this._currentUser.attributes?.email || this._currentUser.username || 'Account';
+            btn.textContent = escapeHtml(email.split('@')[0]);
+        } else {
+            btn.textContent = 'Login';
         }
     }
-    
-    renderHomepage() {
-        const content = document.getElementById('main-content');
-        
-        content.innerHTML = `
-            <!-- Hero Section -->
-            <div class="relative overflow-hidden py-20 px-4 sm:px-6 lg:px-8">
-                <div class="max-w-7xl mx-auto">
-                    <div class="text-center">
-                        <h1 class="text-5xl md:text-7xl font-extrabold text-white mb-6 animate-fade-in">
-                            Welcome to the Future of
-                            <span class="block gradient-text bg-white">Gaming Expos</span>
-                        </h1>
-                        
-                        <p class="text-xl md:text-2xl text-white/90 mb-8 max-w-3xl mx-auto">
-                            Explore stands in AR, take 360° virtual tours, and shop the latest games
-                        </p>
-                        
-                        <div class="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-                            <button class="btn-primary text-lg px-8 py-4">
-                                🚀 Explore Stands
-                            </button>
-                            <button class="bg-white/20 backdrop-blur text-white px-8 py-4 rounded-xl font-semibold hover:bg-white/30 transition">
-                                📱 Download App
-                            </button>
-                        </div>
-                        
-                        <div class="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-4xl mx-auto">
-                            <div class="glass-card p-6 rounded-xl hover-lift">
-                                <div class="text-3xl font-bold gradient-text bg-white mb-2">500+</div>
-                                <div class="text-white/80 text-sm">Products</div>
-                            </div>
-                            <div class="glass-card p-6 rounded-xl hover-lift">
-                                <div class="text-3xl font-bold gradient-text bg-white mb-2">50+</div>
-                                <div class="text-white/80 text-sm">Exhibitors</div>
-                            </div>
-                            <div class="glass-card p-6 rounded-xl hover-lift">
-                                <div class="text-3xl font-bold gradient-text bg-white mb-2">AR</div>
-                                <div class="text-white/80 text-sm">3D Models</div>
-                            </div>
-                            <div class="glass-card p-6 rounded-xl hover-lift">
-                                <div class="text-3xl font-bold gradient-text bg-white mb-2">360°</div>
-                                <div class="text-white/80 text-sm">Tours</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Stands Grid -->
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-                <h2 class="text-3xl font-bold text-white mb-8">Featured Stands</h2>
-                <div id="stands-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <div class="loading-skeleton h-64 rounded-2xl"></div>
-                    <div class="loading-skeleton h-64 rounded-2xl"></div>
-                    <div class="loading-skeleton h-64 rounded-2xl"></div>
-                </div>
-            </div>
-        `;
+
+    _showLoginModal(mode = 'login') {
+        document.getElementById('auth-modal-body').innerHTML = loginFormHTML(mode);
+        document.getElementById('auth-modal').classList.remove('hidden');
+        this._bindLoginForm();
     }
-    
-    async loadStands() {
+
+    _hideAuthModal() {
+        document.getElementById('auth-modal').classList.add('hidden');
+    }
+
+    _bindLoginForm() {
+        document.getElementById('auth-switch')?.addEventListener('click', e => {
+            e.preventDefault();
+            const isLogin = document.getElementById('auth-submit').textContent.trim() === 'Sign In';
+            this._showLoginModal(isLogin ? 'signup' : 'login');
+        });
+        document.getElementById('auth-forgot')?.addEventListener('click', e => {
+            e.preventDefault();
+            this._showForgotPasswordModal();
+        });
+        document.getElementById('auth-submit')?.addEventListener('click', () => this._submitAuthForm());
+        document.getElementById('auth-modal-body').addEventListener('keydown', e => {
+            if (e.key === 'Enter') this._submitAuthForm();
+        });
+    }
+
+    async _submitAuthForm() {
+        const submit   = document.getElementById('auth-submit');
+        const errorEl  = document.getElementById('auth-error');
+        const email    = document.getElementById('auth-email')?.value.trim() || '';
+        const password = document.getElementById('auth-password')?.value || '';
+        const name     = document.getElementById('auth-name')?.value.trim() || '';
+        const isLogin  = submit.textContent.trim() === 'Sign In';
+
+        const showError = msg => {
+            errorEl.textContent = msg;
+            errorEl.classList.remove('hidden');
+        };
+
+        // Validate before hitting Cognito to avoid burning rate-limit quota on bad input.
+        const emailCheck = validateEmail(email);
+        if (!emailCheck.ok) { showError(emailCheck.error); return; }
+
+        if (!isLogin) {
+            const pwCheck = validatePassword(password);
+            if (!pwCheck.ok) { showError(pwCheck.error); return; }
+        }
+
+        errorEl.classList.add('hidden');
+        submit.disabled = true;
+        submit.textContent = isLogin ? 'Signing in…' : 'Creating account…';
+
         try {
-            const response = await fetch(`${config.apiUrl}/stands`);
-            const stands = await response.json();
-            this.renderStands(stands);
-        } catch (error) {
-            console.error('Failed to load stands:', error);
+            if (isLogin) {
+                await authService.signIn(email, password);
+            } else {
+                const [givenName, ...rest] = name.split(' ');
+                await authService.signUp(email, password, {
+                    givenName,
+                    familyName: rest.join(' ') || undefined,
+                });
+                this._showConfirmationModal(email);
+            }
+        } catch (err) {
+            showError(this._friendlyAuthError(err));
+            submit.disabled = false;
+            submit.textContent = isLogin ? 'Sign In' : 'Create Account';
         }
     }
-    
-    renderStands(stands) {
+
+    _showConfirmationModal(email) {
+        document.getElementById('auth-modal-body').innerHTML = confirmationFormHTML(email);
+        document.getElementById('confirm-submit').addEventListener('click', async () => {
+            const code    = document.getElementById('confirm-code').value.trim();
+            const errorEl = document.getElementById('confirm-error');
+            try {
+                await authService.confirmSignUp(email, code);
+                this._showLoginModal('login');
+            } catch (err) {
+                errorEl.textContent = this._friendlyAuthError(err);
+                errorEl.classList.remove('hidden');
+            }
+        });
+    }
+
+    _showForgotPasswordModal() {
+        document.getElementById('auth-modal-body').innerHTML = forgotPasswordFormHTML();
+        document.getElementById('forgot-submit').addEventListener('click', async () => {
+            const email   = document.getElementById('forgot-email').value.trim();
+            const errorEl = document.getElementById('forgot-error');
+            try {
+                await authService.forgotPassword(email);
+                document.getElementById('auth-modal-body').innerHTML = forgotPasswordSentHTML(email);
+            } catch (err) {
+                errorEl.textContent = this._friendlyAuthError(err);
+                errorEl.classList.remove('hidden');
+            }
+        });
+    }
+
+    _showUserMenu(anchorEl) {
+        const existing = document.getElementById('user-menu');
+        if (existing) { existing.remove(); return; }
+
+        const menu = document.createElement('div');
+        menu.id = 'user-menu';
+        menu.className = 'absolute right-4 top-14 glass-card rounded-xl shadow-lg py-2 z-50 min-w-[180px]';
+        menu.innerHTML = userMenuHTML();
+        document.body.appendChild(menu);
+
+        document.getElementById('user-menu-logout').addEventListener('click', () => {
+            menu.remove();
+            authService.signOut();
+        });
+
+        // Delay the outside-click listener by one tick so the current click
+        // (which opened the menu) doesn't immediately close it.
+        setTimeout(() => {
+            document.addEventListener('click', function handler(e) {
+                if (!menu.contains(e.target) && e.target !== anchorEl) {
+                    menu.remove();
+                    document.removeEventListener('click', handler);
+                }
+            });
+        }, 0);
+    }
+
+    _friendlyAuthError(err) {
+        const map = {
+            NotAuthorizedException:   'Incorrect email or password.',
+            UserNotFoundException:     'Incorrect email or password.',
+            UserNotConfirmedException: 'Please verify your email before logging in.',
+            UsernameExistsException:   'An account with this email already exists.',
+            InvalidPasswordException:  'Password must be at least 8 characters and include numbers.',
+            CodeMismatchException:     'Invalid verification code.',
+            ExpiredCodeException:      'Verification code expired. Please request a new one.',
+            LimitExceededException:    'Too many attempts. Please wait a moment and try again.',
+            TooManyRequestsException:  'Too many attempts. Please wait a moment and try again.',
+        };
+        return map[err.code || err.name || ''] || err.message || 'An error occurred. Please try again.';
+    }
+
+    // ─── Cart badge ──────────────────────────────────────────────────────────
+
+    _bindCartEvents() {
+        this._updateCartBadge();
+        cartManager.subscribe?.(() => this._updateCartBadge());
+        document.addEventListener('cart:updated', () => this._updateCartBadge());
+    }
+
+    _updateCartBadge() {
+        const badge = document.getElementById('cart-badge');
+        if (!badge) return;
+        const count = cartManager.getItemCount?.() || cartManager.getCart().length;
+        if (count > 0) {
+            badge.textContent = count > 99 ? '99+' : count;
+            badge.classList.remove('hidden');
+            badge.classList.add('flex');
+        } else {
+            badge.classList.add('hidden');
+            badge.classList.remove('flex');
+        }
+    }
+
+    // ─── Routing ─────────────────────────────────────────────────────────────
+
+    _setupRouting() {
+        // Hash routing avoids a server-side catch-all — S3 static hosting
+        // only knows about index.html, so pushState would 404 on refresh.
+        window.addEventListener('hashchange', () => this._handleRoute());
+    }
+
+    _handleRoute() {
+        const hash    = window.location.hash.slice(1) || '/';
+        const content = document.getElementById('main-content');
+
+        if (hash === '/')                   return this._renderHomepage(content);
+        if (hash === '/search')             return this._renderSearch(content);
+        if (hash === '/cart')               return this._renderCart(content);
+        if (hash === '/checkout')           return this._renderCheckout(content);
+        if (hash === '/dashboard')          return this._renderDashboard(content);
+        if (hash === '/login')              return this._handleLoginRoute();
+        if (hash.startsWith('/stand/')) {
+            const standId = decodeURIComponent(hash.split('/')[2] || '');
+            return this._renderStandDetail(content, standId);
+        }
+        content.innerHTML = notFoundHTML();
+    }
+
+    // ─── Page renderers ───────────────────────────────────────────────────────
+
+    _renderHomepage(content) {
+        content.innerHTML = homepageHTML();
+        this._loadStands();
+    }
+
+    async _loadStands() {
+        if (!config.apiUrl) return;
+        try {
+            const data   = await apiService.get('/stands');
+            const stands = Array.isArray(data) ? data : (data.stands || []);
+            this._renderStandCards(stands);
+        } catch {
+            const grid = document.getElementById('stands-grid');
+            if (grid) grid.innerHTML = '<p class="text-white/70 col-span-3 text-center py-12">Unable to load stands. Please try again later.</p>';
+        }
+    }
+
+    _renderStandCards(stands) {
         const grid = document.getElementById('stands-grid');
         if (!grid) return;
-        
-        grid.innerHTML = stands.map(stand => `
-            <div class="glass-card rounded-2xl overflow-hidden hover-lift cursor-pointer" onclick="window.location.hash='/stand/${stand.stand_id}'">
-                <div class="relative h-48 overflow-hidden">
-                    <img 
-                        src="${stand.image_url || 'https://via.placeholder.com/400x300?text=Stand'}" 
-                        alt="${stand.name}"
-                        class="w-full h-full object-cover transition-transform duration-300 hover:scale-110"
-                    />
-                    ${stand.is_sponsored ? '<div class="absolute top-4 right-4 badge badge-featured">⭐ Featured</div>' : ''}
-                    ${stand.ar_enabled ? '<div class="absolute top-4 left-4 badge badge-ar">🥽 AR</div>' : ''}
-                </div>
-                
-                <div class="p-6">
-                    <h3 class="text-xl font-bold text-gray-900 mb-2">${stand.name}</h3>
-                    <p class="text-gray-600 text-sm mb-4">${stand.description || 'Discover amazing products'}</p>
-                    
-                    <div class="flex items-center justify-between">
-                        <span class="text-xs text-gray-500">Booth ${stand.booth_number}</span>
-                        <svg class="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                        </svg>
-                    </div>
-                </div>
-            </div>
-        `).join('');
+
+        if (!stands.length) {
+            grid.innerHTML = '<p class="text-white/70 col-span-3 text-center py-12">No stands available yet.</p>';
+            return;
+        }
+
+        grid.innerHTML = '';
+        stands.forEach(stand => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'glass-card rounded-2xl overflow-hidden hover-lift cursor-pointer';
+            wrapper.innerHTML = renderStandCard(stand);
+            wrapper.addEventListener('click', () => {
+                window.location.hash = `/stand/${encodeURIComponent(stand.stand_id)}`;
+            });
+            grid.appendChild(wrapper);
+        });
     }
-    
-    renderStandDetail(standId) {
-        const content = document.getElementById('main-content');
-        content.innerHTML = `
-            <div class="max-w-7xl mx-auto px-4 py-8">
-                <h1 class="text-4xl font-bold text-white mb-8">Stand Details</h1>
-                <div class="glass-card p-8 rounded-2xl">
-                    <p>Loading stand ${standId}...</p>
-                </div>
-            </div>
-        `;
+
+    _renderSearch(content) {
+        content.innerHTML = '<div id="search-root" class="max-w-7xl mx-auto px-4 py-8"></div>';
+        searchModule.renderSearchPage(document.getElementById('search-root'));
+    }
+
+    _renderCart(content) {
+        const cart  = cartManager.getCart();
+        const total = cartManager.getTotal?.() || 0;
+        content.innerHTML = cartHTML(cart, total);
+
+        // Wire remove buttons — data-remove-id avoids inline onclick and window globals
+        content.querySelectorAll('[data-remove-id]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                cartManager.removeItem(btn.dataset.removeId);
+                this._renderCart(content);
+            });
+        });
+    }
+
+    _renderCheckout(content) {
+        if (!this._currentUser) {
+            content.innerHTML = authGateHTML('checkout-login-btn', 'Please sign in to complete your purchase.');
+            document.getElementById('checkout-login-btn').addEventListener('click', () => this._showLoginModal());
+            return;
+        }
+        content.innerHTML = checkoutHTML(checkoutManager.getCheckoutSummary());
+        this._initCheckoutForm();
+    }
+
+    async _initCheckoutForm() {
+        try {
+            const { stripeService } = await import('./checkout/stripe.js');
+            const { cardElement }   = stripeService.createCardElement('#card-element');
+
+            document.getElementById('pay-btn').addEventListener('click', async () => {
+                const btn     = document.getElementById('pay-btn');
+                const errorEl = document.getElementById('payment-error');
+                errorEl.classList.add('hidden');
+                btn.disabled    = true;
+                btn.textContent = 'Processing…';
+
+                try {
+                    const { orderId } = await checkoutManager.processCheckout(cardElement);
+                    window.location.hash = `/order-success/${encodeURIComponent(orderId)}`;
+                } catch (err) {
+                    errorEl.textContent = err.message || 'Payment failed. Please try again.';
+                    errorEl.classList.remove('hidden');
+                    btn.disabled    = false;
+                    btn.textContent = `Pay €${checkoutManager.getCheckoutSummary().total.toFixed(2)}`;
+                }
+            });
+        } catch (err) {
+            document.getElementById('card-element').innerHTML =
+                `<p class="text-red-600 text-sm">Payment form unavailable: ${escapeHtml(err.message)}</p>`;
+        }
+    }
+
+    async _renderDashboard(content) {
+        if (!this._currentUser) {
+            content.innerHTML = authGateHTML('dash-login-btn');
+            document.getElementById('dash-login-btn').addEventListener('click', () => this._showLoginModal());
+            return;
+        }
+        content.innerHTML = '<div id="dashboardContainer" class="max-w-7xl mx-auto px-4 py-8"></div>';
+        await userDashboard.loadDashboard('dashboardContainer');
+    }
+
+    _renderStandDetail(content, standId) {
+        if (!standId) { content.innerHTML = notFoundHTML(); return; }
+        content.innerHTML = '<div id="standDetailContainer" class="max-w-7xl mx-auto px-4 py-8"></div>';
+        standDetailManager.loadStandDetails(standId, 'standDetailContainer');
+    }
+
+    _handleLoginRoute() {
+        // #/login is a virtual route — redirect home and open the modal.
+        window.location.hash = '/';
+        setTimeout(() => this._showLoginModal(), 50);
     }
 }
 
-// Initialize app
-new AIPayilion();
+new AIPavilion();

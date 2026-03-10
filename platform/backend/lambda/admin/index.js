@@ -14,56 +14,49 @@ const {
     DeleteCommand,
     QueryCommand
 } = require("@aws-sdk/lib-dynamodb");
-
-// Initialize DynamoDB client
 const dynamoClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
-
-// Environment variables
 const STANDS_TABLE = process.env.STANDS_TABLE || 'ai-pavilion-stands';
 const USERS_TABLE = process.env.USERS_TABLE || 'ai-pavilion-users';
 const ORDERS_TABLE = process.env.ORDERS_TABLE || 'ai-pavilion-orders';
 
-// CORS headers
-const CORS_HEADERS = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token',
-    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
-    'Content-Type': 'application/json'
-};
+const { corsHeaders, preflight } = require('../common/cors');
+const { scanAll, scanPage } = require('../common/dynamo');
+const { CognitoJwtVerifier } = require('aws-jwt-verify');
+
+// Cognito JWT verifier — verifies token signature AND checks the user is in the "admin" group.
+// Cached per Lambda container for performance.
+let _verifier = null;
+function getVerifier() {
+    if (_verifier) return _verifier;
+    _verifier = CognitoJwtVerifier.create({
+        userPoolId: process.env.COGNITO_USER_POOL_ID,
+        tokenUse:   'access',
+        clientId:   process.env.COGNITO_CLIENT_ID,
+    });
+    return _verifier;
+}
 
 /**
  * Main Lambda handler
  */
 exports.handler = async (event) => {
     console.log('Event:', JSON.stringify(event, null, 2));
-    
-    // Handle OPTIONS preflight
     if (event.httpMethod === 'OPTIONS') {
-        return {
-            statusCode: 200,
-            headers: CORS_HEADERS,
-            body: ''
-        };
+        return preflight(event);
     }
     
     try {
-        // Verify admin authorization
-        const isAdmin = await verifyAdminRole(event);
-        if (!isAdmin) {
-            return errorResponse(403, 'Forbidden: Admin access required');
+        // Verify admin authorization — returns decoded JWT payload or null
+        const adminPayload = await verifyAdminRole(event);
+        if (!adminPayload) {
+            return errorResponse(403, 'Forbidden: Admin access required', event);
         }
-        
-        // Route to appropriate handler
         const path = event.path;
         const method = event.httpMethod;
-        
-        // Dashboard overview
         if (path === '/admin/dashboard' && method === 'GET') {
             return await getDashboardOverview();
         }
-        
-        // Stands management
         if (path === '/admin/stands' && method === 'GET') {
             return await listStands(event);
         }
@@ -79,16 +72,12 @@ exports.handler = async (event) => {
         if (path.match(/\/admin\/stands\/[^\/]+$/) && method === 'DELETE') {
             return await deleteStand(event);
         }
-        
-        // Users management
         if (path === '/admin/users' && method === 'GET') {
             return await listUsers(event);
         }
         if (path.match(/\/admin\/users\/[^\/]+$/) && method === 'PUT') {
             return await updateUser(event);
         }
-        
-        // Orders management
         if (path === '/admin/orders' && method === 'GET') {
             return await listOrders(event);
         }
@@ -101,30 +90,46 @@ exports.handler = async (event) => {
         return errorResponse(404, 'Endpoint not found');
         
     } catch (error) {
-        console.error('Error:', error);
-        return errorResponse(500, error.message);
+        console.error('Unhandled error in admin Lambda:', error);
+        return errorResponse(500, 'Internal server error', event);
     }
 };
 
 /**
- * Verify admin role from authorization token
+ * Verify admin role from JWT token.
+ *
+ * Requires:
+ *   - Valid Cognito access token in Authorization: Bearer <token> header
+ *   - Token issuer matches COGNITO_USER_POOL_ID
+ *   - Token "cognito:groups" claim includes "admin"
+ *
+ * Returns the decoded payload on success, null on failure.
  */
 async function verifyAdminRole(event) {
-    // TODO: Implement proper JWT verification with Cognito
-    // For now, check for admin token in header
-    const authHeader = event.headers.Authorization || event.headers.authorization;
-    
-    if (!authHeader) {
-        return false;
+    const headers = event.headers || {};
+    const authHeader = headers['Authorization'] || headers['authorization'] || '';
+
+    if (!authHeader.startsWith('Bearer ')) return null;
+
+    const token = authHeader.slice(7);
+    if (!token) return null;
+
+    try {
+        const payload = await getVerifier().verify(token);
+
+        // Check the user belongs to the "admin" Cognito group
+        const groups = payload['cognito:groups'] || [];
+        if (!groups.includes('admin')) {
+            console.warn('Access denied: user not in admin group', payload.sub);
+            return null;
+        }
+
+        return payload;
+    } catch (err) {
+        // Log for CloudWatch but never expose details to caller
+        console.warn('JWT verification failed:', err.message);
+        return null;
     }
-    
-    // Simple check - in production, verify JWT token with Cognito
-    // and check user groups/roles
-    const token = authHeader.replace('Bearer ', '');
-    
-    // Placeholder: Accept any valid-looking token for now
-    // PRODUCTION: Verify with Cognito and check admin group
-    return token && token.length > 20;
 }
 
 /**
@@ -137,8 +142,6 @@ async function getDashboardOverview() {
             TableName: STANDS_TABLE,
             Select: 'COUNT'
         }));
-        
-        // Calculate statistics
         const stats = {
             totalStands: standsResult.Count || 0,
             totalUsers: 0, // Calculated from Cognito
@@ -146,8 +149,6 @@ async function getDashboardOverview() {
             totalRevenue: 0,
             recentActivity: []
         };
-        
-        // Try to get orders if table exists
         try {
             const ordersResult = await docClient.send(new ScanCommand({
                 TableName: ORDERS_TABLE,
@@ -156,19 +157,22 @@ async function getDashboardOverview() {
             
             if (ordersResult.Items) {
                 stats.totalOrders = ordersResult.Items.length;
+                // amountInCents is what checkout Lambda writes; divide by 100 for display.
+                // Older orders may have total_amount (legacy float) — fall back gracefully.
                 stats.totalRevenue = ordersResult.Items.reduce((sum, order) => {
-                    return sum + (parseFloat(order.total_amount) || 0);
-                }, 0);
-                
-                // Get recent orders
+                    const cents  = typeof order.amountInCents === 'number' ? order.amountInCents : null;
+                    const legacy = typeof order.total_amount  === 'number' ? order.total_amount * 100 : 0;
+                    return sum + (cents !== null ? cents : legacy);
+                }, 0) / 100;
                 stats.recentActivity = ordersResult.Items
                     .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
                     .slice(0, 5)
                     .map(order => ({
-                        type: 'order',
-                        id: order.order_id,
-                        amount: order.total_amount,
-                        created_at: order.created_at
+                        type:       'order',
+                        id:         order.orderId || order.order_id || '(unknown)',
+                        amountEur:  ((order.amountInCents || 0) / 100).toFixed(2),
+                        status:     order.status || 'unknown',
+                        createdAt:  order.createdAt || order.created_at || null,
                     }));
             }
         } catch (e) {
@@ -196,20 +200,24 @@ async function listStands(event) {
             TableName: STANDS_TABLE,
             Limit: limit
         };
-        
-        // Add filter if status specified
         if (status && status !== 'all') {
             params.FilterExpression = '#status = :status';
             params.ExpressionAttributeNames = { '#status': 'status' };
             params.ExpressionAttributeValues = { ':status': status };
         }
         
-        const result = await docClient.send(new ScanCommand(params));
-        
+        const exclusiveStartKey = event.queryStringParameters?.cursor
+            ? JSON.parse(Buffer.from(event.queryStringParameters.cursor, 'base64').toString())
+            : undefined;
+
+        const { items, nextKey } = await scanPage(docClient, params, exclusiveStartKey);
+
         return successResponse({
-            stands: result.Items || [],
-            count: result.Count,
-            lastEvaluatedKey: result.LastEvaluatedKey
+            stands:     items,
+            count:      items.length,
+            nextCursor: nextKey
+                ? Buffer.from(JSON.stringify(nextKey)).toString('base64')
+                : null,
         });
         
     } catch (error) {
@@ -247,8 +255,6 @@ async function getStand(event) {
  */
 async function createStand(event) {
     const body = JSON.parse(event.body || '{}');
-    
-    // Validate required fields
     if (!body.name || !body.booth_number) {
         return errorResponse(400, 'Missing required fields: name, booth_number');
     }
@@ -374,14 +380,22 @@ async function listOrders(event) {
     const limit = parseInt(queryParams.limit) || 50;
     
     try {
-        const result = await docClient.send(new ScanCommand({
-            TableName: ORDERS_TABLE,
-            Limit: limit
-        }));
-        
+        const exclusiveStartKey = event.queryStringParameters?.cursor
+            ? JSON.parse(Buffer.from(event.queryStringParameters.cursor, 'base64').toString())
+            : undefined;
+
+        const { items, nextKey } = await scanPage(
+            docClient,
+            { TableName: ORDERS_TABLE, Limit: limit },
+            exclusiveStartKey
+        );
+
         return successResponse({
-            orders: result.Items || [],
-            count: result.Count
+            orders:     items,
+            count:      items.length,
+            nextCursor: nextKey
+                ? Buffer.from(JSON.stringify(nextKey)).toString('base64')
+                : null,
         });
         
     } catch (error) {
@@ -402,27 +416,25 @@ async function getAnalytics(event) {
     const days = parseInt(queryParams.days) || 30;
     
     try {
-        // Get stands performance
-        const standsResult = await docClient.send(new ScanCommand({
-            TableName: STANDS_TABLE
-        }));
-        
+        // Get stands performance — scanAll ensures we get all pages
+        const allStands = await scanAll(docClient, { TableName: STANDS_TABLE });
+
         const analytics = {
             period: `${days} days`,
             stands: {
-                total: standsResult.Count || 0,
-                active: (standsResult.Items || []).filter(s => s.status === 'approved').length,
-                pending: (standsResult.Items || []).filter(s => s.status === 'pending').length
+                total:   allStands.length,
+                active:  allStands.filter(s => s.status === 'approved').length,
+                pending: allStands.filter(s => s.status === 'pending').length,
             },
-            topStands: (standsResult.Items || [])
+            topStands: allStands
                 .sort((a, b) => (b.views || 0) - (a.views || 0))
                 .slice(0, 10)
                 .map(stand => ({
                     stand_id: stand.stand_id,
-                    name: stand.name,
-                    views: stand.views || 0,
-                    rating: stand.rating || 0
-                }))
+                    name:     stand.name,
+                    views:    stand.views || 0,
+                    rating:   stand.rating || 0,
+                })),
         };
         
         return successResponse(analytics);
@@ -436,24 +448,21 @@ async function getAnalytics(event) {
 /**
  * Success response helper
  */
-function successResponse(data, statusCode = 200) {
+function successResponse(data, statusCode = 200, event = {}) {
     return {
         statusCode,
-        headers: CORS_HEADERS,
+        headers: corsHeaders(event),
         body: JSON.stringify(data)
     };
 }
 
 /**
- * Error response helper
+ * Error response helper — never exposes internal error.message
  */
-function errorResponse(statusCode, message) {
+function errorResponse(statusCode, message, event = {}) {
     return {
         statusCode,
-        headers: CORS_HEADERS,
-        body: JSON.stringify({
-            error: message,
-            statusCode
-        })
+        headers: corsHeaders(event),
+        body: JSON.stringify({ error: message, statusCode })
     };
 }

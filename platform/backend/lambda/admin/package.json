@@ -14,7 +14,8 @@
   "author": "AI Pavilion Team",
   "license": "MIT",
   "dependencies": {
-    "@aws-sdk/client-dynamodb": "^3.450.0",
-    "@aws-sdk/lib-dynamodb": "^3.450.0"
+    "@aws-sdk/client-dynamodb": "^3.600.0",
+    "@aws-sdk/lib-dynamodb": "^3.600.0",
+    "aws-jwt-verify": "^4.0.1"
   }
 }

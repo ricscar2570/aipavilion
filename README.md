@@ -1,41 +1,76 @@
-# 🔧 BUG FIXES PACKAGE - READY TO INTEGRATE
+# AI Pavilion
 
-## ✅ All 7 Bugs Fixed
+Virtual gaming expo platform. Exhibitors get a branded stand with product listings, AR model support, and 360° tour embedding. Visitors browse, add to cart, and pay via Stripe.
 
-This package contains production-ready fixes for:
-- Bug #9: Error Handling
-- Bug #10: Input Validation
-- Bug #13: Rate Limiting  
-- Bug #15: Frontend Optimization
-- Bug #16: Image Optimization
-- Bug #17: Monitoring Integration
-- Bug #20: Rollback Procedures
+Built on AWS serverless: Lambda + DynamoDB + Cognito + S3/CloudFront.
 
-## 📦 Package Contents
+---
 
-See BUG-FIXES-COMPLETE.md for complete implementation details.
-See VERIFICATION-COMPLETE.md for verification report.
+## What's included
 
-## 🚀 Quick Start
+**Backend (Lambda)**
+- Auth — Cognito signup/signin with email verification
+- Checkout — Stripe PaymentIntent flow with server-side total validation and webhook handling
+- Stands — CRUD for stand listings with full DynamoDB pagination
+- Products — product catalogue per stand
+- Admin — JWT-verified admin API (requires Cognito group `admin`)
+- Interaction tracking
 
-1. Extract package
-2. Read INTEGRATION-GUIDE.md
-3. Copy files to your repository
-4. Install dependencies
-5. Update Lambda functions
-6. Test thoroughly
+**Frontend**
+- Stand grid with search
+- Stand detail page with product listings, AR viewer (model-viewer), 360° tours (Pannellum)
+- Cart and Stripe Elements checkout
+- User dashboard (orders, saved stands)
+- Hash-based routing, no framework dependency
 
-## ⚠️ Important
+---
 
-These fixes are CODE-COMPLETE but NOT TESTED on AWS.
-You MUST integrate and test before production use.
+## Requirements
 
-Time to integrate: 30 minutes - 2 hours
-Time to test: 1-2 days
-Total: 2-3 days to production-ready
+- AWS account with CLI configured (`aws configure`)
+- Node.js 18+
+- Stripe account (test keys to start)
 
-## 📊 Quality
+---
 
-Code Quality: ⭐⭐⭐⭐⭐ (100%)
-Test Coverage: 🔴 (0% - YOU must test)
-Production Ready: 🟡 (After testing)
+## Setup
+
+```bash
+cd platform
+npm install
+
+# Copy and fill in your keys
+cp .env.example .env
+cp backend/config/config.env.example backend/config/config.env
+
+# Validate config before deploying
+npm run validate-config
+
+# Deploy
+./master-deploy.sh
+```
+
+See `platform/QUICKSTART.md` for a step-by-step walkthrough.
+
+---
+
+## Architecture
+
+```
+CloudFront → S3 (frontend bundle)
+          → API Gateway → Lambda functions → DynamoDB
+                        → Cognito (auth)
+                        → Stripe (payments via Secrets Manager)
+```
+
+---
+
+## Status
+
+Working MVP. Requires an AWS account and real keys to run end-to-end. Not yet battle-tested in production — expect to spend time on IAM policies, API Gateway configuration, and Stripe webhook registration before going live.
+
+---
+
+## License
+
+MIT

@@ -462,7 +462,7 @@ AI Pavilion Team
 📧 Email: sales@aipavilion.com
 🌐 Website: aipavilion.com
 💬 Discord: discord.gg/aipavilion
-🐦 Twitter: @AIPayilion
+🐦 Twitter: @AIPavilion
 
 📞 Sales: +1 (555) 123-4567
 📞 Support: +1 (555) 123-4568

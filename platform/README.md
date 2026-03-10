@@ -391,7 +391,7 @@ Special thanks to all contributors and the gaming community! 🎮
 
 - 📧 **Email:** support@aipavilion.example
 - 💬 **Discord:** [Join our server](https://discord.gg/aipavilion)
-- 🐦 **Twitter:** [@AIPayilion](https://twitter.com/aipavilion)
+- 🐦 **Twitter:** [@AIPavilion](https://twitter.com/aipavilion)
 - 📝 **Blog:** [blog.aipavilion.com](https://blog.aipavilion.com)
 
 ### Getting Help
