@@ -1,78 +1,52 @@
-# 🚀 Quick Start - AI Pavilion
+# 🚀 AI PAVILION - QUICK START
 
-Get your virtual gaming expo running in **10 minutes**!
+Get your platform live in 15 minutes!
 
 ## Prerequisites
 
-- ✅ AWS Account ([Sign up](https://aws.amazon.com/))
-- ✅ AWS CLI installed and configured
-- ✅ Node.js 18+ installed
-- ✅ Stripe account ([Get test keys](https://dashboard.stripe.com/test/apikeys))
+- AWS Account (free tier OK)
+- Node.js 18+ installed
+- Stripe Account (test mode fine)
 
-## Installation
+## Steps
 
-### 1️⃣ Clone & Navigate
+### 1. Setup (5 minutes)
+
 ```bash
-git clone https://github.com/yourusername/ai-pavilion.git
-cd ai-pavilion
-```
-
-### 2️⃣ Configure AWS
-```bash
+# Configure AWS
 aws configure
 # Enter your AWS credentials
+
+# Get Stripe keys from dashboard.stripe.com
+export STRIPE_SECRET_KEY="sk_test_..."
+export STRIPE_PUBLISHABLE_KEY="pk_test_..."
 ```
 
-### 3️⃣ Set Stripe Keys
+### 2. Deploy (10 minutes)
+
 ```bash
-export STRIPE_SECRET_KEY='sk_test_YOUR_KEY'
-export STRIPE_PUBLISHABLE_KEY='pk_test_YOUR_KEY'
+cd platform
+chmod +x master-deploy.sh
+./master-deploy.sh
 ```
 
-### 4️⃣ Deploy Everything
-```bash
-cd backend/scripts
-chmod +x deploy-all.sh
-./deploy-all.sh
-```
+Choose option 1: Quick Start
 
-⏱️ **Deployment takes ~5-10 minutes**
+### 3. Access (immediate)
 
-### 5️⃣ Access Your Platform
-```bash
-# URL will be displayed at end of deployment
-# Example: https://d123abc.cloudfront.net
-```
+Visit the URLs shown in deployment summary.
 
-## First Login
+**Demo Credentials:**
+- Email: admin@aipavilion.demo
+- Password: AdminDemo2026!
 
-```
-Email: test@aipavilion.demo
-Password: TestPass123!
-```
+## What's Next?
 
-## What's Deployed?
+1. ✅ Test all features
+2. ✅ Customize branding
+3. ✅ Review docs/30-DAY-GTM-PLAN.md
+4. ✅ Start marketing!
 
-✅ **Authentication** - Cognito User Pool  
-✅ **Payments** - Stripe integration  
-✅ **Database** - DynamoDB tables  
-✅ **API** - Lambda + API Gateway  
-✅ **Frontend** - S3 + CloudFront  
-✅ **AR/360°** - Model storage  
+## Need Help?
 
-## Next Steps
-
-- 📖 Read [Full Documentation](./docs/en/README.md)
-- 🎨 Customize [Configuration](./docs/en/CONFIGURATION.md)
-- 🚀 Deploy to production
-- 🌐 Add custom domain
-
-## Support
-
-- 📧 Email: support@aipavilion.example
-- 💬 [Discord Community](https://discord.gg/aipavilion)
-- 📝 [GitHub Issues](https://github.com/yourusername/ai-pavilion/issues)
-
----
-
-**Ready to build your virtual expo!** 🎮✨
+Read MASTER-README.md for complete documentation.

@@ -1,0 +1,13 @@
+.
+./docs
+./gtm-materials
+./gtm-materials/analytics
+./gtm-materials/demos
+./gtm-materials/marketing
+./gtm-materials/sales
+./platform
+./platform/.github
+./platform/backend
+./platform/docs
+./platform/frontend
+./platform/infrastructure

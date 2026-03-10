@@ -1,0 +1,622 @@
+{
+    "Items": [
+        {
+            "website": {
+                "S": "https://studio9.example"
+            },
+            "created_at": {
+                "N": "1762012298"
+            },
+            "stand_id": {
+                "S": "stand-009"
+            },
+            "rating": {
+                "N": "4.3"
+            },
+            "contact_phone": {
+                "S": "+1-555-009"
+            },
+            "long_description": {
+                "S": "We are passionate game developers creating memorable experiences for players worldwide. Visit our booth to try our latest titles and meet the team behind the games."
+            },
+            "view_count": {
+                "N": "7941"
+            },
+            "contact_email": {
+                "S": "contact@studio9.example"
+            },
+            "name": {
+                "S": "Nova Gaming"
+            },
+            "updated_at": {
+                "N": "1762012298"
+            },
+            "is_sponsored": {
+                "BOOL": false
+            },
+            "booth_number": {
+                "S": "E-590"
+            },
+            "category": {
+                "S": "puzzle"
+            },
+            "image_url": {
+                "S": "https://images.unsplash.com/photo-1511882150382-421056c89033?w=800&h=600&fit=crop"
+            },
+            "description": {
+                "S": "Amazing games and interactive experiences from talented developers. Join us to explore innovative gameplay and cutting-edge technology."
+            },
+            "tags": {
+                "L": [
+                    {
+                        "S": "Gaming"
+                    },
+                    {
+                        "S": "Fun"
+                    },
+                    {
+                        "S": "Innovation"
+                    }
+                ]
+            }
+        },
+        {
+            "website": {
+                "S": "https://epicgames.example"
+            },
+            "created_at": {
+                "N": "1762012298"
+            },
+            "stand_id": {
+                "S": "stand-001"
+            },
+            "rating": {
+                "N": "4.8"
+            },
+            "contact_phone": {
+                "S": "+1-555-0001"
+            },
+            "long_description": {
+                "S": "Epic Games revolutionizes gaming with Unreal Engine 5, featuring Nanite virtualized geometry and Lumen global illumination. Join us to explore next-generation game development tools, multiplayer services, and the Epic Games Store ecosystem."
+            },
+            "view_count": {
+                "N": "15420"
+            },
+            "contact_email": {
+                "S": "contact@epicgames.example"
+            },
+            "name": {
+                "S": "Epic Games Studio"
+            },
+            "updated_at": {
+                "N": "1762012298"
+            },
+            "is_sponsored": {
+                "BOOL": true
+            },
+            "booth_number": {
+                "S": "A-101"
+            },
+            "category": {
+                "S": "action"
+            },
+            "image_url": {
+                "S": "https://images.unsplash.com/photo-1552820728-8b83bb6b773f?w=800&h=600&fit=crop"
+            },
+            "description": {
+                "S": "Create stunning AAA action games with Unreal Engine 5. Discover the latest in real-time 3D creation tools and cutting-edge graphics technology."
+            },
+            "tags": {
+                "L": [
+                    {
+                        "S": "AAA"
+                    },
+                    {
+                        "S": "Unreal"
+                    },
+                    {
+                        "S": "Action"
+                    },
+                    {
+                        "S": "3D"
+                    }
+                ]
+            }
+        },
+        {
+            "website": {
+                "S": "https://pixelartgames.example"
+            },
+            "created_at": {
+                "N": "1762012298"
+            },
+            "stand_id": {
+                "S": "stand-005"
+            },
+            "rating": {
+                "N": "4.5"
+            },
+            "contact_phone": {
+                "S": "+1-555-0005"
+            },
+            "long_description": {
+                "S": "Pixel Art Games celebrates the timeless beauty of pixel art with contemporary game design. Our portfolio includes platformers, metroidvanias, and RPGs that capture the magic of classic gaming while introducing fresh ideas and mechanics."
+            },
+            "view_count": {
+                "N": "7654"
+            },
+            "contact_email": {
+                "S": "hello@pixelartgames.example"
+            },
+            "name": {
+                "S": "Pixel Art Games"
+            },
+            "updated_at": {
+                "N": "1762012298"
+            },
+            "is_sponsored": {
+                "BOOL": false
+            },
+            "booth_number": {
+                "S": "B-220"
+            },
+            "category": {
+                "S": "indie"
+            },
+            "image_url": {
+                "S": "https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=800&h=600&fit=crop"
+            },
+            "description": {
+                "S": "Retro-inspired pixel art games with modern gameplay mechanics. Nostalgia meets innovation in beautifully crafted 2D adventures."
+            },
+            "tags": {
+                "L": [
+                    {
+                        "S": "Pixel Art"
+                    },
+                    {
+                        "S": "Retro"
+                    },
+                    {
+                        "S": "2D"
+                    },
+                    {
+                        "S": "Indie"
+                    }
+                ]
+            }
+        },
+        {
+            "website": {
+                "S": "https://studio7.example"
+            },
+            "created_at": {
+                "N": "1762012298"
+            },
+            "stand_id": {
+                "S": "stand-007"
+            },
+            "rating": {
+                "N": "4.1"
+            },
+            "contact_phone": {
+                "S": "+1-555-007"
+            },
+            "long_description": {
+                "S": "We are passionate game developers creating memorable experiences for players worldwide. Visit our booth to try our latest titles and meet the team behind the games."
+            },
+            "view_count": {
+                "N": "6907"
+            },
+            "contact_email": {
+                "S": "contact@studio7.example"
+            },
+            "name": {
+                "S": "Crystal Studios"
+            },
+            "updated_at": {
+                "N": "1762012298"
+            },
+            "is_sponsored": {
+                "BOOL": false
+            },
+            "booth_number": {
+                "S": "E-570"
+            },
+            "category": {
+                "S": "rpg"
+            },
+            "image_url": {
+                "S": "https://images.unsplash.com/photo-1511882150382-421056c89033?w=800&h=600&fit=crop"
+            },
+            "description": {
+                "S": "Amazing games and interactive experiences from talented developers. Join us to explore innovative gameplay and cutting-edge technology."
+            },
+            "tags": {
+                "L": [
+                    {
+                        "S": "Gaming"
+                    },
+                    {
+                        "S": "Fun"
+                    },
+                    {
+                        "S": "Innovation"
+                    }
+                ]
+            }
+        },
+        {
+            "website": {
+                "S": "https://indieparadise.example"
+            },
+            "created_at": {
+                "N": "1762012298"
+            },
+            "stand_id": {
+                "S": "stand-002"
+            },
+            "rating": {
+                "N": "4.9"
+            },
+            "contact_phone": {
+                "S": "+1-555-0002"
+            },
+            "long_description": {
+                "S": "Indie Paradise showcases the best independent games from solo developers and small studios. Experience innovative mechanics, unique art styles, and heartfelt stories that push the boundaries of what games can be."
+            },
+            "view_count": {
+                "N": "12890"
+            },
+            "contact_email": {
+                "S": "hello@indieparadise.example"
+            },
+            "name": {
+                "S": "Indie Paradise"
+            },
+            "updated_at": {
+                "N": "1762012298"
+            },
+            "is_sponsored": {
+                "BOOL": true
+            },
+            "booth_number": {
+                "S": "B-205"
+            },
+            "category": {
+                "S": "indie"
+            },
+            "image_url": {
+                "S": "https://images.unsplash.com/photo-1511512578047-dfb367046420?w=800&h=600&fit=crop"
+            },
+            "description": {
+                "S": "Discover unique indie masterpieces from talented independent creators around the world. Innovative gameplay, artistic vision, and creative storytelling."
+            },
+            "tags": {
+                "L": [
+                    {
+                        "S": "Indie"
+                    },
+                    {
+                        "S": "Art"
+                    },
+                    {
+                        "S": "Story"
+                    },
+                    {
+                        "S": "Innovation"
+                    }
+                ]
+            }
+        },
+        {
+            "website": {
+                "S": "https://studio8.example"
+            },
+            "created_at": {
+                "N": "1762012298"
+            },
+            "stand_id": {
+                "S": "stand-008"
+            },
+            "rating": {
+                "N": "4.2"
+            },
+            "contact_phone": {
+                "S": "+1-555-008"
+            },
+            "long_description": {
+                "S": "We are passionate game developers creating memorable experiences for players worldwide. Visit our booth to try our latest titles and meet the team behind the games."
+            },
+            "view_count": {
+                "N": "5597"
+            },
+            "contact_email": {
+                "S": "contact@studio8.example"
+            },
+            "name": {
+                "S": "Phoenix Interactive"
+            },
+            "updated_at": {
+                "N": "1762012298"
+            },
+            "is_sponsored": {
+                "BOOL": false
+            },
+            "booth_number": {
+                "S": "E-580"
+            },
+            "category": {
+                "S": "strategy"
+            },
+            "image_url": {
+                "S": "https://images.unsplash.com/photo-1511882150382-421056c89033?w=800&h=600&fit=crop"
+            },
+            "description": {
+                "S": "Amazing games and interactive experiences from talented developers. Join us to explore innovative gameplay and cutting-edge technology."
+            },
+            "tags": {
+                "L": [
+                    {
+                        "S": "Gaming"
+                    },
+                    {
+                        "S": "Fun"
+                    },
+                    {
+                        "S": "Innovation"
+                    }
+                ]
+            }
+        },
+        {
+            "website": {
+                "S": "https://dragonquest.example"
+            },
+            "created_at": {
+                "N": "1762012298"
+            },
+            "stand_id": {
+                "S": "stand-003"
+            },
+            "rating": {
+                "N": "4.7"
+            },
+            "contact_phone": {
+                "S": "+1-555-0003"
+            },
+            "long_description": {
+                "S": "Dragon Quest Studios brings you classic JRPG excellence with modern gameplay. Explore vast fantasy realms, build your party of heroes, and embark on epic quests that will test your courage and wit."
+            },
+            "view_count": {
+                "N": "18750"
+            },
+            "contact_email": {
+                "S": "info@dragonquest.example"
+            },
+            "name": {
+                "S": "Dragon Quest Studios"
+            },
+            "updated_at": {
+                "N": "1762012298"
+            },
+            "is_sponsored": {
+                "BOOL": true
+            },
+            "booth_number": {
+                "S": "C-310"
+            },
+            "category": {
+                "S": "rpg"
+            },
+            "image_url": {
+                "S": "https://images.unsplash.com/photo-1538481199705-c710c4e965fc?w=800&h=600&fit=crop"
+            },
+            "description": {
+                "S": "Epic role-playing adventures with deep character development and immersive fantasy worlds. Experience legendary quests and unforgettable stories."
+            },
+            "tags": {
+                "L": [
+                    {
+                        "S": "RPG"
+                    },
+                    {
+                        "S": "Fantasy"
+                    },
+                    {
+                        "S": "Story"
+                    },
+                    {
+                        "S": "Adventure"
+                    }
+                ]
+            }
+        },
+        {
+            "website": {
+                "S": "https://vrinnovations.example"
+            },
+            "created_at": {
+                "N": "1762012298"
+            },
+            "stand_id": {
+                "S": "stand-004"
+            },
+            "rating": {
+                "N": "4.6"
+            },
+            "contact_phone": {
+                "S": "+1-555-0004"
+            },
+            "long_description": {
+                "S": "VR Innovations leads the future of gaming with revolutionary VR experiences. Try our latest titles featuring hand tracking, full-body locomotion, and photorealistic environments that blur the line between reality and virtual worlds."
+            },
+            "view_count": {
+                "N": "9870"
+            },
+            "contact_email": {
+                "S": "contact@vrinnovations.example"
+            },
+            "name": {
+                "S": "VR Innovations"
+            },
+            "updated_at": {
+                "N": "1762012298"
+            },
+            "is_sponsored": {
+                "BOOL": false
+            },
+            "booth_number": {
+                "S": "D-415"
+            },
+            "category": {
+                "S": "vr"
+            },
+            "image_url": {
+                "S": "https://images.unsplash.com/photo-1622979135225-d2ba269cf1ac?w=800&h=600&fit=crop"
+            },
+            "description": {
+                "S": "Cutting-edge virtual reality experiences and next-generation immersive technology. Step into new worlds with groundbreaking VR gameplay."
+            },
+            "tags": {
+                "L": [
+                    {
+                        "S": "VR"
+                    },
+                    {
+                        "S": "Innovation"
+                    },
+                    {
+                        "S": "Immersive"
+                    },
+                    {
+                        "S": "Tech"
+                    }
+                ]
+            }
+        },
+        {
+            "website": {
+                "S": "https://studio6.example"
+            },
+            "created_at": {
+                "N": "1762012298"
+            },
+            "stand_id": {
+                "S": "stand-006"
+            },
+            "rating": {
+                "N": "4"
+            },
+            "contact_phone": {
+                "S": "+1-555-006"
+            },
+            "long_description": {
+                "S": "We are passionate game developers creating memorable experiences for players worldwide. Visit our booth to try our latest titles and meet the team behind the games."
+            },
+            "view_count": {
+                "N": "5254"
+            },
+            "contact_email": {
+                "S": "contact@studio6.example"
+            },
+            "name": {
+                "S": "Thunder Games"
+            },
+            "updated_at": {
+                "N": "1762012298"
+            },
+            "is_sponsored": {
+                "BOOL": false
+            },
+            "booth_number": {
+                "S": "E-560"
+            },
+            "category": {
+                "S": "action"
+            },
+            "image_url": {
+                "S": "https://images.unsplash.com/photo-1511882150382-421056c89033?w=800&h=600&fit=crop"
+            },
+            "description": {
+                "S": "Amazing games and interactive experiences from talented developers. Join us to explore innovative gameplay and cutting-edge technology."
+            },
+            "tags": {
+                "L": [
+                    {
+                        "S": "Gaming"
+                    },
+                    {
+                        "S": "Fun"
+                    },
+                    {
+                        "S": "Innovation"
+                    }
+                ]
+            }
+        },
+        {
+            "website": {
+                "S": "https://studio10.example"
+            },
+            "created_at": {
+                "N": "1762012298"
+            },
+            "stand_id": {
+                "S": "stand-0010"
+            },
+            "rating": {
+                "N": "4.4"
+            },
+            "contact_phone": {
+                "S": "+1-555-0010"
+            },
+            "long_description": {
+                "S": "We are passionate game developers creating memorable experiences for players worldwide. Visit our booth to try our latest titles and meet the team behind the games."
+            },
+            "view_count": {
+                "N": "6866"
+            },
+            "contact_email": {
+                "S": "contact@studio10.example"
+            },
+            "name": {
+                "S": "Stellar Devs"
+            },
+            "updated_at": {
+                "N": "1762012298"
+            },
+            "is_sponsored": {
+                "BOOL": false
+            },
+            "booth_number": {
+                "S": "E-5100"
+            },
+            "category": {
+                "S": "adventure"
+            },
+            "image_url": {
+                "S": "https://images.unsplash.com/photo-1511882150382-421056c89033?w=800&h=600&fit=crop"
+            },
+            "description": {
+                "S": "Amazing games and interactive experiences from talented developers. Join us to explore innovative gameplay and cutting-edge technology."
+            },
+            "tags": {
+                "L": [
+                    {
+                        "S": "Gaming"
+                    },
+                    {
+                        "S": "Fun"
+                    },
+                    {
+                        "S": "Innovation"
+                    }
+                ]
+            }
+        }
+    ],
+    "Count": 10,
+    "ScannedCount": 10,
+    "ConsumedCapacity": null
+}

@@ -1,0 +1,45 @@
+{
+  "stands": [
+    {
+      "stand_id": "stand_001",
+      "name": "Epic Games Showcase",
+      "booth_number": "A42",
+      "category": "action",
+      "description": "Experience the latest AAA titles from Epic Games with AR demos and exclusive merchandise.",
+      "image_url": "https://via.placeholder.com/400x300?text=Epic+Games",
+      "is_sponsored": true,
+      "ar_enabled": true,
+      "tour_enabled": true,
+      "rating": 4.8,
+      "products": [
+        {
+          "id": "prod_001",
+          "name": "Unreal Tournament Remastered",
+          "price": 59.99,
+          "category": "games",
+          "image_url": "https://via.placeholder.com/200x200?text=UT",
+          "ar_model_url": "https://modelviewer.dev/shared-assets/models/Astronaut.glb"
+        },
+        {
+          "id": "prod_002",
+          "name": "Epic Exclusive T-Shirt",
+          "price": 29.99,
+          "category": "merchandise",
+          "image_url": "https://via.placeholder.com/200x200?text=Shirt"
+        }
+      ]
+    },
+    {
+      "stand_id": "stand_002",
+      "name": "Indie Corner",
+      "booth_number": "B15",
+      "category": "indie",
+      "description": "Discover amazing indie games from talented developers worldwide.",
+      "image_url": "https://via.placeholder.com/400x300?text=Indie+Games",
+      "is_sponsored": false,
+      "ar_enabled": false,
+      "tour_enabled": true,
+      "rating": 4.5
+    }
+  ]
+}

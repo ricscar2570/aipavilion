@@ -1,0 +1,36 @@
+{
+  "name": "ai-pavilion",
+  "version": "2.0.0",
+  "description": "Virtual Gaming Expo Platform with AR and 360° Tours",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest",
+    "lint": "eslint .",
+    "format": "prettier --write \"**/*.{js,json,md}\"",
+    "deploy": "cd backend/scripts && ./deploy-all.sh",
+    "dev": "cd frontend && python3 -m http.server 8000"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yourusername/ai-pavilion.git"
+  },
+  "keywords": [
+    "virtual-events",
+    "gaming-expo",
+    "ar",
+    "360-tours",
+    "aws",
+    "serverless"
+  ],
+  "author": "AI Pavilion Team",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/yourusername/ai-pavilion/issues"
+  },
+  "homepage": "https://github.com/yourusername/ai-pavilion#readme",
+  "devDependencies": {
+    "eslint": "^8.50.0",
+    "jest": "^29.7.0",
+    "prettier": "^3.0.3"
+  }
+}
