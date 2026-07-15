@@ -1,0 +1,68 @@
+name: Deploy persistent staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Protected GitHub environment
+        required: true
+        default: staging
+        type: choice
+        options: [staging, production]
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: ai-pavilion-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: ${{ inputs.environment }}
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'eu-west-1' }}
+      ENVIRONMENT: ${{ inputs.environment }}
+      ALLOWED_ORIGIN: ${{ vars.APP_URL }}
+      APP_URL: ${{ vars.APP_URL }}
+      ALERT_EMAIL: ${{ vars.ALERT_EMAIL }}
+      INVITATION_EMAIL_FROM: ${{ vars.INVITATION_EMAIL_FROM }}
+      BOT_CHALLENGE_SECRET: ${{ secrets.BOT_CHALLENGE_SECRET }}
+      TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
+      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+      STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+      STRIPE_BILLING_WEBHOOK_SECRET: ${{ secrets.STRIPE_BILLING_WEBHOOK_SECRET }}
+      STRIPE_PILOT_PRICE_ID: ${{ vars.STRIPE_PILOT_PRICE_ID }}
+      STRIPE_STARTER_PRICE_ID: ${{ vars.STRIPE_STARTER_PRICE_ID }}
+      STRIPE_PROFESSIONAL_PRICE_ID: ${{ vars.STRIPE_PROFESSIONAL_PRICE_ID }}
+      STRIPE_PUBLISHABLE_KEY: ${{ vars.STRIPE_PUBLISHABLE_KEY }}
+      DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
+      ACM_CERTIFICATE_ARN: ${{ vars.ACM_CERTIFICATE_ARN }}
+      MONTHLY_BUDGET_USD: ${{ vars.MONTHLY_BUDGET_USD || '150' }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.16.0"
+          cache: npm
+      - uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'eu-west-1' }}
+      - name: Deploy, migrate and verify staging
+        run: npm run pilot:deploy
+      - name: Upload deployment outputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.environment }}-deployment-outputs
+          path: .artifacts/*.json
+          if-no-files-found: ignore
+          retention-days: 14

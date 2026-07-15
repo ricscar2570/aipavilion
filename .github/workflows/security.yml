@@ -1,0 +1,36 @@
+name: Security assurance
+
+on:
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  dependencies-and-static-analysis:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.16.0"
+          cache: npm
+      - run: npm ci
+      - name: Dependency vulnerability gate
+        run: npm audit --audit-level=high
+      - name: Source, contracts and generated pilot verification
+        run: npm run verify
+      - name: Reject common secret formats in tracked source
+        shell: bash
+        run: |
+          if grep -RIE --exclude-dir=node_modules --exclude='*.md' \
+            '(AKIA[0-9A-Z]{16}|sk_(live|test)_[A-Za-z0-9]{20,}|whsec_[A-Za-z0-9]{20,})' .; then
+            echo "Potential credential committed to source" >&2
+            exit 1
+          fi

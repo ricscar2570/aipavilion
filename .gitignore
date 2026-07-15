@@ -1,6 +1,5 @@
 # Dependencies
 node_modules/
-package-lock.json
 yarn.lock
 
 # Environment variables
@@ -56,3 +55,10 @@ config/secrets.json
 # Backup
 *.backup
 *.bak
+
+.aws-sam/
+
+# Disposable development stack artifacts
+.artifacts/
+playwright-report/
+test-results/

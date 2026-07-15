@@ -1,0 +1,90 @@
+{
+  "stands": [
+    {
+      "stand_id": "stand_boardgames_atlas",
+      "name": "Boardgames Atlas",
+      "booth_number": "A01",
+      "category": "board-games",
+      "description": "A curated pavilion for modern board games, previews and designer interviews.",
+      "image_url": "https://placehold.co/800x500?text=Boardgames+Atlas",
+      "is_sponsored": true,
+      "ar_enabled": false,
+      "tour_enabled": false,
+      "rating": 4.8,
+      "status": "approved",
+      "tags": ["board games", "strategy", "designers"],
+      "products": [
+        {
+          "id": "product_atlas_pass",
+          "name": "Atlas Digital Pass",
+          "description": "Downloadable event pass with bonus interviews and prototype files.",
+          "priceInCents": 1299,
+          "currency": "eur",
+          "category": "digital"
+        },
+        {
+          "id": "product_atlas_bundle",
+          "name": "Designer Preview Bundle",
+          "description": "A collection of print-and-play previews from participating designers.",
+          "priceInCents": 2499,
+          "currency": "eur",
+          "category": "digital"
+        }
+      ],
+      "created_at": "2026-07-01T09:00:00.000Z",
+      "updated_at": "2026-07-01T09:00:00.000Z"
+    },
+    {
+      "stand_id": "stand_indie_foundry",
+      "name": "Indie Foundry",
+      "booth_number": "B14",
+      "category": "indie-games",
+      "description": "Independent tabletop creators presenting playable prototypes and short demos.",
+      "image_url": "https://placehold.co/800x500?text=Indie+Foundry",
+      "is_sponsored": false,
+      "ar_enabled": false,
+      "tour_enabled": false,
+      "rating": 4.6,
+      "status": "approved",
+      "tags": ["indie", "prototypes", "tabletop"],
+      "products": [
+        {
+          "id": "product_indie_sampler",
+          "name": "Indie Prototype Sampler",
+          "description": "Five print-and-play prototypes from emerging designers.",
+          "priceInCents": 999,
+          "currency": "eur",
+          "category": "digital"
+        }
+      ],
+      "created_at": "2026-07-01T09:05:00.000Z",
+      "updated_at": "2026-07-01T09:05:00.000Z"
+    },
+    {
+      "stand_id": "stand_rpg_workshop",
+      "name": "RPG Workshop",
+      "booth_number": "C07",
+      "category": "role-playing-games",
+      "description": "Role-playing game workshops, quickstarts and live design sessions.",
+      "image_url": "https://placehold.co/800x500?text=RPG+Workshop",
+      "is_sponsored": false,
+      "ar_enabled": false,
+      "tour_enabled": false,
+      "rating": 4.7,
+      "status": "approved",
+      "tags": ["rpg", "quickstart", "workshop"],
+      "products": [
+        {
+          "id": "product_rpg_quickstart",
+          "name": "RPG Quickstart Collection",
+          "description": "A downloadable collection of complete quickstarts.",
+          "priceInCents": 1899,
+          "currency": "eur",
+          "category": "digital"
+        }
+      ],
+      "created_at": "2026-07-01T09:10:00.000Z",
+      "updated_at": "2026-07-01T09:10:00.000Z"
+    }
+  ]
+}

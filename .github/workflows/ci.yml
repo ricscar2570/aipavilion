@@ -1,12 +1,71 @@
-name: CI
-on: [push, pull_request]
+name: Continuous integration
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  test:
+  quality:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-    - uses: actions/checkout@v3
-    - uses: actions/setup-node@v3
-      with:
-        node-version: '20.x'
-    - run: cd platform && npm ci
-    - run: cd platform && npm test || echo "Tests not configured"
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.16.0"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify source, contracts, tests, and frontend build
+        run: npm run verify
+
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+
+      - name: Upload frontend build
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist/
+          if-no-files-found: error
+
+  sam:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.16.0"
+          cache: npm
+
+      - name: Set up AWS SAM CLI
+        uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate SAM template
+        run: sam validate --lint --template-file template.yaml
+
+      - name: Build Lambda artifacts
+        run: sam build --template-file template.yaml

@@ -1,0 +1,307 @@
+{
+  "organizations": [
+    {
+      "organizationId": "org_atlas",
+      "name": "Atlas Events",
+      "slug": "atlas-events",
+      "status": "active",
+      "ownerUserId": "pending-dev-owner",
+      "createdAt": "2026-07-01T08:00:00.000Z",
+      "updatedAt": "2026-07-01T08:00:00.000Z",
+      "schemaVersion": 1
+    },
+    {
+      "organizationId": "org_rival",
+      "name": "Rival Convention",
+      "slug": "rival-convention",
+      "status": "active",
+      "ownerUserId": "pending-rival-owner",
+      "createdAt": "2026-07-01T08:10:00.000Z",
+      "updatedAt": "2026-07-01T08:10:00.000Z",
+      "schemaVersion": 1
+    }
+  ],
+  "events": [
+    {
+      "eventId": "evt_atlas_2026",
+      "organizationId": "org_atlas",
+      "name": "Atlas Tabletop Expo 2026",
+      "slug": "atlas-tabletop-expo-2026",
+      "description": "Canonical public pilot event.",
+      "startsAt": "2026-09-10T08:00:00.000Z",
+      "endsAt": "2026-09-12T18:00:00.000Z",
+      "timezone": "Europe/Rome",
+      "visibility": "public",
+      "status": "published",
+      "publicStatus": "published",
+      "publishedAt": "2026-07-01T08:30:00.000Z",
+      "createdAt": "2026-07-01T08:00:00.000Z",
+      "updatedAt": "2026-07-01T08:30:00.000Z",
+      "schemaVersion": 1
+    },
+    {
+      "eventId": "evt_rival_2026",
+      "organizationId": "org_rival",
+      "name": "Rival Expo 2026",
+      "slug": "rival-expo-2026",
+      "description": "Second tenant isolation fixture.",
+      "startsAt": "2026-10-01T08:00:00.000Z",
+      "endsAt": "2026-10-02T18:00:00.000Z",
+      "timezone": "Europe/Rome",
+      "visibility": "public",
+      "status": "published",
+      "publicStatus": "published",
+      "publishedAt": "2026-07-01T08:40:00.000Z",
+      "createdAt": "2026-07-01T08:10:00.000Z",
+      "updatedAt": "2026-07-01T08:40:00.000Z",
+      "schemaVersion": 1
+    }
+  ],
+  "entitlements": [
+    {
+      "organizationId": "org_atlas",
+      "plan": "pilot",
+      "status": "active",
+      "maxActiveEvents": 2,
+      "maxStandsPerEvent": 20,
+      "features": {
+        "whiteLabel": false,
+        "advancedAnalytics": false,
+        "leadExport": true
+      },
+      "validFrom": "2026-07-01T08:00:00.000Z",
+      "validUntil": "2027-01-01T00:00:00.000Z",
+      "updatedAt": "2026-07-01T08:00:00.000Z",
+      "schemaVersion": 1
+    },
+    {
+      "organizationId": "org_rival",
+      "plan": "pilot",
+      "status": "active",
+      "maxActiveEvents": 2,
+      "maxStandsPerEvent": 20,
+      "features": {
+        "whiteLabel": false,
+        "advancedAnalytics": false,
+        "leadExport": true
+      },
+      "validFrom": "2026-07-01T08:00:00.000Z",
+      "validUntil": "2027-01-01T00:00:00.000Z",
+      "updatedAt": "2026-07-01T08:00:00.000Z",
+      "schemaVersion": 1
+    }
+  ],
+  "stands": [
+    {
+      "stand_id": "stand_boardgames_atlas",
+      "name": "Boardgames Atlas",
+      "booth_number": "A01",
+      "category": "board-games",
+      "description": "A curated pavilion for modern board games, previews and designer interviews.",
+      "image_url": "https://placehold.co/800x500?text=Boardgames+Atlas",
+      "is_sponsored": true,
+      "ar_enabled": false,
+      "tour_enabled": false,
+      "rating": 4.8,
+      "status": "published",
+      "tags": [
+        "board games",
+        "strategy",
+        "designers"
+      ],
+      "products": [
+        {
+          "id": "product_atlas_pass",
+          "name": "Atlas Digital Pass",
+          "description": "Downloadable event pass with bonus interviews and prototype files.",
+          "priceInCents": 1299,
+          "currency": "eur",
+          "category": "digital"
+        },
+        {
+          "id": "product_atlas_bundle",
+          "name": "Designer Preview Bundle",
+          "description": "A collection of print-and-play previews from participating designers.",
+          "priceInCents": 2499,
+          "currency": "eur",
+          "category": "digital"
+        }
+      ],
+      "created_at": "2026-07-01T09:00:00.000Z",
+      "updated_at": "2026-07-01T09:00:00.000Z",
+      "visibility": "public",
+      "schemaVersion": 3,
+      "organizationId": "org_atlas",
+      "eventId": "evt_atlas_2026",
+      "ownerUserId": "pending-dev-exhibitor",
+      "exhibitorUserId": "pending-dev-exhibitor",
+      "eventStatus": "published",
+      "updatedAt": "2026-07-01T09:00:00.000Z",
+      "createdAt": "2026-07-01T09:00:00.000Z",
+      "publicationKey": "published#2026-07-01T09:00:00.000Z",
+      "publicStatus": "published"
+    },
+    {
+      "stand_id": "stand_indie_foundry",
+      "name": "Indie Foundry",
+      "booth_number": "B14",
+      "category": "indie-games",
+      "description": "Independent tabletop creators presenting playable prototypes and short demos.",
+      "image_url": "https://placehold.co/800x500?text=Indie+Foundry",
+      "is_sponsored": false,
+      "ar_enabled": false,
+      "tour_enabled": false,
+      "rating": 4.6,
+      "status": "published",
+      "tags": [
+        "indie",
+        "prototypes",
+        "tabletop"
+      ],
+      "products": [
+        {
+          "id": "product_indie_sampler",
+          "name": "Indie Prototype Sampler",
+          "description": "Five print-and-play prototypes from emerging designers.",
+          "priceInCents": 999,
+          "currency": "eur",
+          "category": "digital"
+        }
+      ],
+      "created_at": "2026-07-01T09:05:00.000Z",
+      "updated_at": "2026-07-01T09:05:00.000Z",
+      "visibility": "public",
+      "schemaVersion": 3,
+      "organizationId": "org_atlas",
+      "eventId": "evt_atlas_2026",
+      "ownerUserId": "pending-dev-exhibitor",
+      "exhibitorUserId": "pending-dev-exhibitor",
+      "eventStatus": "published",
+      "updatedAt": "2026-07-01T09:05:00.000Z",
+      "createdAt": "2026-07-01T09:05:00.000Z",
+      "publicationKey": "published#2026-07-01T09:05:00.000Z",
+      "publicStatus": "published"
+    },
+    {
+      "stand_id": "stand_rpg_workshop",
+      "name": "RPG Workshop",
+      "booth_number": "C07",
+      "category": "role-playing-games",
+      "description": "Role-playing game workshops, quickstarts and live design sessions.",
+      "image_url": "https://placehold.co/800x500?text=RPG+Workshop",
+      "is_sponsored": false,
+      "ar_enabled": false,
+      "tour_enabled": false,
+      "rating": 4.7,
+      "status": "published",
+      "tags": [
+        "rpg",
+        "quickstart",
+        "workshop"
+      ],
+      "products": [
+        {
+          "id": "product_rpg_quickstart",
+          "name": "RPG Quickstart Collection",
+          "description": "A downloadable collection of complete quickstarts.",
+          "priceInCents": 1899,
+          "currency": "eur",
+          "category": "digital"
+        }
+      ],
+      "created_at": "2026-07-01T09:10:00.000Z",
+      "updated_at": "2026-07-01T09:10:00.000Z",
+      "visibility": "public",
+      "schemaVersion": 3,
+      "organizationId": "org_atlas",
+      "eventId": "evt_atlas_2026",
+      "ownerUserId": "pending-dev-exhibitor",
+      "exhibitorUserId": "pending-dev-exhibitor",
+      "eventStatus": "published",
+      "updatedAt": "2026-07-01T09:10:00.000Z",
+      "createdAt": "2026-07-01T09:10:00.000Z",
+      "publicationKey": "published#2026-07-01T09:10:00.000Z",
+      "publicStatus": "published"
+    },
+    {
+      "stand_id": "stand_unpublished_preview",
+      "name": "Unpublished Preview",
+      "booth_number": "D99",
+      "category": "internal-preview",
+      "description": "A draft fixture that must never appear in public APIs.",
+      "image_url": "https://placehold.co/800x500?text=Hidden+Draft",
+      "is_sponsored": false,
+      "ar_enabled": false,
+      "tour_enabled": false,
+      "rating": 0,
+      "status": "draft",
+      "visibility": "public",
+      "tags": [
+        "internal",
+        "draft"
+      ],
+      "products": [
+        {
+          "id": "product_hidden",
+          "name": "Hidden Product",
+          "priceInCents": 999,
+          "currency": "eur",
+          "category": "internal"
+        }
+      ],
+      "schemaVersion": 3,
+      "created_at": "2026-07-01T09:15:00.000Z",
+      "updated_at": "2026-07-01T09:15:00.000Z",
+      "organizationId": "org_atlas",
+      "eventId": "evt_atlas_2026",
+      "ownerUserId": "pending-dev-exhibitor",
+      "exhibitorUserId": "pending-dev-exhibitor",
+      "eventStatus": "published",
+      "updatedAt": "2026-07-01T09:15:00.000Z",
+      "createdAt": "2026-07-01T09:15:00.000Z",
+      "publicationKey": "draft#2026-07-01T09:15:00.000Z",
+      "publicStatus": "draft"
+    },
+    {
+      "stand_id": "stand_rival_showcase",
+      "name": "Rival Showcase",
+      "booth_number": "R01",
+      "category": "tabletop-showcase",
+      "description": "A public stand owned by the second tenant for isolation tests.",
+      "image_url": "https://placehold.co/800x500?text=Rival+Showcase",
+      "is_sponsored": false,
+      "ar_enabled": false,
+      "tour_enabled": false,
+      "rating": 4.4,
+      "status": "published",
+      "visibility": "public",
+      "tags": [
+        "tabletop",
+        "tenant-isolation",
+        "showcase"
+      ],
+      "products": [
+        {
+          "id": "product_rival_guide",
+          "name": "Rival Expo Digital Guide",
+          "description": "Digital guide for the Rival Expo tenant fixture.",
+          "priceInCents": 799,
+          "currency": "eur",
+          "category": "digital"
+        }
+      ],
+      "schemaVersion": 3,
+      "created_at": "2026-07-01T09:20:00.000Z",
+      "updated_at": "2026-07-01T09:20:00.000Z",
+      "organizationId": "org_rival",
+      "eventId": "evt_rival_2026",
+      "ownerUserId": "pending-rival-exhibitor",
+      "exhibitorUserId": "pending-rival-exhibitor",
+      "eventStatus": "published",
+      "updatedAt": "2026-07-01T09:20:00.000Z",
+      "createdAt": "2026-07-01T09:20:00.000Z",
+      "publicationKey": "published#2026-07-01T09:20:00.000Z",
+      "publicStatus": "published"
+    }
+  ]
+}

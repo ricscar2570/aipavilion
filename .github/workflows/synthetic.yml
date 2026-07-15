@@ -1,0 +1,42 @@
+name: Staging synthetic check
+
+on:
+  schedule:
+    - cron: "23 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: staging-synthetic
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: staging
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'eu-west-1' }}
+      BACKEND_STACK: ${{ vars.BACKEND_STACK || 'ai-pavilion-staging-backend' }}
+      FRONTEND_STACK: ${{ vars.FRONTEND_STACK || 'ai-pavilion-staging-frontend' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.16.0"
+          cache: npm
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_READ_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'eu-west-1' }}
+      - run: npm ci
+      - name: Capture current stack outputs
+        run: |
+          mkdir -p .artifacts
+          aws cloudformation describe-stacks --stack-name "$BACKEND_STACK" --region "$AWS_REGION" --query 'Stacks[0].Outputs' --output json > .artifacts/staging-backend-outputs.json
+          aws cloudformation describe-stacks --stack-name "$FRONTEND_STACK" --region "$AWS_REGION" --query 'Stacks[0].Outputs' --output json > .artifacts/staging-frontend-outputs.json
+      - name: Verify public site, security headers and API health
+        run: npm run pilot:synthetic

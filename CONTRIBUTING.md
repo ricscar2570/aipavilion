@@ -1,38 +1,32 @@
 # Contributing to AI Pavilion
 
-Thank you for your interest in contributing! 🎉
+## Supported workflow
 
-## How to Contribute
+1. Create a focused branch from the current canonical branch.
+2. Change only active source under `backend/`, `frontend/`, `scripts/`, `tests/`, `docs/`, or `template.yaml`.
+3. Add or update tests and documentation for behavior changes.
+4. Run the complete local gate:
 
-1. **Fork** the repository
-2. **Clone** your fork
-3. **Create** a feature branch
-4. **Make** your changes
-5. **Test** thoroughly
-6. **Commit** with clear messages
-7. **Push** to your fork
-8. **Submit** a Pull Request
+```bash
+npm ci
+npm run verify
+npm audit --audit-level=high
+```
 
-## Code Style
+5. When AWS SAM CLI is available, also run:
 
-- Use ES6+ JavaScript
-- Follow Airbnb style guide
-- Run `npm run lint` before committing
-- Add tests for new features
+```bash
+sam validate --lint --template-file template.yaml
+sam build --template-file template.yaml
+```
 
-## Reporting Bugs
+## Rules
 
-Use GitHub Issues with:
-- Clear title
-- Steps to reproduce
-- Expected vs actual behavior
-- Screenshots if applicable
+- Do not reintroduce a parallel application tree or deployment system.
+- Do not accept authoritative prices, permissions, tenant IDs, or ownership from the browser.
+- Do not add a frontend endpoint without a matching SAM route and backend implementation.
+- Do not expose tokens, payment identifiers, secrets, or personal request bodies in logs.
+- Do not claim a feature is shipped unless it is reachable, tested, documented, and deployed in the supported architecture.
+- Keep `package-lock.json` updated with dependency changes.
 
-## Feature Requests
-
-Open an issue with:
-- Use case description
-- Proposed solution
-- Alternative solutions considered
-
-Thank you! 🙏
+Pull requests must pass the CI quality and SAM jobs before merge.

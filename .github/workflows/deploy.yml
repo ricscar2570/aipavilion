@@ -1,10 +1,144 @@
-name: Deploy
+name: Deploy disposable development stack
+
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
+    inputs:
+      stack_name:
+        description: Disposable CloudFormation stack name
+        required: true
+        default: ai-pavilion-dev
+      keep_stack:
+        description: Keep the stack after tests for manual inspection
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: development-integration-${{ inputs.stack_name }}
+  cancel-in-progress: false
+
 jobs:
-  deploy:
+  deploy-and-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: development
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'eu-west-1' }}
+      STACK_NAME: ${{ inputs.stack_name }}
+      ALLOWED_ORIGIN: http://127.0.0.1:3000
+      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_TEST_SECRET_KEY }}
+      STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_TEST_WEBHOOK_SECRET }}
+      DEV_TEST_PASSWORD: ${{ secrets.DEV_TEST_PASSWORD }}
+
     steps:
-    - uses: actions/checkout@v3
-    - run: echo "Deployment configured"
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.16.0"
+          cache: npm
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Set up AWS SAM CLI
+        uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+
+      - name: Configure short-lived AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'eu-west-1' }}
+
+      - name: Validate disposable stack name
+        run: |
+          if [[ ! "$STACK_NAME" =~ ^[A-Za-z][A-Za-z0-9-]{0,39}$ ]]; then
+            echo "Invalid stack name: $STACK_NAME" >&2
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          pip install -r requirements-dev.txt
+          python -m playwright install --with-deps chromium
+
+      - name: Verify source and build artifacts
+        run: npm run verify
+
+      - name: Validate and build SAM application
+        run: |
+          sam validate --lint --template-file template.yaml
+          sam build --template-file template.yaml
+
+      - name: Deploy isolated development stack
+        run: |
+          STRIPE_SECRET_KEY="${STRIPE_SECRET_KEY:-sk_test_not_configured}"
+          STRIPE_WEBHOOK_SECRET="${STRIPE_WEBHOOK_SECRET:-whsec_not_configured}"
+          sam deploy \
+            --stack-name "$STACK_NAME" \
+            --region "$AWS_REGION" \
+            --resolve-s3 \
+            --capabilities CAPABILITY_IAM \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides \
+              Environment=dev \
+              AllowedOrigin="$ALLOWED_ORIGIN" \
+              StripeSecretKey="$STRIPE_SECRET_KEY" \
+              StripeWebhookSecret="$STRIPE_WEBHOOK_SECRET" \
+              PaymentMode=simulated
+
+      - name: Capture stack outputs
+        run: |
+          mkdir -p .artifacts
+          aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --region "$AWS_REGION" \
+            --query 'Stacks[0].Outputs' \
+            --output json > .artifacts/dev-stack-outputs.json
+
+      - name: Seed canonical fixtures and test identities
+        run: |
+          node scripts/dev/write-dev-env.js
+          node scripts/validate-config.js --env .env.development.local
+          node scripts/dev/seed-dev.js
+          node scripts/dev/create-test-users.js
+
+      - name: Test every DynamoDB table and index
+        run: RUN_DEPLOYED_INTEGRATION=1 npm run test:integration
+
+      - name: Run deployed API and administrator smoke tests
+        run: npm run test:smoke:deployed
+
+      - name: Run deployed browser vertical test
+        run: npm run test:e2e:deployed
+
+      - name: Upload non-secret diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: development-integration-diagnostics
+          path: |
+            .artifacts/vite-e2e.log
+            .artifacts/dev-stack-outputs.json
+          if-no-files-found: ignore
+
+      - name: Destroy disposable stack
+        if: always() && inputs.keep_stack == false
+        run: |
+          sam delete \
+            --stack-name "$STACK_NAME" \
+            --region "$AWS_REGION" \
+            --no-prompts || true

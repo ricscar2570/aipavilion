@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.aws-sam/
+coverage/
+docs/archive/
+data/
+
+infrastructure/backend-pilot.yaml

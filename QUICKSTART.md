@@ -1,52 +1,113 @@
-# 🚀 AI PAVILION - QUICK START
+# AI Pavilion 0.8.0 quick start
 
-Get your platform live in 15 minutes!
+## 1. Verify the source
 
-## Prerequisites
-
-- AWS Account (free tier OK)
-- Node.js 18+ installed
-- Stripe Account (test mode fine)
-
-## Steps
-
-### 1. Setup (5 minutes)
+Use Node.js `20.19+` or `22.12+` and npm 10+.
 
 ```bash
-# Configure AWS
-aws configure
-# Enter your AWS credentials
-
-# Get Stripe keys from dashboard.stripe.com
-export STRIPE_SECRET_KEY="sk_test_..."
-export STRIPE_PUBLISHABLE_KEY="pk_test_..."
+npm ci
+npm run verify
+npm audit --audit-level=high
 ```
 
-### 2. Deploy (10 minutes)
+`package-lock.json` is the reproducibility source. CI must use `npm ci`.
+
+## 2. Run the frontend locally
 
 ```bash
-cd platform
-chmod +x master-deploy.sh
-./master-deploy.sh
+cp .env.example .env.development.local
+npm run config:check
+npm run dev
 ```
 
-Choose option 1: Quick Start
+Open `http://127.0.0.1:3000`. Useful routes include:
 
-### 3. Access (immediate)
+- `#/events`;
+- `#/organizer`;
+- `#/exhibitor`;
+- `#/invitation/<invitation-id>`.
 
-Visit the URLs shown in deployment summary.
+The frontend sends Cognito access tokens to protected APIs. Backend credentials and webhook secrets must never appear in frontend environment files.
 
-**Demo Credentials:**
-- Email: admin@aipavilion.demo
-- Password: AdminDemo2026!
+## 3. Deploy the disposable development stack
 
-## What's Next?
+Install AWS CLI v2 and AWS SAM CLI, then verify the isolated development identity:
 
-1. ✅ Test all features
-2. ✅ Customize branding
-3. ✅ Review docs/30-DAY-GTM-PLAN.md
-4. ✅ Start marketing!
+```bash
+aws sts get-caller-identity
+sam --version
+```
 
-## Need Help?
+For browser testing:
 
-Read MASTER-README.md for complete documentation.
+```bash
+python3 -m pip install -r requirements-dev.txt
+python3 -m playwright install chromium
+```
+
+Deploy, seed and test:
+
+```bash
+export AWS_REGION=eu-west-1
+export STACK_NAME=ai-pavilion-dev
+export ALLOWED_ORIGIN=http://127.0.0.1:3000
+npm run dev:deploy
+```
+
+The wrapper creates the disposable Cognito/API/Lambda/DynamoDB environment, seeds two isolated tenants, creates development identities, applies migrations and runs deployed DynamoDB and API smoke checks.
+
+Run the browser journey separately:
+
+```bash
+npm run test:e2e:deployed
+```
+
+Destroy the development stack explicitly:
+
+```bash
+export CONFIRM_DESTROY="$STACK_NAME"
+npm run dev:destroy
+```
+
+The development template accepts only `Environment=dev` and is intentionally destructive. Never use it for customer data.
+
+## 4. Prepare persistent staging
+
+Read [`docs/operations/STAGING-RUNBOOK.md`](docs/operations/STAGING-RUNBOOK.md) before proceeding. Staging requires:
+
+- a dedicated account or strongly isolated role;
+- an exact HTTPS `APP_URL`;
+- Stripe **test-mode** keys and Price IDs;
+- a verified SES sender;
+- Turnstile site and secret keys;
+- an alert email;
+- protected GitHub `staging` environment and OIDC roles.
+
+Generate and inspect the retained backend template:
+
+```bash
+npm run pilot:generate
+npm run pilot:check
+```
+
+The deployment wrapper consumes the environment variables documented in the runbook:
+
+```bash
+npm run pilot:deploy
+```
+
+It verifies the source, deploys retained backend/frontend/operations stacks, writes a permission-restricted frontend configuration, applies migrations, builds and uploads the frontend, invalidates CloudFront and runs synthetic checks.
+
+## 5. Operational evidence
+
+After staging deployment, execute and retain evidence for:
+
+```bash
+npm run test:integration
+npm run test:smoke:deployed
+npm run test:e2e:deployed
+npm run pilot:synthetic
+npm run pilot:restore-drill
+```
+
+A green local build is not a substitute for deployed AWS, Stripe, SES, WAF, accessibility or restore evidence.

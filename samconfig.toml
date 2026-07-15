@@ -1,0 +1,18 @@
+version = 0.1
+
+[dev.validate.parameters]
+template_file = "template.yaml"
+lint = true
+
+[dev.build.parameters]
+template_file = "template.yaml"
+parallel = true
+cached = true
+
+[dev.deploy.parameters]
+stack_name = "ai-pavilion-dev"
+region = "eu-west-1"
+resolve_s3 = true
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = true
+parameter_overrides = "Environment=dev AllowedOrigin=http://127.0.0.1:3000 PaymentMode=simulated"
