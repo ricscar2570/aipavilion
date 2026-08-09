@@ -171,28 +171,20 @@ describe("validators — validateEmail", () => {
 });
 
 describe("validators — validatePassword", () => {
-    test("accepts a valid password", () => {
-        expect(validatePassword("Secret1234").ok).toBe(true);
+    test("accepts the Cognito production policy", () => {
+        expect(validatePassword("StrongPassword1!").ok).toBe(true);
     });
 
-    test("rejects password shorter than minLength", () => {
-        const result = validatePassword("Ab1", { minLength: 8 });
+    test.each([
+        ["Short1!", /12/],
+        ["NOLOWERCASE123!", /lowercase/i],
+        ["nouppercase123!", /uppercase/i],
+        ["NoNumbersHere!", /number/i],
+        ["NoSymbolsHere123", /symbol/i],
+    ])("rejects invalid password %p", (value, pattern) => {
+        const result = validatePassword(value);
         expect(result.ok).toBe(false);
-        expect(result.error).toMatch(/at least 8/);
-    });
-
-    test("rejects password with no digits when requireNumber is true", () => {
-        const result = validatePassword("NoDigitsHere", {
-            requireNumber: true,
-        });
-        expect(result.ok).toBe(false);
-        expect(result.error).toMatch(/number/i);
-    });
-
-    test("accepts password without digit when requireNumber is false", () => {
-        expect(
-            validatePassword("NoDigitsOk", { requireNumber: false }).ok,
-        ).toBe(true);
+        expect(result.error).toMatch(pattern);
     });
 
     test("rejects empty password", () => {
@@ -231,6 +223,10 @@ const {
     cartHTML,
     homepageHTML,
     authGateHTML,
+    shellHTML,
+    passwordResetFormHTML,
+    mfaFormHTML,
+    newPasswordFormHTML,
 } = require("../../frontend/src/core/templates.js");
 
 describe("templates — loginFormHTML", () => {
@@ -246,6 +242,15 @@ describe("templates — loginFormHTML", () => {
     });
 });
 
+
+describe("templates — authentication challenges", () => {
+    test("renders reset, MFA and temporary-password forms", () => {
+        expect(passwordResetFormHTML("a@example.com")).toMatch(/reset-submit/);
+        expect(mfaFormHTML("SOFTWARE_TOKEN_MFA")).toMatch(/authenticator app/i);
+        expect(newPasswordFormHTML()).toMatch(/new-password-submit/);
+    });
+});
+
 describe("templates — notFoundHTML", () => {
     test("contains a 404 indicator", () => {
         expect(notFoundHTML()).toMatch(/404/);
@@ -256,6 +261,23 @@ describe("templates — cartHTML", () => {
     test("returns a string regardless of items argument", () => {
         expect(typeof cartHTML([])).toBe("string");
         expect(typeof cartHTML([], 0)).toBe("string");
+    });
+
+    test("removes direct checkout when visitor payments are disabled", () => {
+        const html = cartHTML(
+            [{ productId: "p1", productName: "Demo", quantity: 1, price: 10 }],
+            10,
+            false,
+        );
+        expect(html).not.toMatch(/Proceed to Checkout/);
+        expect(html).toMatch(/not enabled for this event/i);
+    });
+});
+
+describe("templates — shellHTML", () => {
+    test("hides the cart entry when visitor payments are disabled", () => {
+        expect(shellHTML({ paymentsEnabled: false })).not.toMatch(/aria-label="Cart"/);
+        expect(shellHTML({ paymentsEnabled: true })).toMatch(/aria-label="Cart"/);
     });
 });
 

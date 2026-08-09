@@ -1,12 +1,8 @@
 /**
- * AI Pavilion - Authentication Service
+ * Cognito authentication service.
  *
- * Real AWS Cognito integration using amazon-cognito-identity-js.
- * Replaces the previous mock implementation entirely.
- *
- * Usage:
- *   import { authService } from './auth.js';
- *   await authService.signIn(email, password);
+ * The browser talks directly to Cognito. Protected API calls use the Cognito
+ * access token; passwords never pass through AI Pavilion Lambda functions.
  */
 
 import {
@@ -18,27 +14,22 @@ import {
 import { CONFIG } from "../core/config.js";
 import { EVENT_TYPES } from "../core/constants.js";
 
-const STORAGE_KEYS = {
-    USER_EMAIL: "ai_pavilion_user_email",
-};
+const STORAGE_KEYS = { USER_EMAIL: "ai_pavilion_user_email" };
 
 class AuthService {
     constructor() {
         this._pool = null;
         this._cognitoUser = null;
         this._session = null;
+        this._pendingChallenge = null;
         this._listeners = [];
         this._initPool();
     }
 
     _initPool() {
         const { userPoolId, clientId } = CONFIG.aws.cognito;
-        // Warn rather than throw — the app should still render for
-        // unauthenticated pages even if Cognito is not configured yet.
         if (!userPoolId || !clientId) {
-            console.warn(
-                "[AuthService] Cognito not configured — set COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID in .env",
-            );
+            console.warn("[AuthService] Cognito is not configured");
             return;
         }
         this._pool = new CognitoUserPool({
@@ -49,69 +40,57 @@ class AuthService {
 
     _requirePool() {
         if (!this._pool) {
-            throw new Error(
-                "Cognito not configured. Check COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID in .env.",
-            );
+            throw new Error("Cognito is not configured.");
         }
     }
 
     _userFor(email) {
+        this._requirePool();
         return new CognitoUser({ Username: email, Pool: this._pool });
     }
 
-    // ─── Sign Up ──────────────────────────────────────────────────────────
+    _completeAuthentication(cognitoUser, session, email) {
+        this._cognitoUser = cognitoUser;
+        this._session = session;
+        this._pendingChallenge = null;
+        this._persistSession(session, email || cognitoUser.getUsername());
+        this._notify(EVENT_TYPES.USER_LOGGED_IN, {
+            username: email || cognitoUser.getUsername(),
+        });
+        return { user: cognitoUser, session };
+    }
+
+    _challengeError(code, details = {}) {
+        return Object.assign(new Error(code), { code, ...details });
+    }
 
     signUp(email, password, attributes = {}) {
         this._requirePool();
         const attrList = [];
-        if (attributes.givenName) {
-            attrList.push(
-                new CognitoUserAttribute({
-                    Name: "given_name",
-                    Value: attributes.givenName,
-                }),
-            );
+        const mapping = {
+            givenName: "given_name",
+            familyName: "family_name",
+            company: "custom:company",
+        };
+        for (const [key, name] of Object.entries(mapping)) {
+            if (attributes[key]) {
+                attrList.push(
+                    new CognitoUserAttribute({ Name: name, Value: attributes[key] }),
+                );
+            }
         }
-        if (attributes.familyName) {
-            attrList.push(
-                new CognitoUserAttribute({
-                    Name: "family_name",
-                    Value: attributes.familyName,
-                }),
-            );
-        }
-        if (attributes.company) {
-            attrList.push(
-                new CognitoUserAttribute({
-                    Name: "custom:company",
-                    Value: attributes.company,
-                }),
-            );
-        }
-
         return new Promise((resolve, reject) => {
-            this._pool.signUp(
-                email,
-                password,
-                attrList,
-                null,
-                (err, result) => {
-                    if (err) {
-                        return reject(err);
-                    }
-                    resolve({
-                        userSub: result.userSub,
-                        userConfirmed: result.userConfirmed,
-                    });
-                },
-            );
+            this._pool.signUp(email, password, attrList, null, (err, result) => {
+                if (err) return reject(err);
+                resolve({
+                    userSub: result.userSub,
+                    userConfirmed: result.userConfirmed,
+                });
+            });
         });
     }
 
-    // ─── Confirm Sign Up ──────────────────────────────────────────────────
-
     confirmSignUp(email, code) {
-        this._requirePool();
         return new Promise((resolve, reject) => {
             this._userFor(email).confirmRegistration(code, true, (err, res) =>
                 err ? reject(err) : resolve(res),
@@ -120,7 +99,6 @@ class AuthService {
     }
 
     resendConfirmationCode(email) {
-        this._requirePool();
         return new Promise((resolve, reject) => {
             this._userFor(email).resendConfirmationCode((err, res) =>
                 err ? reject(err) : resolve(res),
@@ -128,68 +106,159 @@ class AuthService {
         });
     }
 
-    // ─── Sign In ──────────────────────────────────────────────────────────
-
     signIn(email, password) {
-        this._requirePool();
+        const cognitoUser = this._userFor(email);
         const authDetails = new AuthenticationDetails({
             Username: email,
             Password: password,
         });
-        const cognitoUser = this._userFor(email);
-
         return new Promise((resolve, reject) => {
-            cognitoUser.authenticateUser(authDetails, {
-                onSuccess: (session) => {
-                    this._cognitoUser = cognitoUser;
-                    this._session = session;
-                    this._persistSession(session, email);
-                    this._notify(EVENT_TYPES.USER_LOGGED_IN, {
-                        username: email,
-                    });
-                    resolve({ user: cognitoUser, session });
-                },
-                onFailure: (err) => reject(err),
-                newPasswordRequired: (userAttributes) => {
-                    const e = Object.assign(
-                        new Error("NEW_PASSWORD_REQUIRED"),
-                        { userAttributes, cognitoUser },
-                    );
-                    reject(e);
-                },
-                mfaRequired: () => {
-                    const e = Object.assign(new Error("MFA_REQUIRED"), {
+            const callbacks = {
+                onSuccess: (session) =>
+                    resolve(this._completeAuthentication(cognitoUser, session, email)),
+                onFailure: reject,
+                newPasswordRequired: (userAttributes, requiredAttributes) => {
+                    this._pendingChallenge = {
+                        type: "NEW_PASSWORD_REQUIRED",
                         cognitoUser,
-                    });
-                    reject(e);
+                        email,
+                        userAttributes,
+                        requiredAttributes: requiredAttributes || [],
+                    };
+                    reject(
+                        this._challengeError("NEW_PASSWORD_REQUIRED", {
+                            requiredAttributes: requiredAttributes || [],
+                        }),
+                    );
                 },
-            });
+                mfaRequired: (challengeName, challengeParameters) => {
+                    this._pendingChallenge = {
+                        type: "MFA_REQUIRED",
+                        cognitoUser,
+                        email,
+                        mfaType: challengeName || "SMS_MFA",
+                        challengeParameters,
+                    };
+                    reject(
+                        this._challengeError("MFA_REQUIRED", {
+                            mfaType: challengeName || "SMS_MFA",
+                        }),
+                    );
+                },
+                totpRequired: (challengeName, challengeParameters) => {
+                    this._pendingChallenge = {
+                        type: "MFA_REQUIRED",
+                        cognitoUser,
+                        email,
+                        mfaType: challengeName || "SOFTWARE_TOKEN_MFA",
+                        challengeParameters,
+                    };
+                    reject(
+                        this._challengeError("MFA_REQUIRED", {
+                            mfaType: challengeName || "SOFTWARE_TOKEN_MFA",
+                        }),
+                    );
+                },
+            };
+            cognitoUser.authenticateUser(authDetails, callbacks);
         });
     }
 
-    // ─── Get Current User ─────────────────────────────────────────────────
+    completeNewPassword(newPassword, attributes = {}) {
+        const pending = this._pendingChallenge;
+        if (pending?.type !== "NEW_PASSWORD_REQUIRED") {
+            return Promise.reject(new Error("No new-password challenge is active"));
+        }
+        const cleanAttributes = { ...attributes };
+        delete cleanAttributes.email_verified;
+        delete cleanAttributes.email;
+        return new Promise((resolve, reject) => {
+            pending.cognitoUser.completeNewPasswordChallenge(
+                newPassword,
+                cleanAttributes,
+                {
+                    onSuccess: (session) =>
+                        resolve(
+                            this._completeAuthentication(
+                                pending.cognitoUser,
+                                session,
+                                pending.email,
+                            ),
+                        ),
+                    onFailure: reject,
+                    mfaRequired: (challengeName, challengeParameters) => {
+                        this._pendingChallenge = {
+                            type: "MFA_REQUIRED",
+                            cognitoUser: pending.cognitoUser,
+                            email: pending.email,
+                            mfaType: challengeName || "SMS_MFA",
+                            challengeParameters,
+                        };
+                        reject(
+                            this._challengeError("MFA_REQUIRED", {
+                                mfaType: challengeName || "SMS_MFA",
+                            }),
+                        );
+                    },
+                    totpRequired: (challengeName, challengeParameters) => {
+                        this._pendingChallenge = {
+                            type: "MFA_REQUIRED",
+                            cognitoUser: pending.cognitoUser,
+                            email: pending.email,
+                            mfaType: challengeName || "SOFTWARE_TOKEN_MFA",
+                            challengeParameters,
+                        };
+                        reject(
+                            this._challengeError("MFA_REQUIRED", {
+                                mfaType: challengeName || "SOFTWARE_TOKEN_MFA",
+                            }),
+                        );
+                    },
+                },
+            );
+        });
+    }
+
+    completeMfa(code) {
+        const pending = this._pendingChallenge;
+        if (pending?.type !== "MFA_REQUIRED") {
+            return Promise.reject(new Error("No MFA challenge is active"));
+        }
+        return new Promise((resolve, reject) => {
+            pending.cognitoUser.sendMFACode(
+                code,
+                {
+                    onSuccess: (session) =>
+                        resolve(
+                            this._completeAuthentication(
+                                pending.cognitoUser,
+                                session,
+                                pending.email,
+                            ),
+                        ),
+                    onFailure: reject,
+                },
+                pending.mfaType,
+            );
+        });
+    }
+
+    cancelChallenge() {
+        this._pendingChallenge = null;
+    }
 
     getCurrentUser() {
-        if (!this._pool) {
-            return Promise.resolve(null);
-        }
+        if (!this._pool) return Promise.resolve(null);
         const cognitoUser = this._pool.getCurrentUser();
-        if (!cognitoUser) {
-            return Promise.resolve(null);
-        }
-
+        if (!cognitoUser) return Promise.resolve(null);
         return new Promise((resolve) => {
             cognitoUser.getSession((err, session) => {
-                if (err || !session?.isValid()) {
-                    return resolve(null);
-                }
+                if (err || !session?.isValid()) return resolve(null);
                 cognitoUser.getUserAttributes((attrErr, attrs) => {
-                    if (attrErr) {
-                        return resolve(null);
-                    }
+                    if (attrErr) return resolve(null);
                     const attributes = {};
-                    (attrs || []).forEach((a) => {
-                        attributes[a.getName()] = a.getValue();
+                    (attrs || []).forEach((item) => {
+                        attributes[item.getName()] = item.getValue();
                     });
                     this._cognitoUser = cognitoUser;
                     this._session = session;
@@ -203,61 +272,59 @@ class AuthService {
         });
     }
 
-    // ─── Sign Out ─────────────────────────────────────────────────────────
-
-    signOut() {
-        if (!this._pool) {
-            return Promise.resolve();
-        }
+    signOut({ global = false } = {}) {
+        if (!this._pool) return Promise.resolve();
         const cognitoUser = this._pool.getCurrentUser();
         return new Promise((resolve) => {
             const cleanup = () => {
                 this._cognitoUser = null;
                 this._session = null;
+                this._pendingChallenge = null;
                 this._clearSession();
                 this._notify(EVENT_TYPES.USER_LOGGED_OUT, null);
                 resolve();
             };
-            cognitoUser ? cognitoUser.signOut(cleanup) : cleanup();
+            if (!cognitoUser) return cleanup();
+            if (global && typeof cognitoUser.globalSignOut === "function") {
+                cognitoUser.globalSignOut({ onSuccess: cleanup, onFailure: cleanup });
+            } else {
+                cognitoUser.signOut(cleanup);
+            }
         });
     }
-
-    // ─── Token Refresh ────────────────────────────────────────────────────
 
     refreshSession() {
         if (!this._cognitoUser || !this._session) {
             return Promise.reject(new Error("No active session"));
         }
-        const refreshToken = this._session.getRefreshToken();
         return new Promise((resolve, reject) => {
-            this._cognitoUser.refreshSession(refreshToken, (err, session) => {
-                if (err) {
-                    return reject(err);
-                }
-                this._session = session;
-                this._persistSession(
-                    session,
-                    localStorage.getItem(STORAGE_KEYS.USER_EMAIL),
-                );
-                resolve(session);
-            });
+            this._cognitoUser.refreshSession(
+                this._session.getRefreshToken(),
+                (err, session) => {
+                    if (err) return reject(err);
+                    this._session = session;
+                    this._persistSession(
+                        session,
+                        localStorage.getItem(STORAGE_KEYS.USER_EMAIL),
+                    );
+                    resolve(session);
+                },
+            );
         });
     }
 
-    // ─── Password Management ──────────────────────────────────────────────
-
     forgotPassword(email) {
-        this._requirePool();
+        const user = this._userFor(email);
         return new Promise((resolve, reject) => {
-            this._userFor(email).forgotPassword({
-                onSuccess: resolve,
+            user.forgotPassword({
+                onSuccess: (data) => resolve(data || {}),
                 onFailure: reject,
+                inputVerificationCode: (data) => resolve(data || {}),
             });
         });
     }
 
     confirmPassword(email, code, newPassword) {
-        this._requirePool();
         return new Promise((resolve, reject) => {
             this._userFor(email).confirmPassword(code, newPassword, {
                 onSuccess: resolve,
@@ -271,15 +338,71 @@ class AuthService {
             return Promise.reject(new Error("Not authenticated"));
         }
         return new Promise((resolve, reject) => {
-            this._cognitoUser.changePassword(
-                oldPassword,
-                newPassword,
-                (err, res) => (err ? reject(err) : resolve(res)),
+            this._cognitoUser.changePassword(oldPassword, newPassword, (err, res) =>
+                err ? reject(err) : resolve(res),
             );
         });
     }
 
-    // ─── Tokens ───────────────────────────────────────────────────────────
+    beginTotpSetup() {
+        if (!this._cognitoUser) {
+            return Promise.reject(new Error("Not authenticated"));
+        }
+        return new Promise((resolve, reject) => {
+            this._cognitoUser.associateSoftwareToken({
+                associateSecretCode: (secretCode) => resolve({ secretCode }),
+                onFailure: reject,
+            });
+        });
+    }
+
+    completeTotpSetup(code, deviceName = "AI Pavilion") {
+        if (!this._cognitoUser) {
+            return Promise.reject(new Error("Not authenticated"));
+        }
+        return new Promise((resolve, reject) => {
+            this._cognitoUser.verifySoftwareToken(code, deviceName, {
+                onSuccess: () => {
+                    this._cognitoUser.setUserMfaPreference(
+                        null,
+                        { Enabled: true, PreferredMfa: true },
+                        (error, result) => (error ? reject(error) : resolve(result)),
+                    );
+                },
+                onFailure: reject,
+            });
+        });
+    }
+
+    disableTotp() {
+        if (!this._cognitoUser) {
+            return Promise.reject(new Error("Not authenticated"));
+        }
+        return new Promise((resolve, reject) => {
+            this._cognitoUser.setUserMfaPreference(
+                null,
+                { Enabled: false, PreferredMfa: false },
+                (error, result) => (error ? reject(error) : resolve(result)),
+            );
+        });
+    }
+
+    updateUserAttributes(attributes = {}) {
+        if (!this._cognitoUser) {
+            return Promise.reject(new Error("Not authenticated"));
+        }
+        const values = Object.entries(attributes)
+            .filter(([, value]) => value !== undefined && value !== null)
+            .map(
+                ([Name, Value]) =>
+                    new CognitoUserAttribute({ Name, Value: String(Value) }),
+            );
+        return new Promise((resolve, reject) => {
+            this._cognitoUser.updateAttributes(values, (err, result) =>
+                err ? reject(err) : resolve(result),
+            );
+        });
+    }
 
     async getIdToken() {
         const user = await this.getCurrentUser();
@@ -288,46 +411,36 @@ class AuthService {
 
     async getAccessToken() {
         const user = await this.getCurrentUser();
-        return user
-            ? this._session?.getAccessToken()?.getJwtToken() || null
-            : null;
+        return user ? this._session?.getAccessToken()?.getJwtToken() || null : null;
     }
 
     async isAuthenticated() {
         return (await this.getCurrentUser()) !== null;
     }
 
-    // ─── Event System ─────────────────────────────────────────────────────
-
     subscribe(callback) {
         this._listeners.push(callback);
         return () => {
-            this._listeners = this._listeners.filter((cb) => cb !== callback);
+            this._listeners = this._listeners.filter((item) => item !== callback);
         };
     }
 
     _notify(event, data) {
-        this._listeners.forEach((cb) => {
+        this._listeners.forEach((callback) => {
             try {
-                cb(event, data);
-            } catch (e) {
-                console.error("[AuthService]", e);
+                callback(event, data);
+            } catch (error) {
+                console.error("[AuthService]", error);
             }
         });
     }
 
-    // ─── Session Persistence ──────────────────────────────────────────────
-
     _persistSession(_session, email) {
-        // amazon-cognito-identity-js persists its own session under namespaced
-        // Cognito keys. Do not duplicate raw JWTs under application keys.
-        if (email) {
-            localStorage.setItem(STORAGE_KEYS.USER_EMAIL, email);
-        }
+        if (email) localStorage.setItem(STORAGE_KEYS.USER_EMAIL, email);
     }
 
     _clearSession() {
-        Object.values(STORAGE_KEYS).forEach((k) => localStorage.removeItem(k));
+        Object.values(STORAGE_KEYS).forEach((key) => localStorage.removeItem(key));
     }
 }
 

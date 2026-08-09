@@ -1,7 +1,6 @@
 "use strict";
 
 const { withObservability } = require("../common/observability");
-
 const {
     CognitoIdentityProviderClient,
     AdminDeleteUserCommand,
@@ -23,6 +22,10 @@ const USERS_TABLE = process.env.USERS_TABLE || "ai-pavilion-users";
 const ORDERS_TABLE = process.env.ORDERS_TABLE || "ai-pavilion-orders";
 const SAVED_STANDS_TABLE =
     process.env.SAVED_STANDS_TABLE || "ai-pavilion-saved-stands";
+const MEMBERSHIPS_TABLE =
+    process.env.MEMBERSHIPS_TABLE || "ai-pavilion-memberships";
+const STANDS_TABLE = process.env.STANDS_TABLE || "ai-pavilion-stands";
+const OWNER_STANDS_INDEX = process.env.OWNER_STANDS_INDEX || "owner-stands-index";
 
 function authIdentity(event) {
     const claims = event.requestContext?.authorizer?.claims || {};
@@ -37,15 +40,83 @@ async function queryAll(params) {
     let cursor;
     do {
         const result = await dynamo.send(
-            new QueryCommand({
-                ...params,
-                ExclusiveStartKey: cursor,
-            }),
+            new QueryCommand({ ...params, ExclusiveStartKey: cursor }),
         );
         items.push(...(result.Items || []));
         cursor = result.LastEvaluatedKey;
     } while (cursor);
     return items;
+}
+
+async function deletionReadiness(userId) {
+    const [memberships, ownedStands] = await Promise.all([
+        queryAll({
+            TableName: MEMBERSHIPS_TABLE,
+            KeyConditionExpression: "userId = :userId",
+            ExpressionAttributeValues: { ":userId": userId },
+            ProjectionExpression:
+                "userId, organizationId, #role, #status",
+            ExpressionAttributeNames: { "#role": "role", "#status": "status" },
+        }),
+        queryAll({
+            TableName: STANDS_TABLE,
+            IndexName: OWNER_STANDS_INDEX,
+            KeyConditionExpression: "ownerUserId = :userId",
+            ExpressionAttributeValues: { ":userId": userId },
+            ProjectionExpression: "stand_id, organizationId, eventId, #name",
+            ExpressionAttributeNames: { "#name": "name" },
+        }),
+    ]);
+
+    const ownedOrganizations = memberships
+        .filter((item) => item.role === "owner")
+        .map((item) => item.organizationId);
+    const blockers = [];
+    if (ownedOrganizations.length) {
+        blockers.push({
+            code: "OWNERSHIP_TRANSFER_REQUIRED",
+            organizationIds: ownedOrganizations,
+        });
+    }
+    if (ownedStands.length) {
+        blockers.push({
+            code: "STAND_REASSIGNMENT_REQUIRED",
+            stands: ownedStands.map((item) => ({
+                standId: item.stand_id,
+                organizationId: item.organizationId,
+                eventId: item.eventId,
+                name: item.name,
+            })),
+        });
+    }
+    return { ready: blockers.length === 0, blockers, memberships };
+}
+
+async function batchDelete(tableName, keys) {
+    for (let index = 0; index < keys.length; index += 25) {
+        const batch = keys.slice(index, index + 25);
+        let requestItems = {
+            [tableName]: batch.map((Key) => ({ DeleteRequest: { Key } })),
+        };
+        for (
+            let attempt = 0;
+            attempt < 6 && requestItems[tableName]?.length;
+            attempt += 1
+        ) {
+            const result = await dynamo.send(
+                new BatchWriteCommand({ RequestItems: requestItems }),
+            );
+            requestItems = result.UnprocessedItems || {};
+            if (requestItems[tableName]?.length) {
+                await new Promise((resolve) =>
+                    setTimeout(resolve, Math.min(50 * 2 ** attempt, 1000)),
+                );
+            }
+        }
+        if (requestItems[tableName]?.length) {
+            throw new Error(`Unable to delete all items from ${tableName}`);
+        }
+    }
 }
 
 async function deleteSavedStands(userId) {
@@ -55,32 +126,20 @@ async function deleteSavedStands(userId) {
         ExpressionAttributeValues: { ":userId": userId },
         ProjectionExpression: "userId, standId",
     });
+    await batchDelete(
+        SAVED_STANDS_TABLE,
+        items.map((item) => ({ userId: item.userId, standId: item.standId })),
+    );
+}
 
-    for (let index = 0; index < items.length; index += 25) {
-        const batch = items.slice(index, index + 25);
-        let requestItems = {
-            [SAVED_STANDS_TABLE]: batch.map((item) => ({
-                DeleteRequest: {
-                    Key: { userId: item.userId, standId: item.standId },
-                },
-            })),
-        };
-
-        for (
-            let attempt = 0;
-            attempt < 5 && requestItems[SAVED_STANDS_TABLE]?.length;
-            attempt += 1
-        ) {
-            const result = await dynamo.send(
-                new BatchWriteCommand({ RequestItems: requestItems }),
-            );
-            requestItems = result.UnprocessedItems || {};
-        }
-
-        if (requestItems[SAVED_STANDS_TABLE]?.length) {
-            throw new Error("Unable to delete all saved stands");
-        }
-    }
+async function deleteMemberships(memberships) {
+    await batchDelete(
+        MEMBERSHIPS_TABLE,
+        memberships.map((item) => ({
+            userId: item.userId,
+            organizationId: item.organizationId,
+        })),
+    );
 }
 
 async function anonymizeOrders(userId) {
@@ -91,7 +150,6 @@ async function anonymizeOrders(userId) {
         ExpressionAttributeValues: { ":userId": userId },
         ProjectionExpression: "orderId",
     });
-
     for (const order of orders) {
         await dynamo.send(
             new UpdateCommand({
@@ -110,46 +168,45 @@ async function anonymizeOrders(userId) {
 }
 
 const handler = async (event) => {
-    if (event.httpMethod === "OPTIONS") {
-        return preflight(event);
-    }
-    if (event.httpMethod !== "DELETE") {
-        return respond(
-            405,
-            { error: "METHOD_NOT_ALLOWED", message: "Method not allowed" },
-            event,
-        );
+    if (event.httpMethod === "OPTIONS") return preflight(event);
+    if (!["GET", "DELETE"].includes(event.httpMethod)) {
+        return respond(405, { error: "METHOD_NOT_ALLOWED" }, event);
     }
 
     const { userId, username } = authIdentity(event);
     if (!userId || !username) {
-        return respond(
-            401,
-            { error: "UNAUTHORIZED", message: "Authentication required" },
-            event,
-        );
+        return respond(401, { error: "UNAUTHORIZED" }, event);
     }
     if (!USER_POOL_ID) {
-        console.error("COGNITO_USER_POOL_ID is not configured");
-        return respond(
-            503,
-            {
-                error: "SERVICE_NOT_CONFIGURED",
-                message: "Account service unavailable",
-            },
-            event,
-        );
+        return respond(503, { error: "SERVICE_NOT_CONFIGURED" }, event);
     }
 
     try {
-        // Execute cleanup in a deterministic, retry-safe order. A retry can safely
-        // repeat each step because deletes and order anonymisation are idempotent.
+        const readiness = await deletionReadiness(userId);
+        if (event.httpMethod === "GET") {
+            return respond(
+                200,
+                { ready: readiness.ready, blockers: readiness.blockers },
+                event,
+            );
+        }
+        if (!readiness.ready) {
+            return respond(
+                409,
+                {
+                    error: "ACCOUNT_DELETION_BLOCKED",
+                    blockers: readiness.blockers,
+                },
+                event,
+            );
+        }
+
         await deleteSavedStands(userId);
         await anonymizeOrders(userId);
+        await deleteMemberships(readiness.memberships);
         await dynamo.send(
             new DeleteCommand({ TableName: USERS_TABLE, Key: { userId } }),
         );
-
         try {
             await cognito.send(
                 new AdminDeleteUserCommand({
@@ -158,11 +215,8 @@ const handler = async (event) => {
                 }),
             );
         } catch (error) {
-            if (error?.name !== "UserNotFoundException") {
-                throw error;
-            }
+            if (error?.name !== "UserNotFoundException") throw error;
         }
-
         return {
             statusCode: 204,
             headers: { ...respond(200, {}, event).headers },
@@ -170,14 +224,7 @@ const handler = async (event) => {
         };
     } catch (error) {
         console.error("Account deletion failed:", error);
-        return respond(
-            500,
-            {
-                error: "ACCOUNT_DELETION_FAILED",
-                message: "Account deletion could not be completed",
-            },
-            event,
-        );
+        return respond(500, { error: "ACCOUNT_DELETION_FAILED" }, event);
     }
 };
 

@@ -6,7 +6,7 @@ const {
     UpdateCommand,
 } = require("@aws-sdk/lib-dynamodb");
 const { withObservability } = require("../common/observability");
-const { writeAuditEvent } = require("../common/audit");
+const { transactWithAudit } = require("../common/audit");
 
 const client = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const INVITATIONS_TABLE = process.env.INVITATIONS_TABLE;
@@ -60,8 +60,8 @@ async function processRecord(record, requestId) {
         return { ignored: true };
     }
     const status = deliveryStatus(event.eventType);
-    await client.send(
-        new UpdateCommand({
+    const invitationUpdate = {
+        Update: {
             TableName: INVITATIONS_TABLE,
             Key: { invitationId: event.invitationId },
             UpdateExpression:
@@ -72,21 +72,28 @@ async function processRecord(record, requestId) {
                 ":messageId": event.messageId,
             },
             ConditionExpression: "attribute_exists(invitationId)",
-        }),
-    );
+        },
+    };
     if (event.organizationId) {
-        await writeAuditEvent(client, AUDIT_TABLE, {
-            organizationId: event.organizationId,
-            actorUserId: "ses",
-            action: `invitation.email_${status}`,
-            resourceType: "invitation",
-            resourceId: event.invitationId,
-            requestId,
-            metadata: {
-                messageId: event.messageId,
-                destination: event.destination,
+        await transactWithAudit(
+            client,
+            [invitationUpdate],
+            AUDIT_TABLE,
+            {
+                organizationId: event.organizationId,
+                actorUserId: "ses",
+                action: `invitation.email_${status}`,
+                resourceType: "invitation",
+                resourceId: event.invitationId,
+                requestId,
+                metadata: {
+                    messageId: event.messageId,
+                    destination: event.destination,
+                },
             },
-        });
+        );
+    } else {
+        await client.send(new UpdateCommand(invitationUpdate.Update));
     }
     return { invitationId: event.invitationId, status };
 }

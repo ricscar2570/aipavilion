@@ -120,8 +120,10 @@ describeIntegration(
                 category: `integration-${suffix}`,
                 name: "Integration Stand",
                 status: "published",
+                moderationStatus: "approved",
                 visibility: "public",
                 publicStatus: "published",
+                eventStatus: "published",
                 publicationKey: `published#${now}`,
                 updatedAt: now,
             };
@@ -214,6 +216,7 @@ describeIntegration(
                 status: "published",
                 visibility: "public",
                 publicStatus: "published",
+                publishedAt: now,
                 startsAt,
                 endsAt: new Date(Date.now() + 172800000).toISOString(),
             };

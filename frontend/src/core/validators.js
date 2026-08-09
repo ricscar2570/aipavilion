@@ -18,24 +18,24 @@ export function validateEmail(email) {
     return { ok: true };
 }
 
-export function validatePassword(
-    password,
-    { minLength = 8, requireNumber = true } = {},
-) {
+export function validatePassword(password) {
     if (!password) {
         return { ok: false, error: "Password is required" };
     }
-    if (password.length < minLength) {
-        return {
-            ok: false,
-            error: `Password must be at least ${minLength} characters`,
-        };
+    if (password.length < 12) {
+        return { ok: false, error: "Password must be at least 12 characters" };
     }
-    if (requireNumber && !/\d/.test(password)) {
-        return {
-            ok: false,
-            error: "Password must include at least one number",
-        };
+    if (!/[a-z]/.test(password)) {
+        return { ok: false, error: "Password must include a lowercase letter" };
+    }
+    if (!/[A-Z]/.test(password)) {
+        return { ok: false, error: "Password must include an uppercase letter" };
+    }
+    if (!/\d/.test(password)) {
+        return { ok: false, error: "Password must include a number" };
+    }
+    if (!/[^A-Za-z0-9]/.test(password)) {
+        return { ok: false, error: "Password must include a symbol" };
     }
     return { ok: true };
 }

@@ -94,7 +94,7 @@ Resources:
         CustomHeadersConfig:
           Items:
             - Header: Content-Security-Policy
-              Value: !Sub "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' https://js.stripe.com https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' ${ApiOrigin} https://api.stripe.com https://challenges.cloudflare.com; frame-src https://js.stripe.com https://hooks.stripe.com https://challenges.cloudflare.com; upgrade-insecure-requests"
+              Value: !Sub "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' https://js.stripe.com https://challenges.cloudflare.com; style-src 'self'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' ${ApiOrigin} https://api.stripe.com https://challenges.cloudflare.com; frame-src https://js.stripe.com https://hooks.stripe.com https://challenges.cloudflare.com; upgrade-insecure-requests"
               Override: true
             - Header: Permissions-Policy
               Value: 'camera=(), microphone=(), geolocation=(), payment=(self "https://js.stripe.com")'

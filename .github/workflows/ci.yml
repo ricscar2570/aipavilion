@@ -26,9 +26,12 @@ jobs:
         with:
           node-version: "22.16.0"
           cache: npm
+          registry-url: "https://registry.npmjs.org"
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          node scripts/check-lockfile-portability.js
+          npm run ci:install
 
       - name: Verify source, contracts, tests, and frontend build
         run: npm run verify
@@ -55,6 +58,7 @@ jobs:
         with:
           node-version: "22.16.0"
           cache: npm
+          registry-url: "https://registry.npmjs.org"
 
       - name: Set up AWS SAM CLI
         uses: aws-actions/setup-sam@v2
@@ -62,10 +66,21 @@ jobs:
           use-installer: true
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          node scripts/check-lockfile-portability.js
+          npm run ci:install
 
-      - name: Validate SAM template
-        run: sam validate --lint --template-file template.yaml
+      - name: Generate and verify retained pilot template
+        run: |
+          npm run pilot:generate
+          npm run pilot:check
 
-      - name: Build Lambda artifacts
-        run: sam build --template-file template.yaml
+      - name: Validate development and pilot SAM templates
+        run: |
+          sam validate --lint --template-file template.yaml
+          sam validate --lint --template-file infrastructure/backend-pilot.yaml
+
+      - name: Build development and pilot Lambda artifacts
+        run: |
+          sam build --template-file template.yaml --build-dir .aws-sam-dev
+          sam build --template-file infrastructure/backend-pilot.yaml --build-dir .aws-sam-pilot

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Browser-level vertical smoke test for the disposable AWS development stack."""
+"""Browser-level vertical test for disposable development or persistent staging."""
 
 from __future__ import annotations
 
@@ -16,10 +16,16 @@ from playwright.sync_api import Page, sync_playwright
 
 ROOT = Path(__file__).resolve().parents[2]
 OUTPUTS_FILE = Path(os.getenv("STACK_OUTPUTS_FILE", ROOT / ".artifacts/dev-stack-outputs.json"))
-USERS_FILE = Path(os.getenv("DEV_TEST_USERS_FILE", ROOT / ".artifacts/dev-test-users.json"))
+USERS_FILE = Path(
+    os.getenv(
+        "TEST_USERS_FILE",
+        os.getenv("DEV_TEST_USERS_FILE", ROOT / ".artifacts/dev-test-users.json"),
+    )
+)
 BASE_URL = os.getenv("E2E_BASE_URL", "http://127.0.0.1:3000")
 REGION = os.getenv("AWS_REGION", os.getenv("AWS_DEFAULT_REGION", "eu-west-1"))
 CHROMIUM_PATH = os.getenv("CHROMIUM_PATH")
+RUN_PRODUCT_CHECKOUT = os.getenv("E2E_PRODUCT_CHECKOUT", "true").lower() == "true"
 
 
 def read_outputs() -> dict[str, str]:
@@ -144,19 +150,21 @@ def run() -> None:
             page.locator('[data-testid="save-stand"]').click()
             page.get_by_text("Stand saved to your dashboard.").wait_for(timeout=15_000)
 
-            page.locator('[data-testid="add-product"]').first.click()
-            page.get_by_text("added to cart!", exact=False).wait_for(timeout=15_000)
-            page.goto(f"{BASE_URL}/#/checkout")
-            page.get_by_text("Development payment simulation", exact=False).wait_for()
-            page.locator('[data-testid="pay-button"]').click()
-            page.get_by_role("heading", name="Payment confirmed").wait_for(
-                timeout=20_000
-            )
+            if RUN_PRODUCT_CHECKOUT:
+                page.locator('[data-testid="add-product"]').first.click()
+                page.get_by_text("added to cart!", exact=False).wait_for(timeout=15_000)
+                page.goto(f"{BASE_URL}/#/checkout")
+                page.get_by_text("Development payment simulation", exact=False).wait_for()
+                page.locator('[data-testid="pay-button"]').click()
+                page.get_by_role("heading", name="Payment confirmed").wait_for(
+                    timeout=20_000
+                )
 
             page.goto(f"{BASE_URL}/#/dashboard")
             page.get_by_role("heading", name="Saved Stands").wait_for(timeout=20_000)
             page.get_by_text("Boardgames Atlas", exact=True).wait_for()
-            page.get_by_text("paid", exact=True).wait_for()
+            if RUN_PRODUCT_CHECKOUT:
+                page.get_by_text("paid", exact=True).wait_for()
 
             # Multi-tenant organizer -> invitation -> exhibitor -> moderation journey.
             logout(page)

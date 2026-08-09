@@ -26,7 +26,9 @@ const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient({ region }));
 
 function readCredentials() {
     const path =
-        process.env.DEV_TEST_USERS_FILE || ".artifacts/dev-test-users.json";
+        process.env.TEST_USERS_FILE ||
+        process.env.DEV_TEST_USERS_FILE ||
+        ".artifacts/dev-test-users.json";
     if (!fs.existsSync(path)) {
         throw new Error(`Development test users not found at ${path}`);
     }
@@ -164,6 +166,7 @@ async function assertDeletedCognitoUser(email) {
 }
 
 async function main() {
+    const runProductCheckout = process.env.SMOKE_PRODUCT_CHECKOUT !== "false";
     const credentials = readCredentials();
     const visitor = credentials.find((item) => item.group === "visitor");
     const admin = credentials.find((item) => item.group === "admin");
@@ -388,29 +391,11 @@ async function main() {
         }),
     });
 
-    const product = stand.products[0];
-    const checkoutRequestId = `checkout-${crypto.randomUUID()}`;
-    const { body: intentBody } = await request("/checkout/create-intent", {
-        method: "POST",
-        headers: {
-            ...bearer(visitorToken),
-            "Idempotency-Key": checkoutRequestId,
-        },
-        body: JSON.stringify({
-            customerEmail: visitor.email,
-            checkoutRequestId,
-            items: [
-                {
-                    standId: stand.stand_id,
-                    productId: product.id,
-                    quantity: 1,
-                },
-            ],
-        }),
-    });
-    const { body: replayedIntentBody } = await request(
-        "/checkout/create-intent",
-        {
+    let orderId = null;
+    if (runProductCheckout) {
+        const product = stand.products[0];
+        const checkoutRequestId = `checkout-${crypto.randomUUID()}`;
+        const { body: intentBody } = await request("/checkout/create-intent", {
             method: "POST",
             headers: {
                 ...bearer(visitorToken),
@@ -427,77 +412,121 @@ async function main() {
                     },
                 ],
             }),
-        },
-    );
-    if (
-        replayedIntentBody.orderId !== intentBody.orderId ||
-        replayedIntentBody.paymentIntentId !== intentBody.paymentIntentId ||
-        !replayedIntentBody.idempotentReplay
-    ) {
-        throw new Error("Checkout idempotency replay failed");
-    }
-    await expectStatus("/checkout/create-intent", 400, {
-        method: "POST",
-        headers: {
-            ...bearer(visitorToken),
-            "Idempotency-Key": `${checkoutRequestId}-mismatch`,
-        },
-        body: JSON.stringify({
-            customerEmail: visitor.email,
-            checkoutRequestId,
-            items: [
-                {
-                    standId: stand.stand_id,
-                    productId: product.id,
-                    quantity: 1,
+        });
+        const { body: replayedIntentBody } = await request(
+            "/checkout/create-intent",
+            {
+                method: "POST",
+                headers: {
+                    ...bearer(visitorToken),
+                    "Idempotency-Key": checkoutRequestId,
                 },
-            ],
-        }),
-    });
-    await expectStatus("/checkout/create-intent", 409, {
-        method: "POST",
-        headers: {
-            ...bearer(visitorToken),
-            "Idempotency-Key": checkoutRequestId,
-        },
-        body: JSON.stringify({
-            customerEmail: visitor.email,
-            checkoutRequestId,
-            items: [
-                {
-                    standId: stand.stand_id,
-                    productId: product.id,
-                    quantity: 2,
-                },
-            ],
-        }),
-    });
-
-    if (intentBody.paymentMode !== "simulated") {
-        throw new Error(
-            "The disposable dev stack is not using simulated payments",
+                body: JSON.stringify({
+                    customerEmail: visitor.email,
+                    checkoutRequestId,
+                    items: [
+                        {
+                            standId: stand.stand_id,
+                            productId: product.id,
+                            quantity: 1,
+                        },
+                    ],
+                }),
+            },
         );
+        if (
+            replayedIntentBody.orderId !== intentBody.orderId ||
+            replayedIntentBody.paymentIntentId !== intentBody.paymentIntentId ||
+            !replayedIntentBody.idempotentReplay
+        ) {
+            throw new Error("Checkout idempotency replay failed");
+        }
+        await expectStatus("/checkout/create-intent", 400, {
+            method: "POST",
+            headers: {
+                ...bearer(visitorToken),
+                "Idempotency-Key": `${checkoutRequestId}-mismatch`,
+            },
+            body: JSON.stringify({
+                customerEmail: visitor.email,
+                checkoutRequestId,
+                items: [
+                    {
+                        standId: stand.stand_id,
+                        productId: product.id,
+                        quantity: 1,
+                    },
+                ],
+            }),
+        });
+        await expectStatus("/checkout/create-intent", 409, {
+            method: "POST",
+            headers: {
+                ...bearer(visitorToken),
+                "Idempotency-Key": checkoutRequestId,
+            },
+            body: JSON.stringify({
+                customerEmail: visitor.email,
+                checkoutRequestId,
+                items: [
+                    {
+                        standId: stand.stand_id,
+                        productId: product.id,
+                        quantity: 2,
+                    },
+                ],
+            }),
+        });
+
+        if (intentBody.paymentMode !== "simulated") {
+            throw new Error(
+                "The disposable dev stack is not using simulated payments",
+            );
+        }
+        await request("/checkout/confirm-order", {
+            method: "POST",
+            headers: bearer(visitorToken),
+            body: JSON.stringify({
+                orderId: intentBody.orderId,
+                paymentIntentId: intentBody.paymentIntentId,
+            }),
+        });
+        const { body: orderBody } = await request(
+            `/checkout/order/${encodeURIComponent(intentBody.orderId)}`,
+            { headers: bearer(visitorToken) },
+        );
+        if (orderBody.status !== "paid") {
+            throw new Error("Simulated checkout did not produce a paid order");
+        }
+        await expectStatus(
+            `/checkout/order/${encodeURIComponent(intentBody.orderId)}`,
+            403,
+            { headers: bearer(adminToken) },
+        );
+
+        orderId = intentBody.orderId;
+    } else {
+        const product = stand.products[0];
+        const disabledRequestId = `checkout-disabled-${crypto.randomUUID()}`;
+        await expectStatus("/checkout/create-intent", 503, {
+            method: "POST",
+            headers: {
+                ...bearer(visitorToken),
+                "Idempotency-Key": disabledRequestId,
+            },
+            body: JSON.stringify({
+                customerEmail: visitor.email,
+                checkoutRequestId: disabledRequestId,
+                items: [
+                    {
+                        standId: stand.stand_id,
+                        productId: product.id,
+                        quantity: 1,
+                    },
+                ],
+            }),
+        });
     }
-    await request("/checkout/confirm-order", {
-        method: "POST",
-        headers: bearer(visitorToken),
-        body: JSON.stringify({
-            orderId: intentBody.orderId,
-            paymentIntentId: intentBody.paymentIntentId,
-        }),
-    });
-    const { body: orderBody } = await request(
-        `/checkout/order/${encodeURIComponent(intentBody.orderId)}`,
-        { headers: bearer(visitorToken) },
-    );
-    if (orderBody.status !== "paid") {
-        throw new Error("Simulated checkout did not produce a paid order");
-    }
-    await expectStatus(
-        `/checkout/order/${encodeURIComponent(intentBody.orderId)}`,
-        403,
-        { headers: bearer(adminToken) },
-    );
 
     const { body: dashboardBody } = await request("/admin/dashboard", {
         headers: bearer(adminToken),
@@ -524,7 +553,7 @@ async function main() {
                 status: "passed",
                 standId: stand.stand_id,
                 leadId: leadBody.leadId,
-                orderId: intentBody.orderId,
+                orderId,
                 adminTotalStands: dashboardBody.totalStands,
                 tenantIsolation: "passed",
                 organizerMemberships: membershipsBody.count,

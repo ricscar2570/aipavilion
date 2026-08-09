@@ -91,21 +91,40 @@ function eventCards(events, invitationsByEvent) {
         .join("");
 }
 
+function membershipActions(member, owner) {
+    if (!owner || member.role === "owner") {
+        return "";
+    }
+
+    const userId = escapeHtml(member.userId);
+    const transferButton =
+        member.role === "organizer" && member.status === "active"
+            ? `<button type="button" data-action="transfer-ownership" data-user-id="${userId}" class="px-2 py-1 border rounded text-purple-700">Make owner</button>`
+            : "";
+    const toggleLabel = member.status === "active" ? "Suspend" : "Reactivate";
+
+    return `${transferButton}
+        <button type="button" data-action="toggle-member" data-user-id="${userId}" data-role="${escapeHtml(member.role)}" data-status="${escapeHtml(member.status)}" class="px-2 py-1 border rounded">${toggleLabel}</button>
+        <button type="button" data-action="remove-member" data-user-id="${userId}" class="px-2 py-1 border rounded text-red-700">Remove</button>`;
+}
+
 function membershipRows(memberships = [], owner) {
     if (!memberships.length) {
         return '<p class="text-sm text-gray-500">No members.</p>';
     }
-    return `<div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr><th class="text-left">User ID</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody>${memberships
+
+    const rows = memberships
         .map(
-            (member) =>
-                `<tr class="border-t"><td class="py-2 font-mono text-xs">${escapeHtml(member.userId)}</td><td>${escapeHtml(member.role)}</td><td>${statusPill(member.status)}</td><td class="text-right">${
-                    owner && member.role !== "owner"
-                        ? `<button type="button" data-action="toggle-member" data-user-id="${escapeHtml(member.userId)}" data-role="${escapeHtml(member.role)}" data-status="${escapeHtml(member.status)}" class="px-2 py-1 border rounded">${member.status === "active" ? "Suspend" : "Reactivate"}</button>
-                       <button type="button" data-action="remove-member" data-user-id="${escapeHtml(member.userId)}" class="px-2 py-1 border rounded text-red-700">Remove</button>`
-                        : ""
-                }</td></tr>`,
+            (member) => `<tr class="border-t">
+                <td class="py-2 font-mono text-xs">${escapeHtml(member.userId)}</td>
+                <td>${escapeHtml(member.role)}</td>
+                <td>${statusPill(member.status)}</td>
+                <td class="text-right">${membershipActions(member, owner)}</td>
+            </tr>`,
         )
-        .join("")}</tbody></table></div>`;
+        .join("");
+
+    return `<div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr><th class="text-left">User ID</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 function billingHTML(entitlement, organization) {
@@ -187,7 +206,7 @@ export function moderationStandsHTML(stands = []) {
     return stands
         .map(
             (stand) =>
-                `<div class="flex flex-wrap items-center justify-between gap-2 border-t py-3"><div><strong>${escapeHtml(stand.name)}</strong><span class="ml-2 text-sm text-gray-500">${escapeHtml(stand.status)}</span></div><div class="flex gap-2"><button type="button" data-action="moderate-stand" data-status="published" data-stand-id="${escapeHtml(stand.stand_id)}" class="px-3 py-1 border rounded">Publish</button><button type="button" data-action="moderate-stand" data-status="rejected" data-stand-id="${escapeHtml(stand.stand_id)}" class="px-3 py-1 border rounded text-red-700">Reject</button></div></div>`,
+                `<div class="flex flex-wrap items-center justify-between gap-2 border-t py-3"><div><strong>${escapeHtml(stand.name)}</strong><span class="ml-2 text-sm text-gray-500">${escapeHtml(stand.status)}</span></div><div class="flex gap-2"><button type="button" data-action="reassign-stand" data-stand-id="${escapeHtml(stand.stand_id)}" class="px-3 py-1 border rounded text-purple-700">Reassign</button><button type="button" data-action="moderate-stand" data-status="published" data-stand-id="${escapeHtml(stand.stand_id)}" class="px-3 py-1 border rounded">Publish</button><button type="button" data-action="moderate-stand" data-status="rejected" data-stand-id="${escapeHtml(stand.stand_id)}" class="px-3 py-1 border rounded text-red-700">Reject</button></div></div>`,
         )
         .join("");
 }
@@ -195,10 +214,41 @@ export function moderationStandsHTML(stands = []) {
 export function exhibitorPortalHTML(stands = []) {
     const cards = stands.length
         ? stands
-              .map(
-                  (stand) =>
-                      `<article class="glass-card rounded-2xl p-6" data-stand-card="${escapeHtml(stand.stand_id)}"><div class="flex flex-wrap justify-between gap-3"><div><h2 class="text-xl font-semibold">${escapeHtml(stand.name)}</h2><p class="text-sm text-gray-600">${escapeHtml(stand.status)} · ${escapeHtml(stand.category || "general")}</p></div><button type="button" data-action="toggle-stand-editor" data-stand-id="${escapeHtml(stand.stand_id)}" class="px-3 py-2 border rounded-lg">Edit</button></div><form data-stand-editor="${escapeHtml(stand.stand_id)}" class="hidden mt-4 space-y-3"><input name="name" value="${escapeHtml(stand.name)}" class="w-full px-3 py-2 border rounded-lg" /><input name="category" value="${escapeHtml(stand.category || "general")}" class="w-full px-3 py-2 border rounded-lg" /><textarea name="description" class="w-full px-3 py-2 border rounded-lg">${escapeHtml(stand.description || "")}</textarea><input name="imageUrl" value="${escapeHtml(stand.image_url || "")}" placeholder="Image URL" class="w-full px-3 py-2 border rounded-lg" /><div class="flex flex-wrap gap-2"><button data-action="save-stand" data-stand-id="${escapeHtml(stand.stand_id)}" class="btn-primary px-4 py-2">Save</button><button data-action="submit-stand" data-stand-id="${escapeHtml(stand.stand_id)}" class="px-4 py-2 border rounded-lg">Submit for review</button><button data-action="load-leads" data-stand-id="${escapeHtml(stand.stand_id)}" class="px-4 py-2 border rounded-lg">Leads</button></div></form><div data-leads-for="${escapeHtml(stand.stand_id)}" class="mt-4"></div></article>`,
-              )
+              .map((stand) => {
+                  const policy = stand.publicContact || {};
+                  return `
+                    <article class="glass-card rounded-2xl p-6" data-stand-card="${escapeHtml(stand.stand_id)}">
+                        <div class="flex flex-wrap justify-between gap-3">
+                            <div>
+                                <h2 class="text-xl font-semibold">${escapeHtml(stand.name)}</h2>
+                                <p class="text-sm text-gray-600">${escapeHtml(stand.status)} · ${escapeHtml(stand.category || "general")}</p>
+                            </div>
+                            <button type="button" data-action="toggle-stand-editor" data-stand-id="${escapeHtml(stand.stand_id)}" class="px-3 py-2 border rounded-lg">Edit</button>
+                        </div>
+                        <form data-stand-editor="${escapeHtml(stand.stand_id)}" class="hidden mt-4 space-y-3">
+                            <label class="block"><span class="text-sm font-medium">Stand name</span><input name="name" value="${escapeHtml(stand.name)}" class="w-full px-3 py-2 border rounded-lg" /></label>
+                            <label class="block"><span class="text-sm font-medium">Category</span><input name="category" value="${escapeHtml(stand.category || "general")}" class="w-full px-3 py-2 border rounded-lg" /></label>
+                            <label class="block"><span class="text-sm font-medium">Description</span><textarea name="description" class="w-full px-3 py-2 border rounded-lg">${escapeHtml(stand.description || "")}</textarea></label>
+                            <label class="block"><span class="text-sm font-medium">Image URL</span><input name="imageUrl" value="${escapeHtml(stand.image_url || "")}" class="w-full px-3 py-2 border rounded-lg" /></label>
+                            <fieldset class="border rounded-lg p-3 space-y-2">
+                                <legend class="px-1 font-medium">Public contact details</legend>
+                                <p class="text-sm text-gray-600">Contact data remains private unless you explicitly publish each field. Visitors can always use the protected lead form.</p>
+                                <label class="block"><span class="text-sm">Email</span><input name="contactEmail" type="email" value="${escapeHtml(stand.contact_email || "")}" class="w-full px-3 py-2 border rounded-lg" /></label>
+                                <label class="block"><span class="text-sm">Phone</span><input name="contactPhone" value="${escapeHtml(stand.contact_phone || "")}" class="w-full px-3 py-2 border rounded-lg" /></label>
+                                <label class="block"><span class="text-sm">Website</span><input name="website" value="${escapeHtml(stand.website || "")}" class="w-full px-3 py-2 border rounded-lg" /></label>
+                                <label class="flex gap-2"><input type="checkbox" name="showEmail" ${policy.showEmail === true ? "checked" : ""} /> Publish email</label>
+                                <label class="flex gap-2"><input type="checkbox" name="showPhone" ${policy.showPhone === true ? "checked" : ""} /> Publish phone</label>
+                                <label class="flex gap-2"><input type="checkbox" name="showWebsite" ${policy.showWebsite === true ? "checked" : ""} /> Publish website</label>
+                            </fieldset>
+                            <div class="flex flex-wrap gap-2">
+                                <button data-action="save-stand" data-stand-id="${escapeHtml(stand.stand_id)}" class="btn-primary px-4 py-2">Save</button>
+                                <button data-action="submit-stand" data-stand-id="${escapeHtml(stand.stand_id)}" class="px-4 py-2 border rounded-lg">Submit for review</button>
+                                <button data-action="load-leads" data-stand-id="${escapeHtml(stand.stand_id)}" class="px-4 py-2 border rounded-lg">Leads</button>
+                            </div>
+                        </form>
+                        <div data-leads-for="${escapeHtml(stand.stand_id)}" class="mt-4"></div>
+                    </article>`;
+              })
               .join("")
         : '<div class="glass-card rounded-2xl p-8 text-gray-700">No stand is assigned to this account yet. Accept an organizer invitation first.</div>';
     return `<section class="max-w-6xl mx-auto px-4 py-10 space-y-5"><header class="text-white"><p class="text-purple-200">Exhibitor portal</p><h1 class="text-3xl font-bold">My stands</h1></header><div id="portal-feedback" class="hidden glass-card rounded-xl p-4" role="status" aria-live="polite"></div>${cards}</section>`;

@@ -95,7 +95,6 @@ class StandDetailManager {
                         <div class="stand-detail-actions">
                             <button class="btn btn-primary" data-testid="contact-exhibitor" type="button" data-action="contact">📧 Contact Exhibitor</button>
                             <button class="btn btn-secondary" data-testid="save-stand" type="button" data-action="save">☆ Save Stand</button>
-                            <button class="btn btn-secondary" type="button" data-action="book-meeting">📅 Book Meeting</button>
                             <button class="btn btn-secondary" type="button" data-action="share">🔗 Share</button>
                         </div>
                     </div>
@@ -196,9 +195,9 @@ class StandDetailManager {
 
     renderContactInfo(stand) {
         const contact = stand.contact || {};
-        const email = contact.email || stand.contact_email || "";
-        const phone = contact.phone || stand.contact_phone || "";
-        const website = safeExternalUrl(contact.website || stand.website || "");
+        const email = contact.email || "";
+        const phone = contact.phone || "";
+        const website = safeExternalUrl(contact.website || "");
 
         if (!email && !phone && !website) {
             return "";
@@ -231,7 +230,9 @@ class StandDetailManager {
                     <h4>${escapeHtml(product.name || "Product")}</h4>
                     ${product.description ? `<p>${escapeHtml(product.description)}</p>` : ""}
                     ${price > 0 ? `<p class="product-price">${formatPrice(price)}</p>` : ""}
-                    <button class="btn btn-primary btn-sm" type="button"
+                    ${
+                        CONFIG.payments.enabled
+                            ? `<button class="btn btn-primary btn-sm" type="button"
                             data-testid="add-product"
                             data-action="add-product"
                             data-product-id="${escapeHtml(productId)}"
@@ -240,7 +241,9 @@ class StandDetailManager {
                             data-stand-id="${escapeHtml(standId)}"
                             ${price > 0 && productId ? "" : "disabled"}>
                         Add to Cart
-                    </button>
+                    </button>`
+                            : '<p class="text-sm text-gray-600">Available through the exhibitor. Use “Contact Exhibitor” for purchasing information.</p>'
+                    }
                 </div>
             </div>`;
     }
@@ -292,9 +295,6 @@ class StandDetailManager {
             }
             if (action === "save") {
                 this.saveCurrentStand();
-            }
-            if (action === "book-meeting") {
-                this.bookMeeting(this.currentStand.stand_id);
             }
             if (action === "share") {
                 this.shareStand(this.currentStand.stand_id);
@@ -483,7 +483,7 @@ class StandDetailManager {
                 <div class="form-group"><label for="contactName">Your Name</label><input type="text" id="contactName" maxlength="120" required></div>
                 <div class="form-group"><label for="contactEmail">Your Email</label><input type="email" id="contactEmail" maxlength="254" required></div>
                 <div class="form-group"><label for="contactMessage">Message</label><textarea id="contactMessage" rows="5" maxlength="3000" required></textarea></div>
-                <div class="form-group" aria-hidden="true" style="position:absolute;left:-10000px"><label for="contactWebsite">Website</label><input type="text" id="contactWebsite" tabindex="-1" autocomplete="off"></div>
+                <div class="form-group contact-honeypot" aria-hidden="true"><label for="contactWebsite">Website</label><input type="text" id="contactWebsite" tabindex="-1" autocomplete="off"></div>
                 <div class="form-group"><label><input type="checkbox" id="contactPrivacy" required> I acknowledge that my data will be sent to the exhibitor to answer this request.</label></div>
                 ${CONFIG.botProtection.mode === "turnstile" ? '<div id="contactBotChallenge" class="form-group" aria-label="Bot protection"></div>' : ""}
             </form>`;
@@ -533,10 +533,6 @@ class StandDetailManager {
         }
     }
 
-    bookMeeting() {
-        uiManager.info("Meeting booking feature coming soon!");
-    }
-
     async shareStand(standId) {
         const url = `${window.location.origin}${window.location.pathname}#/stand/${encodeURIComponent(standId)}`;
         try {
@@ -583,9 +579,18 @@ class StandDetailManager {
                 .map((stand) => renderStandCard(stand, { compact: true }))
                 .join("");
             container.querySelectorAll("[data-stand-id]").forEach((element) => {
-                element.style.cursor = "pointer";
-                element.addEventListener("click", () => {
+                element.classList.add("interactive-card");
+                element.setAttribute("role", "link");
+                element.setAttribute("tabindex", "0");
+                const open = () => {
                     window.location.hash = `/stand/${encodeURIComponent(element.dataset.standId)}`;
+                };
+                element.addEventListener("click", open);
+                element.addEventListener("keydown", (event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        open();
+                    }
                 });
             });
         } catch (error) {

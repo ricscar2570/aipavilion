@@ -28,11 +28,15 @@ jobs:
         with:
           node-version: "22.16.0"
           cache: npm
+          registry-url: "https://registry.npmjs.org"
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_READ_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION || 'eu-west-1' }}
-      - run: npm ci
+      - name: Verify portable lockfile and install dependencies
+        run: |
+          node scripts/check-lockfile-portability.js
+          npm run ci:install
       - name: Capture current stack outputs
         run: |
           mkdir -p .artifacts

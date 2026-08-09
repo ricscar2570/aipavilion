@@ -1,6 +1,88 @@
 # Changelog
 
+## 0.8.5 — Sprint 4.5E public catalogue and product-scope hardening
+
+- Made public event and stand eligibility fail closed.
+- Added explicit stand moderation status and a versioned migration for existing records.
+- Made public email, phone and website projection opt-in per exhibitor.
+- Excluded hidden products from public responses and search.
+- Made pilot search traverse DynamoDB pages instead of filtering only the first page.
+- Synchronized stand publication snapshots when an event is published.
+- Removed unfinished booking, localization, notification and recommendation controls.
+- Removed active inline handlers, inline styles and JavaScript style mutations.
+- Removed `unsafe-inline` from the pilot CSP and added keyboard-operable cards.
+- Added OpenAPI fields, regression tests and the Sprint 4.5E semantic gate.
+
+### Verification boundary
+
+Static source and contract checks are complete. Dependency-driven and deployed AWS/browser evidence remain external gates where public npm and AWS tooling are available.
+
+## 0.8.4 — Sprint 4.5D transactional consistency and payment recovery
+
+- Added transactional audit helpers and migrated critical organization, membership, event, invitation, stand and lead mutations.
+- Made SES invitation-delivery state and its tenant audit entry atomic.
+- Made Stripe-driven entitlement state and its billing audit entry atomic.
+- Converted event archive into a resumable `archiving` state machine that fails closed.
+- Added expiring, token-owned leases and retained failure state for checkout and billing webhooks.
+- Added Stripe event timestamp ordering for orders and SaaS entitlements.
+- Added bounded retry for DynamoDB `BatchGetItem.UnprocessedKeys`.
+- Added a scheduled payment reconciler for expired claims, stale orders and subscription state.
+- Added development and persistent-pilot infrastructure, log retention and tests for reconciliation.
+- Added Sprint 4.5D semantic asset checks and updated OpenAPI/package versions to 0.8.4.
+
+### Verification boundary
+
+The preparation environment could not complete dependency installation from the public npm registry and did not provide AWS/SAM credentials. Source syntax and static contracts are verified; full Jest, lint, build, SAM and deployed recovery evidence remain external gates.
+
+## 0.8.3 — Sprint 4.5C authentication and account lifecycle
+
+- Added Cognito MFA challenge completion for SMS and software-token codes.
+- Added software-token MFA enrollment and disable controls in the account dashboard.
+- Added complete temporary-password and forgot-password confirmation flows.
+- Aligned frontend password validation and copy with the 12-character Cognito policy.
+- Added account-deletion readiness checks and blocking for organization ownership and assigned stands.
+- Added membership cleanup before account deletion and global local-session cleanup afterward.
+- Added atomic organization ownership transfer to an active organizer.
+- Added atomic stand reassignment to an active organization member.
+- Added API contracts, SAM routes and regression tests for all new lifecycle operations.
+- Added a Sprint-specific infrastructure gate and explicitly wired the memberships table, stands table and owner index into the account-lifecycle Lambda in both development and pilot templates.
+
+## 0.8.2 — Sprint 4.5B staging evidence
+
+- Added external staging preflight and safe evidence-manifest generation.
+- Added remote CloudFront Playwright mode and a complete deployed evidence wrapper.
+- Added reusable staging fixtures and configurable test-user artifact paths.
+- Disabled visitor product checkout by default in persistent staging while retaining SaaS billing.
+- Hid cart and purchase controls when visitor payments are disabled.
+- Updated the GitHub staging workflow to run and upload redacted deployment evidence.
+- Added a product-intent document distinguishing the original immersive vision from the current and target products.
+
 All notable changes to the canonical AI Pavilion application are recorded here.
+
+## [0.8.1] - 2026-08-06
+
+### Reproducibility and supply chain
+
+- Replaced 599 internal package-proxy tarball URLs with canonical public npm registry URLs.
+- Added `.npmrc`, npm package-manager metadata, a lockfile normalizer and a pre-install portability gate.
+- Added CI checks for private registries, embedded credentials, package/lock dependency drift and missing root package entries.
+
+### Infrastructure correctness
+
+- Corrected the personal-data export index from the nonexistent `user-saved-index` to `user-saved-at-index` in code and both SAM templates.
+- Added semantic validation for Lambda handler files, esbuild entry points, DynamoDB table references, IAM table policies, index ownership and table outputs.
+- Added built-in regression checks proving that undeclared indexes are rejected.
+
+### Staging deployment
+
+- Removed the first-deployment dependency on a pre-known CloudFront URL.
+- Added backend bootstrap, frontend `SiteUrl` discovery and automatic backend finalization for exact CORS and Cognito callback origins.
+- Added HTTPS-origin and custom-domain/certificate consistency validation plus a non-secret deployment context artifact.
+
+### Verification boundary
+
+- Static checks are complete in the preparation environment.
+- Public-registry installation, dependency-driven quality gates, SAM build and AWS deployment remain to be executed by public CI and an equipped staging account.
 
 ## [0.8.0] - 2026-07-14
 

@@ -45,7 +45,7 @@ function transform(source) {
             "PointInTimeRecoveryEnabled: true",
         )
         .replace(
-            '      MfaConfiguration: "OFF"',
+            "      MfaConfiguration: OPTIONAL",
             "      MfaConfiguration: OPTIONAL",
         )
         .replace(

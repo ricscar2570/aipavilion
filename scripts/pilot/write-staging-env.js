@@ -20,7 +20,7 @@ const values = {
     COGNITO_CLIENT_ID: backend.UserPoolClientId,
     AWS_REGION: process.env.AWS_REGION || "eu-west-1",
     STRIPE_PUBLISHABLE_KEY: process.env.STRIPE_PUBLISHABLE_KEY || "",
-    PAYMENT_MODE: "stripe",
+    PAYMENT_MODE: process.env.PRODUCT_PAYMENT_MODE || "disabled",
     CLOUDFRONT_DOMAIN: frontend.DistributionDomainName || "",
     FEATURE_AR: "false",
     FEATURE_360_TOURS: "false",

@@ -24,7 +24,9 @@ import {
     loginFormHTML,
     confirmationFormHTML,
     forgotPasswordFormHTML,
-    forgotPasswordSentHTML,
+    passwordResetFormHTML,
+    mfaFormHTML,
+    newPasswordFormHTML,
     homepageHTML,
     cartHTML,
     checkoutHTML,
@@ -55,11 +57,14 @@ class AIPavilion {
     }
 
     async init() {
-        document.getElementById("app").innerHTML = shellHTML();
+        document.getElementById("app").innerHTML = shellHTML({
+            paymentsEnabled: CONFIG.payments.enabled,
+        });
         // init() creates toast/modal containers in the DOM.
         // Must run after shellHTML() so document.body is ready,
         // and before any module that might fire a toast on load.
         uiManager.init();
+        this._bindImageFallbacks();
         this._bindAuthEvents();
         this._bindCartEvents();
         this._setupRouting();
@@ -68,6 +73,25 @@ class AIPavilion {
         } finally {
             document.body.classList.add("loaded");
         }
+    }
+
+    _bindImageFallbacks() {
+        document.addEventListener(
+            "error",
+            (event) => {
+                const image = event.target;
+                if (!(image instanceof HTMLImageElement)) {
+                    return;
+                }
+                const fallback = image.dataset.imageFallback;
+                if (!fallback || image.dataset.fallbackApplied === "true") {
+                    return;
+                }
+                image.dataset.fallbackApplied = "true";
+                image.src = fallback;
+            },
+            true,
+        );
     }
 
     // ─── Auth ────────────────────────────────────────────────────────────────
@@ -140,6 +164,7 @@ class AIPavilion {
     }
 
     _hideAuthModal() {
+        authService.cancelChallenge();
         document.getElementById("auth-modal").classList.add("hidden");
     }
 
@@ -206,7 +231,19 @@ class AIPavilion {
 
         try {
             if (isLogin) {
-                await authService.signIn(email, password);
+                try {
+                    await authService.signIn(email, password);
+                } catch (error) {
+                    if (error.code === "MFA_REQUIRED") {
+                        this._showMfaModal(error.mfaType);
+                        return;
+                    }
+                    if (error.code === "NEW_PASSWORD_REQUIRED") {
+                        this._showNewPasswordModal();
+                        return;
+                    }
+                    throw error;
+                }
             } else {
                 const [givenName, ...rest] = name.split(" ");
                 await authService.signUp(email, password, {
@@ -253,14 +290,91 @@ class AIPavilion {
                     .value.trim();
                 const errorEl = document.getElementById("forgot-error");
                 try {
+                    const emailCheck = validateEmail(email);
+                    if (!emailCheck.ok) {
+                        throw new Error(emailCheck.error);
+                    }
                     await authService.forgotPassword(email);
-                    document.getElementById("auth-modal-body").innerHTML =
-                        forgotPasswordSentHTML(email);
+                    this._showPasswordResetModal(email);
                 } catch (err) {
                     errorEl.textContent = this._friendlyAuthError(err);
                     errorEl.classList.remove("hidden");
                 }
             });
+    }
+
+
+    _showPasswordResetModal(email) {
+        document.getElementById("auth-modal-body").innerHTML =
+            passwordResetFormHTML(email);
+        document.getElementById("reset-submit").addEventListener("click", async () => {
+            const code = document.getElementById("reset-code").value.trim();
+            const password = document.getElementById("reset-password").value;
+            const confirm = document.getElementById("reset-password-confirm").value;
+            const errorEl = document.getElementById("reset-error");
+            const check = validatePassword(password);
+            if (!code || !check.ok || password !== confirm) {
+                errorEl.textContent = !code
+                    ? "Verification code is required."
+                    : !check.ok
+                      ? check.error
+                      : "Passwords do not match.";
+                errorEl.classList.remove("hidden");
+                return;
+            }
+            try {
+                await authService.confirmPassword(email, code, password);
+                uiManager.success("Password reset. You can now sign in.");
+                this._showLoginModal("login");
+            } catch (error) {
+                errorEl.textContent = this._friendlyAuthError(error);
+                errorEl.classList.remove("hidden");
+            }
+        });
+    }
+
+    _showMfaModal(type) {
+        document.getElementById("auth-modal-body").innerHTML = mfaFormHTML(type);
+        document.getElementById("mfa-submit").addEventListener("click", async () => {
+            const code = document.getElementById("mfa-code").value.trim();
+            const errorEl = document.getElementById("mfa-error");
+            if (!code) {
+                errorEl.textContent = "Verification code is required.";
+                errorEl.classList.remove("hidden");
+                return;
+            }
+            try {
+                await authService.completeMfa(code);
+            } catch (error) {
+                errorEl.textContent = this._friendlyAuthError(error);
+                errorEl.classList.remove("hidden");
+            }
+        });
+    }
+
+    _showNewPasswordModal() {
+        document.getElementById("auth-modal-body").innerHTML = newPasswordFormHTML();
+        document.getElementById("new-password-submit").addEventListener("click", async () => {
+            const password = document.getElementById("new-required-password").value;
+            const confirm = document.getElementById("new-required-password-confirm").value;
+            const errorEl = document.getElementById("new-password-error");
+            const check = validatePassword(password);
+            if (!check.ok || password !== confirm) {
+                errorEl.textContent = !check.ok ? check.error : "Passwords do not match.";
+                errorEl.classList.remove("hidden");
+                return;
+            }
+            try {
+                await authService.completeNewPassword(password);
+            } catch (error) {
+                if (error.code === "MFA_REQUIRED") {
+                    this._showMfaModal(error.mfaType);
+                    return;
+                }
+                errorEl.textContent = this._friendlyAuthError(error);
+                errorEl.classList.remove("hidden");
+            }
+        });
     }
 
     _showUserMenu(anchorEl) {
@@ -305,7 +419,11 @@ class AIPavilion {
             UsernameExistsException:
                 "An account with this email already exists.",
             InvalidPasswordException:
-                "Password must be at least 8 characters and include numbers.",
+                "Password must contain 12 characters, uppercase, lowercase, a number and a symbol.",
+            PasswordResetRequiredException:
+                "A password reset is required before signing in.",
+            EnableSoftwareTokenMFAException:
+                "Authenticator verification could not be completed.",
             CodeMismatchException: "Invalid verification code.",
             ExpiredCodeException:
                 "Verification code expired. Please request a new one.",
@@ -467,7 +585,7 @@ class AIPavilion {
     _renderCart(content) {
         const cart = cartManager.getCart();
         const total = cartManager.getTotal?.() || 0;
-        content.innerHTML = cartHTML(cart, total);
+        content.innerHTML = cartHTML(cart, total, CONFIG.payments.enabled);
 
         // Wire remove buttons — data-remove-id avoids inline onclick and window globals
         content.querySelectorAll("[data-remove-id]").forEach((btn) => {
@@ -479,6 +597,17 @@ class AIPavilion {
     }
 
     _renderCheckout(content) {
+        if (!CONFIG.payments.enabled) {
+            content.innerHTML = `
+                <section class="max-w-2xl mx-auto px-4 py-16">
+                    <div class="glass-card rounded-2xl p-8 text-center">
+                        <h1 class="text-3xl font-bold text-gray-900 mb-3">Direct checkout is unavailable</h1>
+                        <p class="text-gray-600 mb-6">This pilot is focused on events, exhibitor discovery and lead generation. Contact the exhibitor from the stand page to continue the conversation.</p>
+                        <a href="#/" class="btn-primary inline-flex px-6 py-3">Browse stands</a>
+                    </div>
+                </section>`;
+            return;
+        }
         if (!this._currentUser) {
             content.innerHTML = authGateHTML(
                 "checkout-login-btn",

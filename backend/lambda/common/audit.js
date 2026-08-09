@@ -1,7 +1,7 @@
 "use strict";
 
 const { randomUUID } = require("crypto");
-const { PutCommand } = require("@aws-sdk/lib-dynamodb");
+const { PutCommand, TransactWriteCommand } = require("@aws-sdk/lib-dynamodb");
 
 const AUDIT_RETENTION_DAYS = Math.min(
     Math.max(
@@ -11,12 +11,9 @@ const AUDIT_RETENTION_DAYS = Math.min(
     2555,
 );
 
-async function writeAuditEvent(client, tableName, entry) {
-    if (!tableName) {
-        return null;
-    }
-    const createdAt = new Date().toISOString();
-    const item = {
+function buildAuditEvent(entry, now = new Date()) {
+    const createdAt = now.toISOString();
+    return {
         auditId: `audit_${randomUUID()}`,
         organizationId: entry.organizationId || "platform",
         createdAt,
@@ -28,8 +25,36 @@ async function writeAuditEvent(client, tableName, entry) {
         metadata: entry.metadata || {},
         schemaVersion: 1,
         ttl:
-            Math.floor(Date.now() / 1000) + AUDIT_RETENTION_DAYS * 24 * 60 * 60,
+            Math.floor(now.getTime() / 1000) +
+            AUDIT_RETENTION_DAYS * 24 * 60 * 60,
     };
+}
+
+function buildAuditTransactPut(tableName, entry, now = new Date()) {
+    if (!tableName) return null;
+    return {
+        Put: {
+            TableName: tableName,
+            Item: buildAuditEvent(entry, now),
+            ConditionExpression: "attribute_not_exists(auditId)",
+        },
+    };
+}
+
+async function transactWithAudit(client, transactItems, tableName, entry) {
+    const auditPut = buildAuditTransactPut(tableName, entry);
+    await client.send(
+        new TransactWriteCommand({
+            TransactItems: auditPut
+                ? [...transactItems, auditPut]
+                : transactItems,
+        }),
+    );
+}
+
+async function writeAuditEvent(client, tableName, entry) {
+    if (!tableName) return null;
+    const item = buildAuditEvent(entry);
     await client.send(
         new PutCommand({
             TableName: tableName,
@@ -40,4 +65,9 @@ async function writeAuditEvent(client, tableName, entry) {
     return item;
 }
 
-module.exports = { writeAuditEvent };
+module.exports = {
+    buildAuditEvent,
+    buildAuditTransactPut,
+    transactWithAudit,
+    writeAuditEvent,
+};

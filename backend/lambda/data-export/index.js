@@ -16,7 +16,7 @@ const ORDERS_TABLE = process.env.ORDERS_TABLE;
 const SAVED_STANDS_TABLE = process.env.SAVED_STANDS_TABLE;
 const MEMBERSHIPS_TABLE = process.env.MEMBERSHIPS_TABLE;
 const USER_ORDERS_INDEX = process.env.USER_ORDERS_INDEX || "user-orders-index";
-const USER_SAVED_INDEX = process.env.USER_SAVED_INDEX || "user-saved-index";
+const USER_SAVED_INDEX = process.env.USER_SAVED_INDEX || "user-saved-at-index";
 
 async function queryAll(params) {
     const items = [];

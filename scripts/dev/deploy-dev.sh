@@ -26,7 +26,7 @@ fi
 
 mkdir -p .artifacts
 
-npm ci
+npm run ci:install
 npm run verify
 sam validate --lint --template-file template.yaml
 sam build --template-file template.yaml

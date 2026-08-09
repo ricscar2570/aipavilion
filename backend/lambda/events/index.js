@@ -5,9 +5,9 @@ const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
 const {
     DynamoDBDocumentClient,
     GetCommand,
-    PutCommand,
     QueryCommand,
     UpdateCommand,
+    TransactWriteCommand,
 } = require("@aws-sdk/lib-dynamodb");
 const { respond, preflight } = require("../common/cors");
 const { withObservability } = require("../common/observability");
@@ -18,8 +18,11 @@ const {
     validIsoDate,
     validId,
 } = require("../common/domain");
-const { authorizeOrganization } = require("../common/tenant");
-const { writeAuditEvent } = require("../common/audit");
+const { authorizeOrganization, getMembership } = require("../common/tenant");
+const {
+    buildAuditEvent,
+    transactWithAudit,
+} = require("../common/audit");
 const {
     parseLimit,
     decodeCursor,
@@ -202,21 +205,27 @@ async function createEvent(event, organizationId) {
         schemaVersion: 1,
     };
     try {
-        await client.send(
-            new PutCommand({
-                TableName: EVENTS_TABLE,
-                Item: item,
-                ConditionExpression: "attribute_not_exists(eventId)",
-            }),
+        await transactWithAudit(
+            client,
+            [
+                {
+                    Put: {
+                        TableName: EVENTS_TABLE,
+                        Item: item,
+                        ConditionExpression: "attribute_not_exists(eventId)",
+                    },
+                },
+            ],
+            AUDIT_TABLE,
+            {
+                organizationId,
+                actorUserId: auth.actor.userId,
+                action: "event.created",
+                resourceType: "event",
+                resourceId: item.eventId,
+                requestId: event.requestId,
+            },
         );
-        await writeAuditEvent(client, AUDIT_TABLE, {
-            organizationId,
-            actorUserId: auth.actor.userId,
-            action: "event.created",
-            resourceType: "event",
-            resourceId: item.eventId,
-            requestId: event.requestId,
-        });
         return respond(201, { event: eventSummary(item) }, event);
     } catch (error) {
         if (error.name === "ConditionalCheckFailedException") {
@@ -339,28 +348,80 @@ async function updateEvent(event, organizationId, eventId) {
         return respond(400, { error: "VALIDATION_ERROR" }, event);
     }
     next.updatedAt = new Date().toISOString();
-    await client.send(
-        new PutCommand({
-            TableName: EVENTS_TABLE,
-            Item: next,
-            ConditionExpression:
-                "organizationId = :organizationId AND #status = :expectedStatus",
-            ExpressionAttributeNames: { "#status": "status" },
-            ExpressionAttributeValues: {
-                ":organizationId": organizationId,
-                ":expectedStatus": existing.status,
+    await transactWithAudit(
+        client,
+        [
+            {
+                Put: {
+                    TableName: EVENTS_TABLE,
+                    Item: next,
+                    ConditionExpression:
+                        "organizationId = :organizationId AND #status = :expectedStatus",
+                    ExpressionAttributeNames: { "#status": "status" },
+                    ExpressionAttributeValues: {
+                        ":organizationId": organizationId,
+                        ":expectedStatus": existing.status,
+                    },
+                },
             },
-        }),
+        ],
+        AUDIT_TABLE,
+        {
+            organizationId,
+            actorUserId: auth.actor.userId,
+            action: "event.updated",
+            resourceType: "event",
+            resourceId: eventId,
+            requestId: event.requestId,
+        },
     );
-    await writeAuditEvent(client, AUDIT_TABLE, {
-        organizationId,
-        actorUserId: auth.actor.userId,
-        action: "event.updated",
-        resourceType: "event",
-        resourceId: eventId,
-        requestId: event.requestId,
-    });
     return respond(200, { event: eventSummary(next) }, event);
+}
+
+
+async function synchronizeEventStandPublication(eventId, eventPublicStatus) {
+    let cursor;
+    let updated = 0;
+    do {
+        const page = await client.send(
+            new QueryCommand({
+                TableName: STANDS_TABLE,
+                IndexName: EVENT_STANDS_INDEX,
+                KeyConditionExpression: "eventId = :eventId",
+                ExpressionAttributeValues: { ":eventId": eventId },
+                ExclusiveStartKey: cursor,
+            }),
+        );
+        for (const stand of page.Items || []) {
+            const now = new Date().toISOString();
+            const publishable =
+                eventPublicStatus === "published" &&
+                stand.status === "published" &&
+                stand.moderationStatus === "approved" &&
+                stand.visibility === "public";
+            const publicStatus = publishable ? "published" : "draft";
+            const publicationKey = `${publishable ? "published" : stand.status || "draft"}#${now}`;
+            await client.send(
+                new UpdateCommand({
+                    TableName: STANDS_TABLE,
+                    Key: { stand_id: stand.stand_id },
+                    UpdateExpression:
+                        "SET eventStatus = :eventStatus, publicStatus = :publicStatus, publicationKey = :publicationKey, updatedAt = :now, updated_at = :now",
+                    ConditionExpression: "eventId = :eventId",
+                    ExpressionAttributeValues: {
+                        ":eventStatus": "published",
+                        ":publicStatus": publicStatus,
+                        ":publicationKey": publicationKey,
+                        ":now": now,
+                        ":eventId": eventId,
+                    },
+                }),
+            );
+            updated += 1;
+        }
+        cursor = page.LastEvaluatedKey;
+    } while (cursor);
+    return updated;
 }
 
 async function publishEvent(event, organizationId, eventId) {
@@ -373,35 +434,55 @@ async function publishEvent(event, organizationId, eventId) {
         return respond(404, { error: "EVENT_NOT_FOUND" }, event);
     }
     const now = new Date().toISOString();
-    const result = await client.send(
-        new UpdateCommand({
-            TableName: EVENTS_TABLE,
-            Key: { eventId },
-            UpdateExpression:
-                "SET #status = :published, publicStatus = :publicStatus, publishedAt = if_not_exists(publishedAt, :now), updatedAt = :now",
-            ConditionExpression:
-                "organizationId = :organizationId AND #status IN (:draft, :published)",
-            ExpressionAttributeNames: { "#status": "status" },
-            ExpressionAttributeValues: {
-                ":published": "published",
-                ":publicStatus":
-                    existing.visibility === "public" ? "published" : "private",
-                ":now": now,
-                ":organizationId": organizationId,
-                ":draft": "draft",
+    const next = {
+        ...existing,
+        status: "published",
+        publicStatus:
+            existing.visibility === "public" ? "published" : "private",
+        publishedAt: existing.publishedAt || now,
+        updatedAt: now,
+    };
+    await transactWithAudit(
+        client,
+        [
+            {
+                Update: {
+                    TableName: EVENTS_TABLE,
+                    Key: { eventId },
+                    UpdateExpression:
+                        "SET #status = :published, publicStatus = :publicStatus, publishedAt = if_not_exists(publishedAt, :now), updatedAt = :now",
+                    ConditionExpression:
+                        "organizationId = :organizationId AND #status IN (:draft, :published)",
+                    ExpressionAttributeNames: { "#status": "status" },
+                    ExpressionAttributeValues: {
+                        ":published": "published",
+                        ":publicStatus": next.publicStatus,
+                        ":now": now,
+                        ":organizationId": organizationId,
+                        ":draft": "draft",
+                    },
+                },
             },
-            ReturnValues: "ALL_NEW",
-        }),
+        ],
+        AUDIT_TABLE,
+        {
+            organizationId,
+            actorUserId: auth.actor.userId,
+            action: "event.published",
+            resourceType: "event",
+            resourceId: eventId,
+            requestId: event.requestId,
+        },
     );
-    await writeAuditEvent(client, AUDIT_TABLE, {
-        organizationId,
-        actorUserId: auth.actor.userId,
-        action: "event.published",
-        resourceType: "event",
-        resourceId: eventId,
-        requestId: event.requestId,
-    });
-    return respond(200, { event: eventSummary(result.Attributes) }, event);
+    const synchronizedStands = await synchronizeEventStandPublication(
+        eventId,
+        next.publicStatus,
+    );
+    return respond(
+        200,
+        { event: eventSummary(next), synchronizedStands },
+        event,
+    );
 }
 
 async function duplicateEvent(event, organizationId, eventId) {
@@ -458,22 +539,28 @@ async function duplicateEvent(event, organizationId, eventId) {
         updatedAt: now,
         schemaVersion: 2,
     };
-    await client.send(
-        new PutCommand({
-            TableName: EVENTS_TABLE,
-            Item: copy,
-            ConditionExpression: "attribute_not_exists(eventId)",
-        }),
+    await transactWithAudit(
+        client,
+        [
+            {
+                Put: {
+                    TableName: EVENTS_TABLE,
+                    Item: copy,
+                    ConditionExpression: "attribute_not_exists(eventId)",
+                },
+            },
+        ],
+        AUDIT_TABLE,
+        {
+            organizationId,
+            actorUserId: auth.actor.userId,
+            action: "event.duplicated",
+            resourceType: "event",
+            resourceId: copy.eventId,
+            requestId: event.requestId,
+            metadata: { sourceEventId: eventId },
+        },
     );
-    await writeAuditEvent(client, AUDIT_TABLE, {
-        organizationId,
-        actorUserId: auth.actor.userId,
-        action: "event.duplicated",
-        resourceType: "event",
-        resourceId: copy.eventId,
-        requestId: event.requestId,
-        metadata: { sourceEventId: eventId },
-    });
     return respond(201, { event: eventSummary(copy) }, event);
 }
 
@@ -482,7 +569,7 @@ async function archiveEvent(event, organizationId, eventId) {
     if (!auth.ok) {
         return respond(auth.statusCode, { error: auth.code }, event);
     }
-    const existing = await loadEvent(organizationId, eventId);
+    let existing = await loadEvent(organizationId, eventId);
     if (!existing) {
         return respond(404, { error: "EVENT_NOT_FOUND" }, event);
     }
@@ -494,24 +581,50 @@ async function archiveEvent(event, organizationId, eventId) {
         );
     }
     const now = new Date().toISOString();
-    const result = await client.send(
-        new UpdateCommand({
-            TableName: EVENTS_TABLE,
-            Key: { eventId },
-            UpdateExpression:
-                "SET #status = :archived, publicStatus = :archived, archivedAt = :now, archivedBy = :actor, updatedAt = :now",
-            ConditionExpression:
-                "organizationId = :organizationId AND #status <> :archived",
-            ExpressionAttributeNames: { "#status": "status" },
-            ExpressionAttributeValues: {
-                ":archived": "archived",
-                ":now": now,
-                ":actor": auth.actor.userId,
-                ":organizationId": organizationId,
+    if (existing.status !== "archiving") {
+        await transactWithAudit(
+            client,
+            [
+                {
+                    Update: {
+                        TableName: EVENTS_TABLE,
+                        Key: { eventId },
+                        UpdateExpression:
+                            "SET #status = :archiving, publicStatus = :draft, archiveStartedAt = :now, archivedBy = :actor, updatedAt = :now",
+                        ConditionExpression:
+                            "organizationId = :organizationId AND #status <> :archived",
+                        ExpressionAttributeNames: { "#status": "status" },
+                        ExpressionAttributeValues: {
+                            ":archiving": "archiving",
+                            ":draft": "draft",
+                            ":archived": "archived",
+                            ":now": now,
+                            ":actor": auth.actor.userId,
+                            ":organizationId": organizationId,
+                        },
+                    },
+                },
+            ],
+            AUDIT_TABLE,
+            {
+                organizationId,
+                actorUserId: auth.actor.userId,
+                action: "event.archive_started",
+                resourceType: "event",
+                resourceId: eventId,
+                requestId: event.requestId,
             },
-            ReturnValues: "ALL_NEW",
-        }),
-    );
+        );
+        existing = {
+            ...existing,
+            status: "archiving",
+            publicStatus: "draft",
+            archiveStartedAt: now,
+            archivedBy: auth.actor.userId,
+            updatedAt: now,
+        };
+    }
+
     let lastKey;
     do {
         const stands = await client.send(
@@ -530,26 +643,67 @@ async function archiveEvent(event, organizationId, eventId) {
                     Key: { stand_id: stand.stand_id },
                     UpdateExpression:
                         "SET eventStatus = :archived, publicStatus = :draft, publicationKey = :key, updatedAt = :now, updated_at = :now",
+                    ConditionExpression:
+                        "organizationId = :organizationId AND eventId = :eventId",
                     ExpressionAttributeValues: {
                         ":archived": "archived",
                         ":draft": "draft",
                         ":key": `archived#${now}`,
                         ":now": now,
+                        ":organizationId": organizationId,
+                        ":eventId": eventId,
                     },
                 }),
             );
         }
         lastKey = stands.LastEvaluatedKey;
     } while (lastKey);
-    await writeAuditEvent(client, AUDIT_TABLE, {
-        organizationId,
-        actorUserId: auth.actor.userId,
-        action: "event.archived",
-        resourceType: "event",
-        resourceId: eventId,
-        requestId: event.requestId,
-    });
-    return respond(200, { event: eventSummary(result.Attributes) }, event);
+
+    const completedAt = new Date().toISOString();
+    await transactWithAudit(
+        client,
+        [
+            {
+                Update: {
+                    TableName: EVENTS_TABLE,
+                    Key: { eventId },
+                    UpdateExpression:
+                        "SET #status = :archived, publicStatus = :archived, archivedAt = :now, updatedAt = :now",
+                    ConditionExpression:
+                        "organizationId = :organizationId AND #status = :archiving",
+                    ExpressionAttributeNames: { "#status": "status" },
+                    ExpressionAttributeValues: {
+                        ":archived": "archived",
+                        ":archiving": "archiving",
+                        ":now": completedAt,
+                        ":organizationId": organizationId,
+                    },
+                },
+            },
+        ],
+        AUDIT_TABLE,
+        {
+            organizationId,
+            actorUserId: auth.actor.userId,
+            action: "event.archived",
+            resourceType: "event",
+            resourceId: eventId,
+            requestId: event.requestId,
+        },
+    );
+    return respond(
+        200,
+        {
+            event: eventSummary({
+                ...existing,
+                status: "archived",
+                publicStatus: "archived",
+                archivedAt: completedAt,
+                updatedAt: completedAt,
+            }),
+        },
+        event,
+    );
 }
 
 async function listEventStands(event, organizationId, eventId) {
@@ -584,6 +738,126 @@ async function listEventStands(event, organizationId, eventId) {
             stands: result.Items || [],
             count: (result.Items || []).length,
             nextCursor: encodeCursor(result.LastEvaluatedKey),
+        },
+        event,
+    );
+}
+
+async function reassignStand(event, organizationId, eventId, standId) {
+    const auth = await authorize(event, organizationId);
+    if (!auth.ok) {
+        return respond(auth.statusCode, { error: auth.code }, event);
+    }
+    if (!validId(standId)) {
+        return respond(400, { error: "VALIDATION_ERROR" }, event);
+    }
+    const parsed = parseJsonBody(event);
+    if (parsed.error || !hasExactShape(parsed.value, ["newOwnerUserId"])) {
+        return respond(400, { error: "VALIDATION_ERROR" }, event);
+    }
+    const newOwnerUserId = cleanText(parsed.value.newOwnerUserId, 120);
+    if (!validId(newOwnerUserId)) {
+        return respond(400, { error: "VALIDATION_ERROR" }, event);
+    }
+
+    const [eventItem, standResult, targetMembership] = await Promise.all([
+        loadEvent(organizationId, eventId),
+        client.send(
+            new GetCommand({
+                TableName: STANDS_TABLE,
+                Key: { stand_id: standId },
+                ConsistentRead: true,
+            }),
+        ),
+        getMembership(
+            client,
+            MEMBERSHIPS_TABLE,
+            newOwnerUserId,
+            organizationId,
+        ),
+    ]);
+    if (!eventItem) {
+        return respond(404, { error: "EVENT_NOT_FOUND" }, event);
+    }
+    const stand = standResult.Item;
+    if (
+        !stand ||
+        stand.organizationId !== organizationId ||
+        stand.eventId !== eventId
+    ) {
+        return respond(404, { error: "STAND_NOT_FOUND" }, event);
+    }
+    if (
+        !targetMembership ||
+        targetMembership.status !== "active" ||
+        !["owner", "organizer", "exhibitor"].includes(targetMembership.role)
+    ) {
+        return respond(409, { error: "ACTIVE_MEMBER_REQUIRED" }, event);
+    }
+    if (stand.ownerUserId === newOwnerUserId) {
+        return respond(200, { stand, reassigned: false }, event);
+    }
+
+    const now = new Date();
+    const audit = buildAuditEvent(
+        {
+            organizationId,
+            actorUserId: auth.actor.userId,
+            action: "stand.reassigned",
+            resourceType: "stand",
+            resourceId: standId,
+            requestId: event.requestId,
+            metadata: {
+                eventId,
+                previousOwnerUserId: stand.ownerUserId || null,
+                newOwnerUserId,
+            },
+        },
+        now,
+    );
+    try {
+        await client.send(
+            new TransactWriteCommand({
+                TransactItems: [
+                    {
+                        Update: {
+                            TableName: STANDS_TABLE,
+                            Key: { stand_id: standId },
+                            UpdateExpression:
+                                "SET ownerUserId = :newOwner, assignedAt = :now, updatedAt = :now, updated_at = :now, schemaVersion = :schemaVersion",
+                            ConditionExpression:
+                                "organizationId = :organizationId AND eventId = :eventId AND ownerUserId = :previousOwner",
+                            ExpressionAttributeValues: {
+                                ":newOwner": newOwnerUserId,
+                                ":now": now.toISOString(),
+                                ":schemaVersion": 4,
+                                ":organizationId": organizationId,
+                                ":eventId": eventId,
+                                ":previousOwner": stand.ownerUserId,
+                            },
+                        },
+                    },
+                    {
+                        Put: {
+                            TableName: AUDIT_TABLE,
+                            Item: audit,
+                            ConditionExpression: "attribute_not_exists(auditId)",
+                        },
+                    },
+                ],
+            }),
+        );
+    } catch (error) {
+        if (error?.name === "TransactionCanceledException") {
+            return respond(409, { error: "STAND_ASSIGNMENT_CHANGED" }, event);
+        }
+        throw error;
+    }
+    return respond(
+        200,
+        {
+            reassigned: true,
+            stand: { ...stand, ownerUserId: newOwnerUserId },
         },
         event,
     );
@@ -634,47 +908,75 @@ async function moderateStand(event, organizationId, eventId, standId) {
         return respond(409, { error: "STAND_NOT_PENDING_REVIEW" }, event);
     }
     const now = new Date().toISOString();
+    const moderationStatus = status === "published" ? "approved" : "rejected";
     const publicStatus =
-        status === "published" && stand.visibility === "public"
+        status === "published" &&
+        moderationStatus === "approved" &&
+        stand.visibility === "public" &&
+        eventItem.status === "published" &&
+        eventItem.publicStatus === "published"
             ? "published"
             : "draft";
     try {
-        const result = await client.send(
-            new UpdateCommand({
-                TableName: STANDS_TABLE,
-                Key: { stand_id: standId },
-                UpdateExpression:
-                    "SET #status = :status, publicStatus = :publicStatus, eventStatus = :eventStatus, publicationKey = :publicationKey, moderationNote = :moderationNote, updatedAt = :now, updated_at = :now",
-                ConditionExpression:
-                    "organizationId = :organizationId AND eventId = :eventId AND #status = :pendingReview",
-                ExpressionAttributeNames: { "#status": "status" },
-                ExpressionAttributeValues: {
-                    ":status": status,
-                    ":publicStatus": publicStatus,
-                    ":eventStatus": eventItem.status,
-                    ":publicationKey": `${publicStatus === "published" ? "published" : status}#${now}`,
-                    ":moderationNote": cleanText(
-                        parsed.value.moderationNote,
-                        2000,
-                    ),
-                    ":now": now,
-                    ":organizationId": organizationId,
-                    ":eventId": eventId,
-                    ":pendingReview": "pending_review",
+        const moderationNote = cleanText(parsed.value.moderationNote, 2000);
+        const publicationKey = `${
+            publicStatus === "published" ? "published" : status
+        }#${now}`;
+        await transactWithAudit(
+            client,
+            [
+                {
+                    Update: {
+                        TableName: STANDS_TABLE,
+                        Key: { stand_id: standId },
+                        UpdateExpression:
+                            "SET #status = :status, moderationStatus = :moderationStatus, publicStatus = :publicStatus, eventStatus = :eventStatus, publicationKey = :publicationKey, moderationNote = :moderationNote, updatedAt = :now, updated_at = :now",
+                        ConditionExpression:
+                            "organizationId = :organizationId AND eventId = :eventId AND #status = :pendingReview",
+                        ExpressionAttributeNames: { "#status": "status" },
+                        ExpressionAttributeValues: {
+                            ":status": status,
+                            ":moderationStatus": moderationStatus,
+                            ":publicStatus": publicStatus,
+                            ":eventStatus": eventItem.status,
+                            ":publicationKey": publicationKey,
+                            ":moderationNote": moderationNote,
+                            ":now": now,
+                            ":organizationId": organizationId,
+                            ":eventId": eventId,
+                            ":pendingReview": "pending_review",
+                        },
+                    },
                 },
-                ReturnValues: "ALL_NEW",
-            }),
+            ],
+            AUDIT_TABLE,
+            {
+                organizationId,
+                actorUserId: auth.actor.userId,
+                action: `stand.${status}`,
+                resourceType: "stand",
+                resourceId: standId,
+                requestId: event.requestId,
+                metadata: { eventId },
+            },
         );
-        await writeAuditEvent(client, AUDIT_TABLE, {
-            organizationId,
-            actorUserId: auth.actor.userId,
-            action: `stand.${status}`,
-            resourceType: "stand",
-            resourceId: standId,
-            requestId: event.requestId,
-            metadata: { eventId },
-        });
-        return respond(200, { stand: result.Attributes }, event);
+        return respond(
+            200,
+            {
+                stand: {
+                    ...stand,
+                    status,
+                    moderationStatus,
+                    publicStatus,
+                    eventStatus: eventItem.status,
+                    publicationKey,
+                    moderationNote,
+                    updatedAt: now,
+                    updated_at: now,
+                },
+            },
+            event,
+        );
     } catch (error) {
         if (error.name === "ConditionalCheckFailedException") {
             return respond(404, { error: "STAND_NOT_FOUND" }, event);
@@ -749,6 +1051,17 @@ const handler = async (event) => {
                 event,
                 decodeURIComponent(stands[1]),
                 decodeURIComponent(stands[2]),
+            );
+        }
+        const assignment = path.match(
+            /^\/organizations\/([^/]+)\/events\/([^/]+)\/stands\/([^/]+)\/assignment$/,
+        );
+        if (assignment && method === "PATCH") {
+            return reassignStand(
+                event,
+                decodeURIComponent(assignment[1]),
+                decodeURIComponent(assignment[2]),
+                decodeURIComponent(assignment[3]),
             );
         }
         const moderation = path.match(

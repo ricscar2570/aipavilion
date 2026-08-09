@@ -10,6 +10,7 @@ process.env.EVENTS_TABLE = "events";
 process.env.STANDS_TABLE = "stands";
 process.env.INVITATIONS_TABLE = "invitations";
 process.env.LEADS_TABLE = "leads";
+process.env.USERS_TABLE = "users";
 
 jest.mock("@aws-sdk/client-dynamodb", () => ({
     DynamoDBClient: jest.fn(() => ({})),
@@ -185,7 +186,7 @@ describe("Phase 3 tenant authorization", () => {
             status: "draft",
             publicStatus: "draft",
         });
-        expect(mockSend.mock.calls[3][0].type).toBe("Put");
+        expect(mockSend.mock.calls[3][0].type).toBe("TransactWrite");
     });
 
     test("publishes only a stand that is pending review and makes it queryable", async () => {
@@ -197,6 +198,7 @@ describe("Phase 3 tenant authorization", () => {
                     organizationId: "org-a",
                     status: "published",
                     visibility: "public",
+                    publicStatus: "published",
                 },
             })
             .mockResolvedValueOnce({
@@ -227,9 +229,11 @@ describe("Phase 3 tenant authorization", () => {
             }),
         );
         expect(response.statusCode).toBe(200);
-        const update = mockSend.mock.calls[3][0].input;
+        const update =
+            mockSend.mock.calls[3][0].input.TransactItems[0].Update;
         expect(update.ExpressionAttributeValues).toMatchObject({
             ":publicStatus": "published",
+            ":moderationStatus": "approved",
             ":pendingReview": "pending_review",
         });
         expect(update.ConditionExpression).toContain(
@@ -366,6 +370,7 @@ describe("Phase 3 public event boundaries", () => {
                     status: "published",
                     visibility: "public",
                     publicStatus: "published",
+                    publishedAt: "2026-08-01T00:00:00.000Z",
                     startsAt: "2026-09-01T00:00:00.000Z",
                 },
                 {
@@ -681,7 +686,7 @@ describe("Phase 3 invitation lifecycle", () => {
             status: "draft",
         });
         expect(mockSend.mock.calls[4][0].type).toBe("TransactWrite");
-        expect(mockSend.mock.calls[4][0].input.TransactItems).toHaveLength(3);
+        expect(mockSend.mock.calls[4][0].input.TransactItems).toHaveLength(4);
     });
 
     test("replaying an accepted invitation is idempotent", async () => {
@@ -775,7 +780,10 @@ describe("Phase 3 exhibitor stand workflow", () => {
         );
         expect(response.statusCode).toBe(200);
         expect(JSON.parse(response.body).stand.name).toBe("Updated Stand");
-        expect(mockSend.mock.calls[1][0].input.Item.products[0]).toMatchObject({
+        expect(
+            mockSend.mock.calls[1][0].input.TransactItems[0].Put.Item
+                .products[0],
+        ).toMatchObject({
             productId: "product-a",
             priceInCents: 1200,
         });
@@ -888,6 +896,7 @@ describe("Phase 3 public event detail", () => {
         status: "published",
         visibility: "public",
         publicStatus: "published",
+        publishedAt: "2026-08-01T08:00:00.000Z",
         startsAt: "2026-09-01T08:00:00.000Z",
         endsAt: "2026-09-01T18:00:00.000Z",
         timezone: "Europe/Rome",
@@ -916,9 +925,11 @@ describe("Phase 3 public event detail", () => {
                         eventId: "event-public",
                         name: "Public Stand",
                         status: "published",
+                        moderationStatus: "approved",
                         publicStatus: "published",
                         eventStatus: "published",
                         visibility: "public",
+                        publicationKey: "published#2026-08-01T08:00:00.000Z",
                     },
                     {
                         stand_id: "stand-hidden",
@@ -942,6 +953,109 @@ describe("Phase 3 public event detail", () => {
 });
 
 describe("Phase 4 tenant operations", () => {
+
+    test("reassigns a stand atomically to an active tenant member", async () => {
+        mockSend
+            .mockResolvedValueOnce({ Item: membership("owner") })
+            .mockResolvedValueOnce({
+                Item: {
+                    eventId: "event-a",
+                    organizationId: "org-a",
+                    status: "published",
+                },
+            })
+            .mockResolvedValueOnce({
+                Item: {
+                    stand_id: "stand-a",
+                    organizationId: "org-a",
+                    eventId: "event-a",
+                    ownerUserId: "old-owner",
+                },
+            })
+            .mockResolvedValueOnce({
+                Item: {
+                    userId: "new-exhibitor",
+                    organizationId: "org-a",
+                    role: "exhibitor",
+                    status: "active",
+                },
+            })
+            .mockResolvedValueOnce({});
+        const response = await events(
+            apiEvent({
+                httpMethod: "PATCH",
+                path: "/organizations/org-a/events/event-a/stands/stand-a/assignment",
+                body: JSON.stringify({ newOwnerUserId: "new-exhibitor" }),
+            }),
+        );
+        expect(response.statusCode).toBe(200);
+        expect(JSON.parse(response.body)).toMatchObject({ reassigned: true });
+        const transaction = mockSend.mock.calls.find(
+            ([command]) => command.type === "TransactWrite",
+        )[0];
+        expect(transaction.input.TransactItems).toHaveLength(2);
+    });
+
+    test("transfers ownership atomically to an active organizer", async () => {
+        mockSend
+            .mockResolvedValueOnce({ Item: membership("owner") })
+            .mockResolvedValueOnce({
+                Item: {
+                    userId: "next-owner",
+                    organizationId: "org-a",
+                    role: "organizer",
+                    status: "active",
+                },
+            })
+            .mockResolvedValueOnce({
+                Item: { userId: "next-owner", email: "next@example.com" },
+            })
+            .mockResolvedValueOnce({});
+
+        const response = await organizations(
+            apiEvent({
+                httpMethod: "POST",
+                path: "/organizations/org-a/ownership-transfer",
+                body: JSON.stringify({ newOwnerUserId: "next-owner" }),
+            }),
+        );
+        expect(response.statusCode).toBe(200);
+        expect(JSON.parse(response.body)).toMatchObject({
+            transferred: true,
+            previousOwnerUserId: "user-a",
+            newOwnerUserId: "next-owner",
+        });
+        const transaction = mockSend.mock.calls.find(
+            ([command]) => command.type === "TransactWrite",
+        )[0];
+        expect(transaction.input.TransactItems).toHaveLength(4);
+    });
+
+    test("requires an active organizer before ownership transfer", async () => {
+        mockSend
+            .mockResolvedValueOnce({ Item: membership("owner") })
+            .mockResolvedValueOnce({
+                Item: {
+                    userId: "target-user",
+                    organizationId: "org-a",
+                    role: "exhibitor",
+                    status: "active",
+                },
+            })
+            .mockResolvedValueOnce({
+                Item: { userId: "target-user", email: "target@example.com" },
+            });
+        const response = await organizations(
+            apiEvent({
+                httpMethod: "POST",
+                path: "/organizations/org-a/ownership-transfer",
+                body: JSON.stringify({ newOwnerUserId: "target-user" }),
+            }),
+        );
+        expect(response.statusCode).toBe(409);
+        expect(JSON.parse(response.body).error).toBe("ACTIVE_ORGANIZER_REQUIRED");
+    });
+
     test("updates an organization onboarding profile", async () => {
         mockSend
             .mockResolvedValueOnce({ Item: membership("owner") })
@@ -1062,7 +1176,10 @@ describe("Phase 4 tenant operations", () => {
         );
         expect(removed.statusCode).toBe(200);
         expect(JSON.parse(removed.body).removed).toBe(true);
-        expect(mockSend.mock.calls[2][0].type).toBe("Delete");
+        expect(mockSend.mock.calls[2][0].type).toBe("TransactWrite");
+        expect(
+            mockSend.mock.calls[2][0].input.TransactItems[0].Delete,
+        ).toBeDefined();
     });
 
     test("returns an organization entitlement", async () => {

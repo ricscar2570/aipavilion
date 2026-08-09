@@ -31,7 +31,7 @@ Public responses are projections and do not expose membership, owner, moderation
 | GET/POST | `/user/saved-stands`           |
 | DELETE   | `/user/saved-stands/{standId}` |
 | GET      | `/user/export`                 |
-| DELETE   | `/user/account`                |
+| GET/DELETE | `/user/account`              |
 
 API Gateway applies the Cognito authorizer. Clients send an access token. Order, saved-resource, export and deletion APIs enforce ownership.
 
@@ -42,6 +42,7 @@ API Gateway applies the Cognito authorizer. Clients send an access token. Order,
 | GET          | `/me/memberships`                                      | authenticated actor                            |
 | POST         | `/platform/organizations`                              | platform admin                                 |
 | GET/PATCH    | `/organizations/{organizationId}`                      | member read; owner/organizer onboarding update |
+| POST         | `/organizations/{organizationId}/ownership-transfer`                 | current owner; active organizer target        |
 | GET/POST     | `/organizations/{organizationId}/memberships`          | owner/organizer                                |
 | PATCH/DELETE | `/organizations/{organizationId}/memberships/{userId}` | owner/organizer with owner safeguards          |
 | GET          | `/organizations/{organizationId}/entitlement`          | owner/organizer                                |
@@ -62,6 +63,7 @@ Billing plans, Stripe Price IDs and entitlements are server-owned. Webhook state
 | POST           | `/organizations/{organizationId}/events/{eventId}/duplicate`                         | owner/organizer                        |
 | POST           | `/organizations/{organizationId}/events/{eventId}/archive`                           | owner/organizer                        |
 | GET            | `/organizations/{organizationId}/events/{eventId}/stands`                            | owner/organizer                        |
+| PATCH          | `/organizations/{organizationId}/events/{eventId}/stands/{standId}/assignment`       | owner/organizer; active member target |
 | PATCH          | `/organizations/{organizationId}/events/{eventId}/stands/{standId}/moderation`       | owner/organizer                        |
 | GET/POST       | `/organizations/{organizationId}/events/{eventId}/invitations`                       | owner/organizer and entitlement limits |
 | POST           | `/organizations/{organizationId}/events/{eventId}/invitations/{invitationId}/resend` | owner/organizer                        |
@@ -95,3 +97,7 @@ The admin handler independently verifies the access-token signature and `admin` 
 ## Identity and tenant boundary
 
 The browser does not call custom password-handling Lambda routes. Cognito authenticates the user. Protected handlers derive `sub` and email from the verified authorizer context, then load active membership or resource ownership from DynamoDB. Request-body tenant roles are ignored as authorization evidence.
+
+## Account lifecycle
+
+Cognito handles sign-up, confirmation, software-token MFA, temporary-password replacement, password recovery and password changes. `GET /user/account` reports deletion blockers. Organization ownership must be transferred and assigned stands must be reassigned before `DELETE /user/account` can succeed.

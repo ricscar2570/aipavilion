@@ -8,7 +8,7 @@
 
 import { escapeHtml } from "../core/helpers.js";
 
-const FALLBACK_IMAGE = "https://via.placeholder.com/400x300?text=Stand";
+export const FALLBACK_IMAGE = "/stand-placeholder.svg";
 
 /**
  * Returns a validated image URL.
@@ -38,15 +38,13 @@ export function renderStandCard(stand, { compact = false } = {}) {
     const sponsor = stand.is_sponsored
         ? '<span class="sponsored">✨ Sponsored</span>'
         : "";
-    const ar = stand.ar_enabled ? '<span class="badge-ar">🥽 AR</span>' : "";
     const img = safeImage(stand.image_url);
     const id = escapeHtml(stand.stand_id || "");
 
     if (compact) {
         return `
             <div class="related-stand-card" data-stand-id="${id}">
-                <img src="${img}" alt="${name}"
-                     onerror="this.src='${FALLBACK_IMAGE}'">
+                <img src="${img}" alt="${name}" data-image-fallback="${FALLBACK_IMAGE}">
                 <h4>${name}</h4>
                 ${booth}
             </div>`;
@@ -57,8 +55,8 @@ export function renderStandCard(stand, { compact = false } = {}) {
             <div class="stand-image">
                 <img src="${img}"
                      alt="${name}"
-                     onerror="this.src='${FALLBACK_IMAGE}'">
-                ${ar}${sponsor}
+                     data-image-fallback="${FALLBACK_IMAGE}">
+                ${sponsor}
             </div>
             <div class="stand-content">
                 <h3>${name}</h3>

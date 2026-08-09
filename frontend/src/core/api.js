@@ -92,6 +92,7 @@ class ApiService {
                     response.status,
                     endpoint,
                     details?.error,
+                    details,
                 );
             }
             if (response.status === 204) {
@@ -233,12 +234,13 @@ class ApiService {
 }
 
 export class ApiError extends Error {
-    constructor(message, status, endpoint, code = null) {
+    constructor(message, status, endpoint, code = null, details = null) {
         super(message);
         this.name = "ApiError";
         this.status = status;
         this.endpoint = endpoint;
         this.code = code;
+        this.details = details;
     }
 
     isAuthError() {

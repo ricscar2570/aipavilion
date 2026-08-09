@@ -41,8 +41,13 @@ const CATALOGUE_RESPONSE = {
         "ai-pavilion-stands-test": [
             {
                 stand_id: "stand-1",
-                status: "approved",
+                status: "published",
+                moderationStatus: "approved",
                 visibility: "public",
+                eventStatus: "published",
+                publicStatus: "published",
+                publicationKey: "published#2026-01-01T00:00:00.000Z",
+                eventId: "event-1",
                 products: [
                     { id: "prod-1", name: "Game", price: 59.99 },
                     {
@@ -409,6 +414,7 @@ describe("Checkout Lambda", () => {
     test("deduplicates webhook event IDs and ignores stale transitions", async () => {
         const stripeEvent = {
             id: "evt_1",
+            created: 1760000000,
             type: "payment_intent.succeeded",
             data: { object: { metadata: { orderId: "order-1" } } },
         };
@@ -418,7 +424,8 @@ describe("Checkout Lambda", () => {
             .mockResolvedValueOnce({ Item: orderRecord() })
             .mockResolvedValueOnce({}) // order transition
             .mockResolvedValueOnce({}) // mark event processed
-            .mockRejectedValueOnce(conditionalError()); // duplicate claim
+            .mockRejectedValueOnce(conditionalError()) // duplicate claim
+            .mockResolvedValueOnce({ Item: { status: "processed" } });
 
         const webhook = makeEvent({
             path: "/checkout/webhook",
@@ -430,6 +437,69 @@ describe("Checkout Lambda", () => {
         const second = await handler(webhook);
         expect(first.statusCode).toBe(200);
         expect(JSON.parse(second.body).duplicate).toBe(true);
+    });
+
+    test("retries DynamoDB unprocessed catalogue keys", async () => {
+        mockDynamoSend
+            .mockResolvedValueOnce({
+                Responses: { "ai-pavilion-stands-test": [] },
+                UnprocessedKeys: {
+                    "ai-pavilion-stands-test": {
+                        Keys: [{ stand_id: "stand-1" }],
+                        ConsistentRead: true,
+                    },
+                },
+            })
+            .mockResolvedValueOnce(CATALOGUE_RESPONSE)
+            .mockResolvedValueOnce({})
+            .mockResolvedValueOnce({});
+        mockStripeCreate.mockResolvedValue({
+            id: "pi-retry",
+            client_secret: "secret-retry",
+        });
+
+        const response = await handler(makeEvent({ body: createBody() }));
+        expect(response.statusCode).toBe(200);
+        expect(mockDynamoSend.mock.calls[1][0].type).toBe("BatchGetItem");
+    });
+
+    test("reclaims an expired webhook lease", async () => {
+        const privateApi = require("../../backend/lambda/checkout/index").__private;
+        mockDynamoSend
+            .mockRejectedValueOnce(conditionalError())
+            .mockResolvedValueOnce({
+                Item: {
+                    eventId: "evt-expired",
+                    status: "processing",
+                    leaseExpiresAt: 1,
+                },
+            })
+            .mockResolvedValueOnce({});
+        const result = await privateApi.claimWebhookEvent({
+            id: "evt-expired",
+            created: 1760000000,
+            type: "payment_intent.succeeded",
+        });
+        expect(result).toMatchObject({ claimed: true, reclaimed: true });
+        expect(
+            mockDynamoSend.mock.calls[2][0].input.ConditionExpression,
+        ).toContain("leaseExpiresAt < :nowEpoch");
+    });
+
+    test("ignores an older payment event before writing", async () => {
+        const privateApi = require("../../backend/lambda/checkout/index").__private;
+        mockDynamoSend.mockResolvedValueOnce({
+            Item: orderRecord({
+                lastPaymentEventCreatedAt: 200,
+                status: "pending",
+            }),
+        });
+        const result = await privateApi.transitionOrder("order-1", "paid", {
+            eventId: "evt-old",
+            eventCreatedAt: 100,
+        });
+        expect(result.reason).toBe("out_of_order");
+        expect(mockDynamoSend).toHaveBeenCalledTimes(1);
     });
 
     test("rejects invalid webhook signatures", async () => {

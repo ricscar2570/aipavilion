@@ -12,7 +12,7 @@ import { escapeHtml, formatPrice } from "./helpers.js";
 
 // ─── Shell ────────────────────────────────────────────────────────────────────
 
-export function shellHTML() {
+export function shellHTML({ paymentsEnabled = true } = {}) {
     return `
         <nav class="glass-card fixed top-0 left-0 right-0 z-50">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -31,14 +31,18 @@ export function shellHTML() {
                         </div>
                     </div>
                     <div class="flex items-center space-x-4">
-                        <a href="#/cart" class="relative p-2 rounded-lg hover:bg-gray-100 transition" aria-label="Cart">
+                        ${
+                            paymentsEnabled
+                                ? `<a href="#/cart" class="relative p-2 rounded-lg hover:bg-gray-100 transition" aria-label="Cart">
                             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                       d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/>
                             </svg>
                             <span id="cart-badge"
                                   class="absolute -top-1 -right-1 bg-pink-500 text-white text-xs rounded-full w-5 h-5 items-center justify-center hidden">0</span>
-                        </a>
+                        </a>`
+                                : ""
+                        }
                         <button id="auth-btn" data-testid="auth-button" class="btn-primary">Login</button>
                     </div>
                 </div>
@@ -80,7 +84,7 @@ export function loginFormHTML(mode) {
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
-                <input id="auth-password" type="password" placeholder="${isLogin ? "Your password" : "Min. 8 characters"}"
+                <input id="auth-password" type="password" placeholder="${isLogin ? "Your password" : "12+ chars, upper/lower, number, symbol"}"
                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"/>
             </div>
             <button id="auth-submit" class="btn-primary w-full py-3">
@@ -120,11 +124,36 @@ export function forgotPasswordFormHTML() {
         </div>`;
 }
 
-export function forgotPasswordSentHTML(email) {
+export function passwordResetFormHTML(email) {
     return `
-        <h2 class="text-2xl font-bold gradient-text mb-4">Check your email</h2>
-        <p class="text-gray-600">We sent a password reset code to <strong>${escapeHtml(email)}</strong>.</p>
-        <p class="mt-4 text-sm text-gray-500">Follow the instructions in the email to reset your password.</p>`;
+        <h2 class="text-2xl font-bold gradient-text mb-4">Choose a new password</h2>
+        <p class="text-gray-600 mb-4">Enter the code sent to <strong>${escapeHtml(email)}</strong>.</p>
+        <div class="space-y-4">
+            <input id="reset-code" inputmode="numeric" autocomplete="one-time-code" placeholder="Verification code" class="w-full px-4 py-2 border rounded-lg" />
+            <input id="reset-password" type="password" autocomplete="new-password" placeholder="12+ chars, upper/lower, number, symbol" class="w-full px-4 py-2 border rounded-lg" />
+            <input id="reset-password-confirm" type="password" autocomplete="new-password" placeholder="Confirm new password" class="w-full px-4 py-2 border rounded-lg" />
+            <div id="reset-error" class="hidden p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm"></div>
+            <button id="reset-submit" class="btn-primary w-full py-3">Reset Password</button>
+        </div>`;
+}
+
+export function mfaFormHTML(type = "MFA") {
+    return `
+        <h2 class="text-2xl font-bold gradient-text mb-4">Verification required</h2>
+        <p class="text-gray-600 mb-4">Enter the code from your ${escapeHtml(type === "SOFTWARE_TOKEN_MFA" ? "authenticator app" : "verification message")}.</p>
+        <input id="mfa-code" inputmode="numeric" autocomplete="one-time-code" placeholder="Verification code" class="w-full px-4 py-2 border rounded-lg" />
+        <div id="mfa-error" class="hidden mt-3 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm"></div>
+        <button id="mfa-submit" class="btn-primary w-full py-3 mt-4">Verify</button>`;
+}
+
+export function newPasswordFormHTML() {
+    return `
+        <h2 class="text-2xl font-bold gradient-text mb-4">Set a permanent password</h2>
+        <p class="text-gray-600 mb-4">Your temporary password must be replaced before continuing.</p>
+        <input id="new-required-password" type="password" autocomplete="new-password" placeholder="12+ chars, upper/lower, number, symbol" class="w-full px-4 py-2 border rounded-lg" />
+        <input id="new-required-password-confirm" type="password" autocomplete="new-password" placeholder="Confirm password" class="w-full px-4 py-2 border rounded-lg mt-3" />
+        <div id="new-password-error" class="hidden mt-3 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm"></div>
+        <button id="new-password-submit" class="btn-primary w-full py-3 mt-4">Continue</button>`;
 }
 
 // ─── Pages ────────────────────────────────────────────────────────────────────
@@ -170,7 +199,7 @@ export function homepageHTML() {
         </div>`;
 }
 
-export function cartHTML(cart, total) {
+export function cartHTML(cart, total, paymentsEnabled = true) {
     if (!cart.length) {
         return `
             <div class="max-w-2xl mx-auto px-4 py-16 text-center">
@@ -208,7 +237,11 @@ export function cartHTML(cart, total) {
             </div>
             <div class="flex gap-4">
                 <a href="#/" class="flex-1 text-center py-3 rounded-xl border border-white/30 text-white hover:bg-white/10 transition">Continue Shopping</a>
-                <a href="#/checkout" class="flex-1 btn-primary text-center py-3">Proceed to Checkout</a>
+                ${
+                    paymentsEnabled
+                        ? '<a href="#/checkout" class="flex-1 btn-primary text-center py-3">Proceed to Checkout</a>'
+                        : '<p class="flex-1 rounded-xl bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">Direct product purchases are not enabled for this event. Contact the exhibitor from the stand page.</p>'
+                }
             </div>
         </div>`;
 }

@@ -5,14 +5,13 @@ const {
     DynamoDBDocumentClient,
     GetCommand,
     QueryCommand,
-    UpdateCommand,
 } = require("@aws-sdk/lib-dynamodb");
 const { respond, preflight, corsHeaders } = require("../common/cors");
 const { withObservability } = require("../common/observability");
 const { parseJsonBody, hasExactShape } = require("../common/validation");
 const { cleanText } = require("../common/domain");
 const { identity, getMembership, hasRole } = require("../common/tenant");
-const { writeAuditEvent } = require("../common/audit");
+const { transactWithAudit } = require("../common/audit");
 const {
     parseLimit,
     decodeCursor,
@@ -172,36 +171,54 @@ async function updateLead(event, actor, leadId) {
         }
     }
     const now = new Date().toISOString();
-    const result = await client.send(
-        new UpdateCommand({
-            TableName: LEADS_TABLE,
-            Key: { leadId },
-            UpdateExpression:
-                "SET #status = :status, notes = :notes, assignedTo = :assignedTo, updatedAt = :now",
-            ConditionExpression:
-                "organizationId = :organizationId AND standId = :standId",
-            ExpressionAttributeNames: { "#status": "status" },
-            ExpressionAttributeValues: {
-                ":status": status,
-                ":notes": cleanText(parsed.value.notes ?? lead.notes, 5000),
-                ":assignedTo": assignedTo,
-                ":now": now,
-                ":organizationId": lead.organizationId,
-                ":standId": lead.standId,
+    const notes = cleanText(parsed.value.notes ?? lead.notes, 5000);
+    await transactWithAudit(
+        client,
+        [
+            {
+                Update: {
+                    TableName: LEADS_TABLE,
+                    Key: { leadId },
+                    UpdateExpression:
+                        "SET #status = :status, notes = :notes, assignedTo = :assignedTo, updatedAt = :now",
+                    ConditionExpression:
+                        "organizationId = :organizationId AND standId = :standId",
+                    ExpressionAttributeNames: { "#status": "status" },
+                    ExpressionAttributeValues: {
+                        ":status": status,
+                        ":notes": notes,
+                        ":assignedTo": assignedTo,
+                        ":now": now,
+                        ":organizationId": lead.organizationId,
+                        ":standId": lead.standId,
+                    },
+                },
             },
-            ReturnValues: "ALL_NEW",
-        }),
+        ],
+        AUDIT_TABLE,
+        {
+            organizationId: lead.organizationId,
+            actorUserId: actor.userId,
+            action: "lead.updated",
+            resourceType: "lead",
+            resourceId: leadId,
+            requestId: event.requestId,
+            metadata: { standId: lead.standId, status },
+        },
     );
-    await writeAuditEvent(client, AUDIT_TABLE, {
-        organizationId: lead.organizationId,
-        actorUserId: actor.userId,
-        action: "lead.updated",
-        resourceType: "lead",
-        resourceId: leadId,
-        requestId: event.requestId,
-        metadata: { standId: lead.standId, status },
-    });
-    return respond(200, { lead: safeLead(result.Attributes) }, event);
+    return respond(
+        200,
+        {
+            lead: safeLead({
+                ...lead,
+                status,
+                notes,
+                assignedTo,
+                updatedAt: now,
+            }),
+        },
+        event,
+    );
 }
 
 const handler = async (event) => {

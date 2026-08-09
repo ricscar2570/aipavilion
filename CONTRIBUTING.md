@@ -8,7 +8,8 @@
 4. Run the complete local gate:
 
 ```bash
-npm ci
+node scripts/check-lockfile-portability.js
+npm run ci:install
 npm run verify
 npm audit --audit-level=high
 ```
@@ -28,5 +29,7 @@ sam build --template-file template.yaml
 - Do not expose tokens, payment identifiers, secrets, or personal request bodies in logs.
 - Do not claim a feature is shipped unless it is reachable, tested, documented, and deployed in the supported architecture.
 - Keep `package-lock.json` updated with dependency changes.
+- Never commit lockfile artifacts resolved from private, local or credential-bearing registries.
+- Run `npm run check:infrastructure` after changing Lambda environments, table policies, indexes, outputs or handlers.
 
 Pull requests must pass the CI quality and SAM jobs before merge.

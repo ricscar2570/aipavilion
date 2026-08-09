@@ -52,8 +52,13 @@ function publicStand(overrides = {}) {
         stand_id: "stand-99",
         name: "Canonical Stand",
         image_url: "https://example.com/image.jpg",
-        status: "approved",
+        status: "published",
+        moderationStatus: "approved",
         visibility: "public",
+        eventStatus: "published",
+        publicStatus: "published",
+        publicationKey: "published#2026-01-01T00:00:00.000Z",
+        eventId: "event-1",
         ...overrides,
     };
 }

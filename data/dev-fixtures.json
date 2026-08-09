@@ -130,7 +130,7 @@
       "created_at": "2026-07-01T09:00:00.000Z",
       "updated_at": "2026-07-01T09:00:00.000Z",
       "visibility": "public",
-      "schemaVersion": 3,
+      "schemaVersion": 4,
       "organizationId": "org_atlas",
       "eventId": "evt_atlas_2026",
       "ownerUserId": "pending-dev-exhibitor",
@@ -139,7 +139,13 @@
       "updatedAt": "2026-07-01T09:00:00.000Z",
       "createdAt": "2026-07-01T09:00:00.000Z",
       "publicationKey": "published#2026-07-01T09:00:00.000Z",
-      "publicStatus": "published"
+      "publicStatus": "published",
+      "moderationStatus": "approved",
+      "publicContact": {
+        "showEmail": false,
+        "showPhone": false,
+        "showWebsite": false
+      }
     },
     {
       "stand_id": "stand_indie_foundry",
@@ -171,7 +177,7 @@
       "created_at": "2026-07-01T09:05:00.000Z",
       "updated_at": "2026-07-01T09:05:00.000Z",
       "visibility": "public",
-      "schemaVersion": 3,
+      "schemaVersion": 4,
       "organizationId": "org_atlas",
       "eventId": "evt_atlas_2026",
       "ownerUserId": "pending-dev-exhibitor",
@@ -180,7 +186,13 @@
       "updatedAt": "2026-07-01T09:05:00.000Z",
       "createdAt": "2026-07-01T09:05:00.000Z",
       "publicationKey": "published#2026-07-01T09:05:00.000Z",
-      "publicStatus": "published"
+      "publicStatus": "published",
+      "moderationStatus": "approved",
+      "publicContact": {
+        "showEmail": false,
+        "showPhone": false,
+        "showWebsite": false
+      }
     },
     {
       "stand_id": "stand_rpg_workshop",
@@ -212,7 +224,7 @@
       "created_at": "2026-07-01T09:10:00.000Z",
       "updated_at": "2026-07-01T09:10:00.000Z",
       "visibility": "public",
-      "schemaVersion": 3,
+      "schemaVersion": 4,
       "organizationId": "org_atlas",
       "eventId": "evt_atlas_2026",
       "ownerUserId": "pending-dev-exhibitor",
@@ -221,7 +233,13 @@
       "updatedAt": "2026-07-01T09:10:00.000Z",
       "createdAt": "2026-07-01T09:10:00.000Z",
       "publicationKey": "published#2026-07-01T09:10:00.000Z",
-      "publicStatus": "published"
+      "publicStatus": "published",
+      "moderationStatus": "approved",
+      "publicContact": {
+        "showEmail": false,
+        "showPhone": false,
+        "showWebsite": false
+      }
     },
     {
       "stand_id": "stand_unpublished_preview",
@@ -249,7 +267,7 @@
           "category": "internal"
         }
       ],
-      "schemaVersion": 3,
+      "schemaVersion": 4,
       "created_at": "2026-07-01T09:15:00.000Z",
       "updated_at": "2026-07-01T09:15:00.000Z",
       "organizationId": "org_atlas",
@@ -260,7 +278,8 @@
       "updatedAt": "2026-07-01T09:15:00.000Z",
       "createdAt": "2026-07-01T09:15:00.000Z",
       "publicationKey": "draft#2026-07-01T09:15:00.000Z",
-      "publicStatus": "draft"
+      "publicStatus": "draft",
+      "moderationStatus": "draft"
     },
     {
       "stand_id": "stand_rival_showcase",
@@ -290,7 +309,7 @@
           "category": "digital"
         }
       ],
-      "schemaVersion": 3,
+      "schemaVersion": 4,
       "created_at": "2026-07-01T09:20:00.000Z",
       "updated_at": "2026-07-01T09:20:00.000Z",
       "organizationId": "org_rival",
@@ -301,7 +320,13 @@
       "updatedAt": "2026-07-01T09:20:00.000Z",
       "createdAt": "2026-07-01T09:20:00.000Z",
       "publicationKey": "published#2026-07-01T09:20:00.000Z",
-      "publicStatus": "published"
+      "publicStatus": "published",
+      "moderationStatus": "approved",
+      "publicContact": {
+        "showEmail": false,
+        "showPhone": false,
+        "showWebsite": false
+      }
     }
   ]
 }

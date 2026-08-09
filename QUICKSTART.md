@@ -1,16 +1,17 @@
-# AI Pavilion 0.8.0 quick start
+# AI Pavilion 0.8.5 quick start
 
 ## 1. Verify the source
 
 Use Node.js `20.19+` or `22.12+` and npm 10+.
 
 ```bash
-npm ci
+node scripts/check-lockfile-portability.js
+npm run ci:install
 npm run verify
 npm audit --audit-level=high
 ```
 
-`package-lock.json` is the reproducibility source. CI must use `npm ci`.
+`package-lock.json` is the reproducibility source. All resolved artifacts must use `https://registry.npmjs.org`; CI checks this before `npm run ci:install`.
 
 ## 2. Run the frontend locally
 
@@ -76,7 +77,7 @@ The development template accepts only `Environment=dev` and is intentionally des
 Read [`docs/operations/STAGING-RUNBOOK.md`](docs/operations/STAGING-RUNBOOK.md) before proceeding. Staging requires:
 
 - a dedicated account or strongly isolated role;
-- an exact HTTPS `APP_URL`;
+- either a custom HTTPS domain or permission to use the generated CloudFront domain;
 - Stripe **test-mode** keys and Price IDs;
 - a verified SES sender;
 - Turnstile site and secret keys;
@@ -96,17 +97,23 @@ The deployment wrapper consumes the environment variables documented in the runb
 npm run pilot:deploy
 ```
 
-It verifies the source, deploys retained backend/frontend/operations stacks, writes a permission-restricted frontend configuration, applies migrations, builds and uploads the frontend, invalidates CloudFront and runs synthetic checks.
+It verifies the source and infrastructure contracts, deploys retained backend/frontend/operations stacks, discovers the generated CloudFront URL when necessary, reapplies backend CORS/Cognito settings, writes a permission-restricted frontend configuration, applies migrations, builds and uploads the frontend, invalidates CloudFront and runs synthetic checks.
 
 ## 5. Operational evidence
 
-After staging deployment, execute and retain evidence for:
+Persistent staging defaults to `PRODUCT_PAYMENT_MODE=disabled`. SaaS subscription billing remains Stripe-backed, but visitors contact exhibitors rather than purchasing products through a multi-vendor checkout.
+
+After staging deployment, run the isolated synthetic evidence suite against the deployed CloudFront origin:
 
 ```bash
-npm run test:integration
-npm run test:smoke:deployed
-npm run test:e2e:deployed
-npm run pilot:synthetic
+export APP_URL=https://your-staging-origin.example
+export ALLOW_SYNTHETIC_FIXTURES=true
+npm run pilot:evidence
+```
+
+This runs DynamoDB integration, API smoke, remote Playwright and synthetic checks, then writes a checksum manifest under `.artifacts/evidence/`. Run the destructive backup restore exercise separately:
+
+```bash
 npm run pilot:restore-drill
 ```
 

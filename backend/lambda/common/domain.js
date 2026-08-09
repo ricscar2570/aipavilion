@@ -37,7 +37,16 @@ function publicEvent(event) {
     if (
         !event ||
         event.status !== "published" ||
-        event.visibility !== "public"
+        event.visibility !== "public" ||
+        event.publicStatus !== "published" ||
+        typeof event.eventId !== "string" ||
+        !event.eventId ||
+        typeof event.organizationId !== "string" ||
+        !event.organizationId ||
+        typeof event.name !== "string" ||
+        !event.name.trim() ||
+        typeof event.publishedAt !== "string" ||
+        !event.publishedAt
     ) {
         return null;
     }

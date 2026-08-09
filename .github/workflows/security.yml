@@ -21,7 +21,11 @@ jobs:
         with:
           node-version: "22.16.0"
           cache: npm
-      - run: npm ci
+          registry-url: "https://registry.npmjs.org"
+      - name: Verify portable lockfile and install dependencies
+        run: |
+          node scripts/check-lockfile-portability.js
+          npm run ci:install
       - name: Dependency vulnerability gate
         run: npm audit --audit-level=high
       - name: Source, contracts and generated pilot verification

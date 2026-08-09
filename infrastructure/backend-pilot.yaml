@@ -133,6 +133,8 @@ Resources:
       UsernameAttributes: [email]
       AutoVerifiedAttributes: [email]
       MfaConfiguration: OPTIONAL
+      EnabledMfas:
+        - SOFTWARE_TOKEN_MFA
       DeletionProtection: ACTIVE
       AccountRecoverySetting:
         RecoveryMechanisms:
@@ -1017,6 +1019,9 @@ Resources:
           USERS_TABLE: !Ref UsersTable
           ORDERS_TABLE: !Ref OrdersTable
           SAVED_STANDS_TABLE: !Ref SavedStandsTable
+          MEMBERSHIPS_TABLE: !Ref MembershipsTable
+          STANDS_TABLE: !Ref StandsTable
+          OWNER_STANDS_INDEX: owner-stands-index
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref UsersTable
@@ -1024,11 +1029,23 @@ Resources:
             TableName: !Ref OrdersTable
         - DynamoDBCrudPolicy:
             TableName: !Ref SavedStandsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref MembershipsTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref StandsTable
         - Statement:
             Effect: Allow
             Action: cognito-idp:AdminDeleteUser
             Resource: !Sub arn:${AWS::Partition}:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${UserPool}
       Events:
+        AccountDeletionReadiness:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /user/account
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuthorizer
         DeleteAccount:
           Type: Api
           Properties:
@@ -1191,12 +1208,22 @@ Resources:
           MEMBERSHIPS_TABLE: !Ref MembershipsTable
           ENTITLEMENTS_TABLE: !Ref EntitlementsTable
           AUDIT_TABLE: !Ref AuditEventsTable
+          USERS_TABLE: !Ref UsersTable
           ORGANIZATION_MEMBERS_INDEX: organization-members-index
       Policies:
         - DynamoDBCrudPolicy: { TableName: !Ref OrganizationsTable }
         - DynamoDBCrudPolicy: { TableName: !Ref MembershipsTable }
         - DynamoDBCrudPolicy: { TableName: !Ref EntitlementsTable }
         - DynamoDBWritePolicy: { TableName: !Ref AuditEventsTable }
+        - DynamoDBReadPolicy: { TableName: !Ref UsersTable }
+        - Statement:
+            Effect: Allow
+            Action: dynamodb:TransactWriteItems
+            Resource:
+              - !GetAtt OrganizationsTable.Arn
+              - !GetAtt MembershipsTable.Arn
+              - !GetAtt EntitlementsTable.Arn
+              - !GetAtt AuditEventsTable.Arn
       Events:
         MyMemberships:
           Type: Api
@@ -1229,6 +1256,14 @@ Resources:
 
             Method: ANY
 
+            Auth:
+              Authorizer: CognitoAuthorizer
+        TransferOrganizationOwnership:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /organizations/{organizationId}/ownership-transfer
+            Method: POST
             Auth:
               Authorizer: CognitoAuthorizer
         OrganizationMembers:
@@ -1291,6 +1326,13 @@ Resources:
         - DynamoDBReadPolicy: { TableName: !Ref MembershipsTable }
         - DynamoDBReadPolicy: { TableName: !Ref EntitlementsTable }
         - DynamoDBWritePolicy: { TableName: !Ref AuditEventsTable }
+        - Statement:
+            Effect: Allow
+            Action: dynamodb:TransactWriteItems
+            Resource:
+              - !GetAtt EventsTable.Arn
+              - !GetAtt StandsTable.Arn
+              - !GetAtt AuditEventsTable.Arn
       Events:
         OrgEvents:
           Type: Api
@@ -1350,6 +1392,14 @@ Resources:
 
             Method: GET
 
+            Auth:
+              Authorizer: CognitoAuthorizer
+        ReassignStand:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /organizations/{organizationId}/events/{eventId}/stands/{standId}/assignment
+            Method: PATCH
             Auth:
               Authorizer: CognitoAuthorizer
         ModerateStand:
@@ -1441,6 +1491,14 @@ Resources:
         - DynamoDBWritePolicy: { TableName: !Ref AuditEventsTable }
         - Statement:
             Effect: Allow
+            Action: dynamodb:TransactWriteItems
+            Resource:
+              - !GetAtt InvitationsTable.Arn
+              - !GetAtt MembershipsTable.Arn
+              - !GetAtt StandsTable.Arn
+              - !GetAtt AuditEventsTable.Arn
+        - Statement:
+            Effect: Allow
             Action: [ses:SendEmail, ses:SendRawEmail]
             Resource: "*"
       Events:
@@ -1507,6 +1565,12 @@ Resources:
         - DynamoDBCrudPolicy: { TableName: !Ref StandsTable }
         - DynamoDBReadPolicy: { TableName: !Ref EventsTable }
         - DynamoDBWritePolicy: { TableName: !Ref AuditEventsTable }
+        - Statement:
+            Effect: Allow
+            Action: dynamodb:TransactWriteItems
+            Resource:
+              - !GetAtt StandsTable.Arn
+              - !GetAtt AuditEventsTable.Arn
       Events:
         ExhibitorStands:
           Type: Api
@@ -1568,6 +1632,12 @@ Resources:
         - DynamoDBCrudPolicy: { TableName: !Ref LeadsTable }
         - DynamoDBReadPolicy: { TableName: !Ref MembershipsTable }
         - DynamoDBWritePolicy: { TableName: !Ref AuditEventsTable }
+        - Statement:
+            Effect: Allow
+            Action: dynamodb:TransactWriteItems
+            Resource:
+              - !GetAtt LeadsTable.Arn
+              - !GetAtt AuditEventsTable.Arn
       Events:
         ExhibitorLeads:
           Type: Api
@@ -1686,6 +1756,12 @@ Resources:
         - DynamoDBWritePolicy: { TableName: !Ref AuditEventsTable }
         - Statement:
             Effect: Allow
+            Action: dynamodb:TransactWriteItems
+            Resource:
+              - !GetAtt EntitlementsTable.Arn
+              - !GetAtt AuditEventsTable.Arn
+        - Statement:
+            Effect: Allow
             Action: secretsmanager:GetSecretValue
             Resource: !Ref StripeSecret
       Events:
@@ -1743,6 +1819,12 @@ Resources:
       Policies:
         - DynamoDBCrudPolicy: { TableName: !Ref InvitationsTable }
         - DynamoDBWritePolicy: { TableName: !Ref AuditEventsTable }
+        - Statement:
+            Effect: Allow
+            Action: dynamodb:TransactWriteItems
+            Resource:
+              - !GetAtt InvitationsTable.Arn
+              - !GetAtt AuditEventsTable.Arn
       Events:
         InvitationEmailEvents:
           Type: SNS
@@ -1802,7 +1884,7 @@ Resources:
           SAVED_STANDS_TABLE: !Ref SavedStandsTable
           MEMBERSHIPS_TABLE: !Ref MembershipsTable
           USER_ORDERS_INDEX: user-orders-index
-          USER_SAVED_INDEX: user-saved-index
+          USER_SAVED_INDEX: user-saved-at-index
       Policies:
         - DynamoDBReadPolicy: { TableName: !Ref UsersTable }
         - DynamoDBReadPolicy: { TableName: !Ref OrdersTable }
@@ -1817,6 +1899,48 @@ Resources:
             Method: GET
             Auth:
               Authorizer: CognitoAuthorizer
+
+  PaymentReconciliationFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints: [payment-reconciliation/index.js]
+        Format: cjs
+        Minify: true
+        Sourcemap: true
+        Target: es2022
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-payment-reconciliation
+      CodeUri: backend/lambda/
+      Handler: payment-reconciliation/index.handler
+      Timeout: 120
+      MemorySize: 512
+      Environment:
+        Variables:
+          PAYMENT_EVENTS_TABLE: !Ref PaymentEventsTable
+          ORDERS_TABLE: !Ref OrdersTable
+          ENTITLEMENTS_TABLE: !Ref EntitlementsTable
+          STRIPE_SECRET_KEY_ARN: !Ref StripeSecret
+          PAYMENT_MODE: !Ref PaymentMode
+          BILLING_MODE: !Ref BillingMode
+          RECONCILIATION_MAX_ITEMS: 100
+          RECONCILIATION_MAX_SCAN_PAGES: 20
+          STALE_ORDER_MINUTES: 15
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref PaymentEventsTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref OrdersTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref EntitlementsTable }
+        - Statement:
+            Effect: Allow
+            Action: secretsmanager:GetSecretValue
+            Resource: !Ref StripeSecret
+      Events:
+        Schedule:
+          Type: Schedule
+          Properties:
+            Schedule: rate(15 minutes)
+            Enabled: true
 
   ProfileSyncFunction:
     Type: AWS::Serverless::Function
@@ -1980,6 +2104,14 @@ Resources:
     UpdateReplacePolicy: Retain
     Properties:
       LogGroupName: !Sub /aws/lambda/${PublicEventsFunction}
+      RetentionInDays: 90
+
+  PaymentReconciliationLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${PaymentReconciliationFunction}
       RetentionInDays: 90
 
   ProfileSyncLogGroup:

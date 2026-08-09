@@ -26,6 +26,10 @@ jest.mock("@aws-sdk/lib-dynamodb", () => ({
     PutCommand: jest.fn((input) => ({ type: "Put", input })),
     QueryCommand: jest.fn((input) => ({ type: "Query", input })),
     UpdateCommand: jest.fn((input) => ({ type: "Update", input })),
+    TransactWriteCommand: jest.fn((input) => ({
+        type: "TransactWrite",
+        input,
+    })),
 }));
 
 jest.mock("@aws-sdk/client-secrets-manager", () => ({
@@ -131,9 +135,13 @@ describe("Phase 4 SaaS billing", () => {
         );
         expect(response.statusCode).toBe(201);
         expect(JSON.parse(response.body).simulated).toBe(true);
-        const update = mockSend.mock.calls[2][0].input;
+        const transaction = mockSend.mock.calls[2][0].input.TransactItems;
+        const update = transaction[0].Update;
         expect(update.ExpressionAttributeValues[":maxEvents"]).toBe(10);
         expect(update.ExpressionAttributeValues[":maxStands"]).toBe(250);
+        expect(transaction[1].Put.Item.action).toBe(
+            "billing.simulated_checkout",
+        );
     });
 
     test("does not expose a billing portal outside Stripe mode", async () => {
@@ -160,7 +168,8 @@ describe("Phase 4 SaaS billing", () => {
             source: "test",
         });
         expect(
-            mockSend.mock.calls[0][0].input.ExpressionAttributeValues,
+            mockSend.mock.calls[0][0].input.TransactItems[0].Update
+                .ExpressionAttributeValues,
         ).toMatchObject({
             ":plan": "starter",
             ":maxEvents": 3,
@@ -177,9 +186,9 @@ describe("Phase 4 SaaS billing", () => {
             .mockResolvedValueOnce({ Item: { status: "failed" } })
             .mockResolvedValueOnce({});
         await expect(
-            billing.claimEvent("evt_retry", "invoice.paid"),
-        ).resolves.toBe(true);
-        expect(mockSend.mock.calls[2][0].input.ConditionExpression).toBe(
+            billing.claimEvent("evt_retry", "invoice.paid", 1760000000),
+        ).resolves.toMatchObject({ claimed: true, reclaimed: true });
+        expect(mockSend.mock.calls[2][0].input.ConditionExpression).toContain(
             "#status = :failed",
         );
 
@@ -188,18 +197,23 @@ describe("Phase 4 SaaS billing", () => {
             .mockRejectedValueOnce(conditionalError)
             .mockResolvedValueOnce({ Item: { status: "processing" } });
         await expect(
-            billing.claimEvent("evt_duplicate", "invoice.paid"),
-        ).resolves.toBe(false);
+            billing.claimEvent("evt_duplicate", "invoice.paid", 1760000000),
+        ).resolves.toMatchObject({ claimed: false, reason: "in_flight" });
     });
 
     test("marks failed billing events so Stripe can retry them", async () => {
         mockSend.mockResolvedValueOnce({});
-        await billing.failEvent("evt_failed", new Error("temporary outage"));
+        await billing.failEvent(
+            "evt_failed",
+            "lease-token",
+            new Error("temporary outage"),
+        );
         const update = mockSend.mock.calls[0][0].input;
         expect(update.Key).toEqual({ eventId: "billing#evt_failed" });
         expect(update.ExpressionAttributeValues).toMatchObject({
             ":processing": "processing",
             ":failed": "failed",
+            ":leaseToken": "lease-token",
             ":reason": "temporary outage",
         });
     });
@@ -207,6 +221,8 @@ describe("Phase 4 SaaS billing", () => {
     test("synchronizes checkout and subscription events into entitlements", async () => {
         mockSend.mockResolvedValue({});
         await billing.processStripeEvent({
+            id: "evt_checkout",
+            created: 1760000000,
             type: "checkout.session.completed",
             data: {
                 object: {
@@ -218,7 +234,8 @@ describe("Phase 4 SaaS billing", () => {
             },
         });
         expect(
-            mockSend.mock.calls[0][0].input.ExpressionAttributeValues,
+            mockSend.mock.calls[0][0].input.TransactItems[0].Update
+                .ExpressionAttributeValues,
         ).toMatchObject({
             ":plan": "starter",
             ":status": "active",
@@ -228,6 +245,8 @@ describe("Phase 4 SaaS billing", () => {
         mockSend.mockReset();
         mockSend.mockResolvedValue({});
         await billing.processStripeEvent({
+            id: "evt_subscription",
+            created: 1760000100,
             type: "customer.subscription.updated",
             data: {
                 object: {
@@ -241,12 +260,30 @@ describe("Phase 4 SaaS billing", () => {
             },
         });
         expect(
-            mockSend.mock.calls[0][0].input.ExpressionAttributeValues,
+            mockSend.mock.calls[0][0].input.TransactItems[0].Update
+                .ExpressionAttributeValues,
         ).toMatchObject({
             ":plan": "professional",
             ":status": "past_due",
             ":subscriptionId": "sub_2",
         });
+    });
+
+    test("ignores an older Stripe entitlement event", async () => {
+        const conditional = Object.assign(new Error("older"), {
+            name: "ConditionalCheckFailedException",
+        });
+        mockSend.mockRejectedValueOnce(conditional);
+        await expect(
+            billing.applyPlan({
+                organizationId: "org-a",
+                plan: "starter",
+                status: "active",
+                source: "stripe",
+                stripeEventId: "evt_old",
+                stripeEventCreatedAt: 100,
+            }),
+        ).resolves.toEqual({ applied: false, reason: "out_of_order" });
     });
 });
 
@@ -307,6 +344,9 @@ describe("Phase 4 audit and privacy export", () => {
         expect(body.orders[0].customerEmail).toBeUndefined();
         expect(body.orders[0].checkoutRequestId).toBeUndefined();
         expect(body.savedStands).toHaveLength(1);
+        expect(mockSend.mock.calls[2][0].input.IndexName).toBe(
+            "user-saved-at-index",
+        );
     });
 
     test("rejects an unauthenticated data export", async () => {
@@ -373,12 +413,14 @@ describe("Phase 4 invitation delivery telemetry", () => {
             invitationId: "inv-2",
             status: "bounced",
         });
+        expect(mockSend.mock.calls[0][0].type).toBe("TransactWrite");
+        const transaction = mockSend.mock.calls[0][0].input.TransactItems;
         expect(
-            mockSend.mock.calls[0][0].input.ExpressionAttributeValues[
-                ":status"
-            ],
+            transaction[0].Update.ExpressionAttributeValues[":status"],
         ).toBe("bounced");
-        expect(mockSend.mock.calls[1][0].type).toBe("Put");
+        expect(transaction[1].Put.Item.action).toBe(
+            "invitation.email_bounced",
+        );
     });
 
     test("ignores delivery records without an invitation tag", async () => {

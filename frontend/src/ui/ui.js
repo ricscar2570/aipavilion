@@ -419,7 +419,7 @@ class UI {
         }
 
         badge.textContent = count;
-        badge.style.display = count > 0 ? "inline" : "none";
+        badge.hidden = count <= 0;
 
         // Add animation
         badge.classList.add("badge-updated");
@@ -469,14 +469,14 @@ class UI {
     show(elementId) {
         const element = document.getElementById(elementId);
         if (element) {
-            element.style.display = "block";
+            element.hidden = false;
         }
     }
 
     hide(elementId) {
         const element = document.getElementById(elementId);
         if (element) {
-            element.style.display = "none";
+            element.hidden = true;
         }
     }
 
@@ -485,8 +485,7 @@ class UI {
         if (!element) {
             return;
         }
-        element.style.display =
-            element.style.display === "none" ? "block" : "none";
+        element.hidden = !element.hidden;
     }
 }
 

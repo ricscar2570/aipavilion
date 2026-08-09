@@ -1,4 +1,4 @@
-name: Deploy persistent staging
+name: Deploy and verify persistent staging
 
 on:
   workflow_dispatch:
@@ -9,6 +9,11 @@ on:
         default: staging
         type: choice
         options: [staging, production]
+      run_evidence:
+        description: Run synthetic staging fixtures and deployed evidence suite
+        required: true
+        default: true
+        type: boolean
 
 permissions:
   contents: read
@@ -21,7 +26,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     environment: ${{ inputs.environment }}
     env:
       AWS_REGION: ${{ vars.AWS_REGION || 'eu-west-1' }}
@@ -42,6 +47,7 @@ jobs:
       DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
       ACM_CERTIFICATE_ARN: ${{ vars.ACM_CERTIFICATE_ARN }}
       MONTHLY_BUDGET_USD: ${{ vars.MONTHLY_BUDGET_USD || '150' }}
+      PRODUCT_PAYMENT_MODE: ${{ vars.PRODUCT_PAYMENT_MODE || 'disabled' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -49,6 +55,11 @@ jobs:
         with:
           node-version: "22.16.0"
           cache: npm
+          registry-url: "https://registry.npmjs.org"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
       - uses: aws-actions/setup-sam@v2
         with:
           use-installer: true
@@ -56,13 +67,31 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION || 'eu-west-1' }}
-      - name: Deploy, migrate and verify staging
+      - name: Install browser evidence dependencies
+        if: ${{ inputs.run_evidence && inputs.environment == 'staging' }}
+        run: |
+          python -m pip install --requirement requirements-dev.txt
+          python -m playwright install --with-deps chromium
+      - name: Deploy, migrate and verify infrastructure
         run: npm run pilot:deploy
-      - name: Upload deployment outputs
+      - name: Export deployed site origin
+        run: |
+          APP_ORIGIN=$(node -e 'const x=require("./.artifacts/staging-deployment-context.json"); console.log(x.finalAppUrl)')
+          echo "APP_URL=${APP_ORIGIN}" >> "$GITHUB_ENV"
+          echo "ALLOWED_ORIGIN=${APP_ORIGIN}" >> "$GITHUB_ENV"
+      - name: Run deployed staging evidence
+        if: ${{ inputs.run_evidence && inputs.environment == 'staging' }}
+        env:
+          ALLOW_SYNTHETIC_FIXTURES: "true"
+        run: npm run pilot:evidence
+      - name: Generate partial evidence manifest after failure
+        if: always()
+        run: node scripts/pilot/generate-evidence-manifest.js
+      - name: Upload redacted deployment evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ inputs.environment }}-deployment-outputs
-          path: .artifacts/*.json
-          if-no-files-found: ignore
-          retention-days: 14
+          name: ${{ inputs.environment }}-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .artifacts/evidence/**
+          if-no-files-found: warn
+          retention-days: 30

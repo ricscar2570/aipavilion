@@ -33,8 +33,13 @@ function publicStand(overrides = {}) {
     return {
         stand_id: "s1",
         name: "Alpha",
-        status: "approved",
+        status: "published",
+        moderationStatus: "approved",
         visibility: "public",
+        eventStatus: "published",
+        publicStatus: "published",
+        publicationKey: "published#2026-01-01T00:00:00.000Z",
+        eventId: "event-1",
         ...overrides,
     };
 }
@@ -142,6 +147,44 @@ describe("public stand endpoints", () => {
         const body = JSON.parse(response.body);
         expect(body.count).toBe(1);
         expect(body.stands[0].stand_id).toBe("s1");
+    });
+
+    test("search continues across DynamoDB pages until it finds matches", async () => {
+        mockSend
+            .mockResolvedValueOnce({
+                Items: [publicStand({ name: "No match here" })],
+                LastEvaluatedKey: {
+                    stand_id: "s1",
+                    publicStatus: "published",
+                    publicationKey: "published#2026-01-01T00:00:00.000Z",
+                },
+            })
+            .mockResolvedValueOnce({
+                Items: [
+                    publicStand({
+                        stand_id: "s2",
+                        name: "Publisher",
+                        publicationKey: "published#2026-01-02T00:00:00.000Z",
+                        products: [
+                            {
+                                productId: "p2",
+                                name: "Deep Space Strategy",
+                                status: "active",
+                            },
+                        ],
+                    }),
+                ],
+            });
+        const response = await searchStands(
+            event({
+                path: "/stands/search",
+                queryStringParameters: { q: "deep space", limit: "10" },
+            }),
+        );
+        const body = JSON.parse(response.body);
+        expect(body.stands.map((stand) => stand.stand_id)).toEqual(["s2"]);
+        expect(body.scannedCount).toBe(2);
+        expect(mockSend).toHaveBeenCalledTimes(2);
     });
 
     test("handles validation and backend errors safely", async () => {

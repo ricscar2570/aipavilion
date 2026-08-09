@@ -1,0 +1,103 @@
+# Modello dati e catalogo API
+
+## Tabelle
+
+| Risorsa | Nome fisico | Contenuto | Indici |
+| --- | --- | --- | --- |
+| StandsTable | ${AWS::StackName}-stands | Stand, prodotti incorporati, stato di moderazione, visibilità pubblica, assegnazione espositore. | category-index, event-stands-index, public-stands-index, owner-stands-index |
+| OrdersTable | ${AWS::StackName}-orders | Ordini visitatore e stato di pagamento. | user-orders-index |
+| PaymentEventsTable | ${AWS::StackName}-payment-events | Deduplicazione, lease e stato dei webhook Stripe. | — |
+| UsersTable | ${AWS::StackName}-users | Profilo applicativo associato all’identità Cognito. | — |
+| LeadsTable | ${AWS::StackName}-leads | Richieste di contatto generate dai visitatori. | stand-leads-index, organization-leads-index |
+| InteractionsTable | ${AWS::StackName}-interactions | Eventi di engagement non economici. | stand-created-index, event-created-index |
+| SavedStandsTable | ${AWS::StackName}-saved-stands | Preferiti degli utenti. | user-saved-at-index |
+| OrganizationsTable | ${AWS::StackName}-organizations | Tenant cliente, piano, onboarding e owner. | organization-slug-index |
+| MembershipsTable | ${AWS::StackName}-memberships | Appartenenza e ruolo dell’utente nell’organizzazione. | organization-members-index |
+| EventsTable | ${AWS::StackName}-events | Eventi virtuali/ibridi, ciclo di pubblicazione e visibilità. | organization-events-index, public-events-index |
+| InvitationsTable | ${AWS::StackName}-invitations | Inviti per espositori e collaboratori, stato di consegna. | email-invitations-index, event-invitations-index |
+| EntitlementsTable | ${AWS::StackName}-entitlements | Piano SaaS, limiti e stato di sincronizzazione Stripe. | — |
+| AuditEventsTable | ${AWS::StackName}-audit-events | Audit trail tenant-scoped. | organization-audit-index |
+| SchemaMigrationsTable | ${AWS::StackName}-schema-migrations | Versioni e stato delle migrazioni dati. | — |
+
+## API completa
+
+| Area | Metodo | Rotta | Scopo | Protezione |
+| --- | --- | --- | --- | --- |
+| Account visitatore | DELETE | /user/account | Delete and anonymize an account | Cognito/access token o firma webhook |
+| Account visitatore | GET | /user/account | Check whether the current account can be deleted | Cognito/access token o firma webhook |
+| Account visitatore | GET | /user/export | Export the authenticated user data in a portable JSON document | Cognito/access token o firma webhook |
+| Account visitatore | GET | /user/orders | List owned orders | Cognito/access token o firma webhook |
+| Account visitatore | GET | /user/saved-stands | List saved public stands | Cognito/access token o firma webhook |
+| Account visitatore | POST | /user/saved-stands | Save canonical server-side stand metadata | Cognito/access token o firma webhook |
+| Account visitatore | DELETE | /user/saved-stands/{standId} | Delete a saved stand | Cognito/access token o firma webhook |
+| Account visitatore | GET | /user/stats | Get settled user statistics | Cognito/access token o firma webhook |
+| Amministrazione piattaforma | GET | /admin/analytics | Aggregate interactions for a bounded period | Cognito/access token o firma webhook |
+| Amministrazione piattaforma | GET | /admin/dashboard | Get paid revenue and platform overview | Cognito/access token o firma webhook |
+| Amministrazione piattaforma | GET | /admin/orders | List sanitized orders | Cognito/access token o firma webhook |
+| Amministrazione piattaforma | GET | /admin/stands | List stands for moderation | Cognito/access token o firma webhook |
+| Amministrazione piattaforma | POST | /admin/stands | Create a stand administratively | Cognito/access token o firma webhook |
+| Amministrazione piattaforma | DELETE | /admin/stands/{standId} | Delete a stand administratively | Cognito/access token o firma webhook |
+| Amministrazione piattaforma | GET | /admin/stands/{standId} | Get any stand administratively | Cognito/access token o firma webhook |
+| Amministrazione piattaforma | PUT | /admin/stands/{standId} | Update a stand administratively | Cognito/access token o firma webhook |
+| Amministrazione piattaforma | GET | /admin/users | List sanitized Cognito users | Cognito/access token o firma webhook |
+| Catalogo pubblico e lead | GET | /events | List public published events | Pubblica |
+| Catalogo pubblico e lead | GET | /events/{eventId} | Get a public published event | Pubblica |
+| Catalogo pubblico e lead | GET | /events/{eventId}/stands | List public stands in an event | Pubblica |
+| Catalogo pubblico e lead | POST | /interactions | Record a non-economic interaction | Pubblica |
+| Catalogo pubblico e lead | GET | /stands | List public stands | Pubblica |
+| Catalogo pubblico e lead | POST | /stands/contact | Create an exhibitor lead | Pubblica |
+| Catalogo pubblico e lead | GET | /stands/search | Search public stands | Pubblica |
+| Catalogo pubblico e lead | GET | /stands/{standId} | Get a public stand | Pubblica |
+| Checkout prodotti (disabilitato nel pilot) | POST | /checkout/confirm-order | Confirm an owned order | Cognito/access token o firma webhook |
+| Checkout prodotti (disabilitato nel pilot) | POST | /checkout/create-intent | Reserve an order and create or replay its payment intent | Cognito/access token o firma webhook |
+| Checkout prodotti (disabilitato nel pilot) | GET | /checkout/order/{orderId} | Read an owned safe order representation | Cognito/access token o firma webhook |
+| Checkout prodotti (disabilitato nel pilot) | POST | /checkout/webhook | Receive a signed Stripe webhook | Pubblica |
+| Espositore e inviti | GET | /exhibitor/leads | List leads for an owned stand | Cognito/access token o firma webhook |
+| Espositore e inviti | GET | /exhibitor/leads/export | Export leads for an owned stand as CSV | Cognito/access token o firma webhook |
+| Espositore e inviti | PATCH | /exhibitor/leads/{leadId} | Update lead workflow state | Cognito/access token o firma webhook |
+| Espositore e inviti | GET | /exhibitor/stands | List stands owned by the exhibitor | Cognito/access token o firma webhook |
+| Espositore e inviti | GET | /exhibitor/stands/{standId} | Get a stand owned by the exhibitor | Cognito/access token o firma webhook |
+| Espositore e inviti | PUT | /exhibitor/stands/{standId} | Update a stand owned by the exhibitor | Cognito/access token o firma webhook |
+| Espositore e inviti | POST | /exhibitor/stands/{standId}/submit | Submit a stand for organizer review | Cognito/access token o firma webhook |
+| Espositore e inviti | POST | /invitations/{invitationId}/accept | Accept an exhibitor invitation | Cognito/access token o firma webhook |
+| Organizzazioni, eventi e billing | GET | /me/memberships | List memberships for the signed-in user | Cognito/access token o firma webhook |
+| Organizzazioni, eventi e billing | GET | /organizations/{organizationId} | Get an accessible organization | Cognito/access token o firma webhook |
+| Organizzazioni, eventi e billing | PATCH | /organizations/{organizationId} | Complete or update organization onboarding | Cognito/access token o firma webhook |
+| Organizzazioni, eventi e billing | GET | /organizations/{organizationId}/audit | List tenant-scoped audit events | Cognito/access token o firma webhook |
+| Organizzazioni, eventi e billing | GET | /organizations/{organizationId}/billing | Get sanitized billing entitlement | Cognito/access token o firma webhook |
+| Organizzazioni, eventi e billing | POST | /organizations/{organizationId}/billing/checkout | Create a SaaS subscription checkout session | Cognito/access token o firma webhook |
+| Organizzazioni, eventi e billing | POST | /organizations/{organizationId}/billing/portal | Create a Stripe billing portal session | Cognito/access token o firma webhook |
+| Organizzazioni, eventi e billing | GET | /organizations/{organizationId}/entitlement | Get organization plan entitlements | Cognito/access token o firma webhook |
+| Organizzazioni, eventi e billing | GET | /organizations/{organizationId}/events | List events in an organization | Cognito/access token o firma webhook |
+| Organizzazioni, eventi e billing | POST | /organizations/{organizationId}/events | Create an event in an organization | Cognito/access token o firma webhook |
+| Organizzazioni, eventi e billing | GET | /organizations/{organizationId}/events/{eventId} | Get an organization event | Cognito/access token o firma webhook |
+| Organizzazioni, eventi e billing | PUT | /organizations/{organizationId}/events/{eventId} | Update an organization event | Cognito/access token o firma webhook |
+| Organizzazioni, eventi e billing | POST | /organizations/{organizationId}/events/{eventId}/archive | Archive an event and remove its stands from the public catalogue | Cognito/access token o firma webhook |
+| Organizzazioni, eventi e billing | POST | /organizations/{organizationId}/events/{eventId}/duplicate | Duplicate an event into a new draft | Cognito/access token o firma webhook |
+| Organizzazioni, eventi e billing | GET | /organizations/{organizationId}/events/{eventId}/invitations | List event invitations and delivery status | Cognito/access token o firma webhook |
+| Organizzazioni, eventi e billing | POST | /organizations/{organizationId}/events/{eventId}/invitations | Invite an exhibitor to an event | Cognito/access token o firma webhook |
+| Organizzazioni, eventi e billing | DELETE | /organizations/{organizationId}/events/{eventId}/invitations/{invitationId} | Revoke a pending exhibitor invitation | Cognito/access token o firma webhook |
+| Organizzazioni, eventi e billing | POST | /organizations/{organizationId}/events/{eventId}/invitations/{invitationId}/resend | Extend and resend a pending exhibitor invitation | Cognito/access token o firma webhook |
+| Organizzazioni, eventi e billing | POST | /organizations/{organizationId}/events/{eventId}/publish | Publish an organization event | Cognito/access token o firma webhook |
+| Organizzazioni, eventi e billing | GET | /organizations/{organizationId}/events/{eventId}/stands | List stands for organization event moderation | Cognito/access token o firma webhook |
+| Organizzazioni, eventi e billing | PATCH | /organizations/{organizationId}/events/{eventId}/stands/{standId}/assignment | Reassign a stand to an active organization member | Cognito/access token o firma webhook |
+| Organizzazioni, eventi e billing | PATCH | /organizations/{organizationId}/events/{eventId}/stands/{standId}/moderation | Approve or reject a submitted stand | Cognito/access token o firma webhook |
+| Organizzazioni, eventi e billing | GET | /organizations/{organizationId}/memberships | List organization memberships | Cognito/access token o firma webhook |
+| Organizzazioni, eventi e billing | POST | /organizations/{organizationId}/memberships | Grant an organization membership | Cognito/access token o firma webhook |
+| Organizzazioni, eventi e billing | DELETE | /organizations/{organizationId}/memberships/{userId} | Remove a non-owner member | Cognito/access token o firma webhook |
+| Organizzazioni, eventi e billing | PATCH | /organizations/{organizationId}/memberships/{userId} | Change a member role or status | Cognito/access token o firma webhook |
+| Organizzazioni, eventi e billing | POST | /organizations/{organizationId}/ownership-transfer | Transfer organization ownership to an active organizer | Cognito/access token o firma webhook |
+| Organizzazioni, eventi e billing | POST | /platform/organizations | Create a tenant organization | Cognito/access token o firma webhook |
+| Webhook billing SaaS | POST | /billing/webhook | Receive signed Stripe subscription events | Pubblica |
+
+## Regole dati essenziali
+
+- Ogni risorsa tenant-scoped conserva `organizationId`.
+- Le entità evolutive devono conservare `schemaVersion`, `createdAt` e `updatedAt`.
+- I cursori di paginazione non devono esporre dettagli interni non necessari.
+- Le chiavi Stripe e i dati di audit non devono apparire nelle risposte pubbliche.
+- La migrazione `002-fail-closed-public-catalog` aggiorna i record storici senza pubblicare casi ambigui.
+
+## Compatibilità
+
+OpenAPI e SAM devono evolvere insieme. I gate `check:contracts`, `check:openapi` e `check:infrastructure` impediscono divergenze di rotte, parametri, handler, tabelle e indici.

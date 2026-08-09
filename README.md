@@ -2,9 +2,12 @@
 
 AI Pavilion is a serverless B2B SaaS foundation for virtual and hybrid events. Organizers operate isolated organizations, create events, invite exhibitors, moderate stands, collect leads and manage a subscription. Exhibitors edit only assigned stands and manage only their own leads. Visitors browse published events and stands without entering a tenant administration boundary.
 
-Version `0.8.0` is the **Phase 4 controlled-pilot operations foundation**. It extends the Phase 3 multi-tenant domain with retained staging infrastructure, frontend delivery, abuse controls, invitation email telemetry, organizer billing, migrations, backup, observability, privacy operations and accessibility foundations.
+Version `0.8.5` is the **Sprint 4.5E public-catalogue and product-scope hardening baseline**. It retains the transactional and payment-recovery controls from 0.8.4 and adds fail-closed publication, opt-in public contacts, complete pilot-scale paginated search and a frontend limited to implemented capabilities.
 
-The repository is still pre-production. It is suitable for a controlled AWS staging deployment and invited pilot validation, but production use remains gated by deployed evidence, independent security review, manual accessibility assessment, legal/privacy approval and operational exercises.
+
+> **Snapshot documentale completo:** la descrizione italiana consolidata dell’intero progetto è disponibile in [`DOCUMENTAZIONE-COMPLETA-IT.md`](DOCUMENTAZIONE-COMPLETA-IT.md) e nell’indice [`docs/it/00-INDICE-GENERALE.md`](docs/it/00-INDICE-GENERALE.md).
+
+The repository is still pre-production. It is suitable for a controlled AWS staging deployment and evidence run, but customer pilot use remains gated by public CI, deployed AWS consistency evidence, independent security review, manual accessibility assessment, legal/privacy approval and operational exercises.
 
 ## Implemented product foundation
 
@@ -47,6 +50,54 @@ The repository is still pre-production. It is suitable for a controlled AWS stag
 - Skip navigation, visible focus, reduced-motion rules and live status regions.
 - Manual WCAG 2.2 AA and assistive-technology verification checklist.
 
+### Sprint 4.5E public catalogue and scope hardening
+
+- Public stands and events are visible only when every required publication field is explicitly valid.
+- Public email, phone and website fields are opt-in per exhibitor; the protected lead form remains available without exposing contact data.
+- Search traverses DynamoDB result pages until it finds the requested matches or reaches the end, and includes visible product text.
+- Event publication synchronizes stand publication snapshots and migration `002` upgrades existing safe records.
+- Hidden products, incomplete booking/localization/recommendation controls, inline handlers and inline styles were removed from the active visitor experience.
+- The pilot CSP no longer permits `unsafe-inline`, and stand cards support keyboard activation.
+
+### Sprint 4.5D consistency and recovery
+
+- Critical organization, membership, event, invitation, stand and lead mutations commit their audit record in the same DynamoDB transaction.
+- Event archival is a resumable `archiving` saga that hides the event before stand propagation and finalizes atomically.
+- Checkout and billing webhooks use expiring lease tokens, attempt counters and retained failure state.
+- Order and entitlement updates reject Stripe events older than the latest applied event.
+- Catalogue batch reads retry DynamoDB `UnprocessedKeys` with bounded exponential backoff.
+- A scheduled reconciler repairs expired claims, stale orders and Stripe-backed entitlements.
+
+### Sprint 4.5A stabilization
+
+- Portable `package-lock.json` using canonical public npm tarball URLs.
+- CI rejection of private registry hosts, embedded registry credentials and package/lock drift before installation.
+- Semantic infrastructure checks for Lambda handlers, DynamoDB tables, IAM table policies, indexes and outputs.
+- Correct personal-data export access through `user-saved-at-index`.
+- Two-pass first staging deployment when the CloudFront site origin is not known in advance.
+
+### Sprint 4.5C authentication and account lifecycle
+
+- Cognito sign-in now completes software-token/SMS MFA and `NEW_PASSWORD_REQUIRED` challenges.
+- Forgot-password now includes reset-code confirmation and a production-aligned password policy.
+- Authenticator MFA can be enrolled or disabled from the account dashboard.
+- Organization ownership transfer is atomic across organization, memberships and audit records.
+- Organizers can reassign stands to another active tenant member.
+- Account deletion exposes a readiness check, blocks owned organizations/stands and removes non-owner memberships before Cognito deletion.
+- The account lifecycle uses the Cognito access token and supports global local-session cleanup after deletion.
+
+### Sprint 4.5B staging evidence
+
+- External preflight for AWS identity, SES sender verification, public npm access and deployment configuration.
+- Visitor product checkout disabled by default in persistent staging; Stripe SaaS subscription billing remains enabled.
+- Deployed browser tests can target the final CloudFront origin without launching a local frontend.
+- Reusable synthetic staging fixtures and role-separated test accounts.
+- One command runs DynamoDB integration, API smoke, browser and synthetic checks.
+- Evidence logs are hashed into a release manifest and uploaded without test credentials or raw stack outputs.
+- Cart and purchase controls disappear when visitor checkout is disabled.
+
+The precise relationship between the original immersive vision, the current product and the recommended commercial target is documented in [`docs/product/PRODUCT-INTENT.md`](docs/product/PRODUCT-INTENT.md).
+
 ## Security boundary
 
 The browser never grants itself a tenant role. Protected handlers derive the actor from a verified Cognito access token, load an active membership and verify organization, event, stand, invitation or lead ownership server-side.
@@ -55,9 +106,9 @@ Public catalogue responses are projections and do not expose ownership, moderati
 
 ## What is not yet claimed
 
-Version 0.8.0 does **not** claim that the following have been completed:
+Version 0.8.5 does **not** claim that the following have been completed:
 
-- a successful staging deployment in the preparation environment;
+- a successful public CI and AWS staging evidence run in the preparation environment;
 - real SES recipient delivery and production-access approval;
 - real Stripe test-mode subscription reconciliation;
 - WAF and alarm behavior under measured traffic;
@@ -69,7 +120,7 @@ Version 0.8.0 does **not** claim that the following have been completed:
 - production account separation, on-call staffing or a customer SLA;
 - Stripe Connect or third-party marketplace settlement.
 
-The current Content Security Policy still permits inline styles because legacy views use style attributes. Removing that allowance is a documented hardening item before general availability.
+The active frontend no longer requires inline script or style allowances. Manual browser and accessibility evidence under the stricter CSP remains an external gate.
 
 ## Repository layout
 
@@ -108,12 +159,12 @@ For AWS verification:
 ## Verify the repository
 
 ```bash
-npm ci
+npm run ci:install
 npm run verify
 npm audit --audit-level=high
 ```
 
-The gate performs formatting, linting, syntax validation, SAM/OpenAPI parity, Lambda bundling, Phase 3/4 asset checks, coverage tests and a production frontend build.
+The gate first rejects private registry references, then performs formatting, linting, syntax validation, SAM/OpenAPI parity, semantic Lambda/table/index/policy checks, Lambda bundling, Phase 3/4/4.5C/4.5D asset checks, coverage tests and a production frontend build.
 
 ## Disposable development stack
 
@@ -128,12 +179,14 @@ See [`QUICKSTART.md`](QUICKSTART.md) and [`docs/operations/DEV-STACK-RUNBOOK.md`
 
 ## Persistent staging deployment
 
-The staging path requires an exact public `APP_URL`, verified SES sender, Stripe test credentials, Turnstile credentials, alert email and protected GitHub environment. Follow [`docs/operations/STAGING-RUNBOOK.md`](docs/operations/STAGING-RUNBOOK.md), then run:
+The staging path requires a verified SES sender, Stripe test credentials for SaaS billing, Turnstile test credentials, an alert email and a protected GitHub environment. Visitor product checkout is disabled by default; set `PRODUCT_PAYMENT_MODE=stripe` only after merchant-of-record scope is approved. An exact `APP_URL` is optional for the first default-CloudFront deployment. Follow [`docs/operations/STAGING-RUNBOOK.md`](docs/operations/STAGING-RUNBOOK.md), then run:
 
 ```bash
 npm run pilot:generate
 npm run pilot:check
+npm run pilot:preflight
 npm run pilot:deploy
+ALLOW_SYNTHETIC_FIXTURES=true npm run pilot:evidence
 ```
 
 Do not run the pilot deployment using production customer data until all exit gates in [`docs/development/NEXT-PHASE.md`](docs/development/NEXT-PHASE.md) are complete.

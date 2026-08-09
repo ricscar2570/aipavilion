@@ -139,22 +139,21 @@ class SearchModule {
         const cards = document.querySelectorAll(".search-results .stand-card");
 
         cards.forEach((card) => {
-            card.style.cursor = "pointer";
-
-            card.addEventListener("click", () => {
+            card.classList.add("interactive-card");
+            card.setAttribute("role", "link");
+            card.setAttribute("tabindex", "0");
+            const open = () => {
                 const standId = card.getAttribute("data-stand-id");
                 if (standId) {
-                    window.location.hash = `#/stands/${standId}`;
+                    window.location.hash = `/stand/${encodeURIComponent(standId)}`;
                 }
-            });
-
-            card.addEventListener("mouseenter", () => {
-                card.style.transform = "translateY(-5px)";
-                card.style.transition = "transform 0.3s ease";
-            });
-
-            card.addEventListener("mouseleave", () => {
-                card.style.transform = "translateY(0)";
+            };
+            card.addEventListener("click", open);
+            card.addEventListener("keydown", (event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    open();
+                }
             });
         });
     }

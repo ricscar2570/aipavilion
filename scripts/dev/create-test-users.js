@@ -18,6 +18,8 @@ const {
 const { readStackOutputs } = require("./stack-outputs");
 
 const outputs = readStackOutputs();
+const usersFile = process.env.TEST_USERS_FILE || ".artifacts/dev-test-users.json";
+const userEnvironment = process.env.TEST_USER_ENVIRONMENT || "dev";
 const region =
     process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || "eu-west-1";
 const cognito = new CognitoIdentityProviderClient({ region });
@@ -95,7 +97,7 @@ async function provision({ email, name, group, password }) {
                 displayName: name,
                 role: group || "visitor",
                 createdAt: new Date().toISOString(),
-                environment: "dev",
+                environment: userEnvironment,
                 schemaVersion: 2,
             },
         }),
@@ -170,25 +172,25 @@ async function main() {
         password: sharedPassword,
     });
     const atlasOrganizer = await provision({
-        email: "organizer.atlas.dev@example.com",
+        email: process.env.DEV_ATLAS_ORGANIZER_EMAIL || "organizer.atlas.dev@example.com",
         name: "Atlas Organizer",
         group: "organizer",
         password: sharedPassword,
     });
     const atlasExhibitor = await provision({
-        email: "exhibitor.atlas.dev@example.com",
+        email: process.env.DEV_ATLAS_EXHIBITOR_EMAIL || "exhibitor.atlas.dev@example.com",
         name: "Atlas Exhibitor",
         group: "exhibitor",
         password: sharedPassword,
     });
     const rivalOrganizer = await provision({
-        email: "organizer.rival.dev@example.com",
+        email: process.env.DEV_RIVAL_ORGANIZER_EMAIL || "organizer.rival.dev@example.com",
         name: "Rival Organizer",
         group: "organizer",
         password: sharedPassword,
     });
     const rivalExhibitor = await provision({
-        email: "exhibitor.rival.dev@example.com",
+        email: process.env.DEV_RIVAL_EXHIBITOR_EMAIL || "exhibitor.rival.dev@example.com",
         name: "Rival Exhibitor",
         group: "exhibitor",
         password: sharedPassword,
@@ -221,14 +223,14 @@ async function main() {
     );
     await assignStands(["stand_rival_showcase"], rivalExhibitor);
 
-    fs.mkdirSync(".artifacts", { recursive: true });
+    fs.mkdirSync(require("path").dirname(usersFile), { recursive: true });
     fs.writeFileSync(
-        ".artifacts/dev-test-users.json",
+        usersFile,
         `${JSON.stringify({ users }, null, 2)}\n`,
         { mode: 0o600 },
     );
     console.log(
-        "Created disposable visitor, admin, organizer and exhibitor users for two isolated tenants.",
+        `Created ${userEnvironment} visitor, admin, organizer and exhibitor users for two isolated tenants.`,
     );
 }
 

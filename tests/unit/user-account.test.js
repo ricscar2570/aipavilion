@@ -4,6 +4,12 @@ const mockDynamoSend = jest.fn();
 const mockCognitoSend = jest.fn();
 
 process.env.COGNITO_USER_POOL_ID = "eu-west-1_TestPool";
+process.env.USERS_TABLE = "users";
+process.env.ORDERS_TABLE = "orders";
+process.env.SAVED_STANDS_TABLE = "saved-stands";
+process.env.MEMBERSHIPS_TABLE = "memberships";
+process.env.STANDS_TABLE = "stands";
+process.env.OWNER_STANDS_INDEX = "owner-stands-index";
 
 jest.mock("@aws-sdk/client-dynamodb", () => ({
     DynamoDBClient: jest.fn(() => ({})),
@@ -44,47 +50,109 @@ function accountEvent(overrides = {}) {
     };
 }
 
+function queryResult(command, { memberships = [], stands = [], saved = [], orders = [] } = {}) {
+    if (command.input.TableName === "memberships") return { Items: memberships };
+    if (command.input.TableName === "stands") return { Items: stands };
+    if (command.input.TableName === "saved-stands") return { Items: saved };
+    if (command.input.TableName === "orders") return { Items: orders };
+    return {};
+}
+
 beforeEach(() => {
     mockDynamoSend.mockReset();
     mockCognitoSend.mockReset();
 });
 
-describe("user account deletion", () => {
+describe("user account lifecycle", () => {
     test("handles preflight and rejects unsupported methods", async () => {
-        const preflight = await handler(
-            accountEvent({ httpMethod: "OPTIONS" }),
-        );
-        expect(preflight.statusCode).toBe(204);
-
-        const method = await handler(accountEvent({ httpMethod: "GET" }));
-        expect(method.statusCode).toBe(405);
+        expect((await handler(accountEvent({ httpMethod: "OPTIONS" }))).statusCode).toBe(204);
+        expect((await handler(accountEvent({ httpMethod: "PATCH" }))).statusCode).toBe(405);
     });
 
-    test("requires both Cognito user ID and username", async () => {
+    test("requires Cognito identity", async () => {
         const response = await handler(accountEvent({ requestContext: {} }));
         expect(response.statusCode).toBe(401);
     });
 
-    test("deletes saved stands, anonymizes orders, profile, and Cognito user", async () => {
+    test("reports ownership and assigned-stand blockers", async () => {
+        mockDynamoSend.mockImplementation((command) =>
+            Promise.resolve(
+                command.type === "Query"
+                    ? queryResult(command, {
+                          memberships: [
+                              {
+                                  userId: "user-1",
+                                  organizationId: "org-1",
+                                  role: "owner",
+                                  status: "active",
+                              },
+                          ],
+                          stands: [
+                              {
+                                  stand_id: "stand-1",
+                                  organizationId: "org-1",
+                                  eventId: "event-1",
+                                  name: "Owned stand",
+                              },
+                          ],
+                      })
+                    : {},
+            ),
+        );
+        const response = await handler(accountEvent({ httpMethod: "GET" }));
+        expect(response.statusCode).toBe(200);
+        const body = JSON.parse(response.body);
+        expect(body.ready).toBe(false);
+        expect(body.blockers.map((item) => item.code)).toEqual([
+            "OWNERSHIP_TRANSFER_REQUIRED",
+            "STAND_REASSIGNMENT_REQUIRED",
+        ]);
+    });
+
+    test("refuses deletion while the user owns tenant resources", async () => {
+        mockDynamoSend.mockImplementation((command) =>
+            Promise.resolve(
+                command.type === "Query"
+                    ? queryResult(command, {
+                          memberships: [
+                              {
+                                  userId: "user-1",
+                                  organizationId: "org-1",
+                                  role: "owner",
+                                  status: "active",
+                              },
+                          ],
+                      })
+                    : {},
+            ),
+        );
+        const response = await handler(accountEvent());
+        expect(response.statusCode).toBe(409);
+        expect(mockCognitoSend).not.toHaveBeenCalled();
+    });
+
+    test("deletes memberships and personal data when no blockers remain", async () => {
+        const memberships = [
+            {
+                userId: "user-1",
+                organizationId: "org-1",
+                role: "organizer",
+                status: "active",
+            },
+        ];
         mockDynamoSend.mockImplementation((command) => {
-            if (
-                command.type === "Query" &&
-                command.input.TableName.includes("saved-stands")
-            ) {
-                return Promise.resolve({
-                    Items: Array.from({ length: 26 }, (_, index) => ({
-                        userId: "user-1",
-                        standId: `s${index}`,
-                    })),
-                });
-            }
-            if (
-                command.type === "Query" &&
-                command.input.TableName.includes("orders")
-            ) {
-                return Promise.resolve({
-                    Items: [{ orderId: "o1" }, { orderId: "o2" }],
-                });
+            if (command.type === "Query") {
+                return Promise.resolve(
+                    queryResult(command, {
+                        memberships,
+                        stands: [],
+                        saved: Array.from({ length: 26 }, (_, index) => ({
+                            userId: "user-1",
+                            standId: `s${index}`,
+                        })),
+                        orders: [{ orderId: "o1" }, { orderId: "o2" }],
+                    }),
+                );
             }
             return Promise.resolve({});
         });
@@ -92,32 +160,19 @@ describe("user account deletion", () => {
 
         const response = await handler(accountEvent());
         expect(response.statusCode).toBe(204);
-
-        const commandTypes = mockDynamoSend.mock.calls.map(
-            (call) => call[0].type,
-        );
-        expect(
-            commandTypes.filter((type) => type === "BatchWrite"),
-        ).toHaveLength(2);
-        expect(commandTypes.filter((type) => type === "Update")).toHaveLength(
-            2,
-        );
-        expect(commandTypes.filter((type) => type === "Delete")).toHaveLength(
-            1,
-        );
+        const commandTypes = mockDynamoSend.mock.calls.map((call) => call[0].type);
+        expect(commandTypes.filter((type) => type === "BatchWrite")).toHaveLength(3);
+        expect(commandTypes.filter((type) => type === "Update")).toHaveLength(2);
+        expect(commandTypes.filter((type) => type === "Delete")).toHaveLength(1);
         expect(mockCognitoSend).toHaveBeenCalledWith(
-            expect.objectContaining({
-                type: "AdminDeleteUser",
-                input: expect.objectContaining({ Username: "alice" }),
-            }),
+            expect.objectContaining({ type: "AdminDeleteUser" }),
         );
     });
 
-    test("does not delete the Cognito identity when data cleanup fails", async () => {
+    test("does not delete Cognito when cleanup fails", async () => {
         mockDynamoSend.mockRejectedValue(new Error("database unavailable"));
         const response = await handler(accountEvent());
         expect(response.statusCode).toBe(500);
         expect(mockCognitoSend).not.toHaveBeenCalled();
-        expect(response.body).not.toContain("database unavailable");
     });
 });

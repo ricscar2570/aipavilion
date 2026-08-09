@@ -5,7 +5,6 @@ const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
 const {
     DynamoDBDocumentClient,
     GetCommand,
-    PutCommand,
     QueryCommand,
     UpdateCommand,
     TransactWriteCommand,
@@ -20,7 +19,10 @@ const {
     authorizeOrganization,
     getMembership,
 } = require("../common/tenant");
-const { writeAuditEvent } = require("../common/audit");
+const {
+    buildAuditTransactPut,
+    transactWithAudit,
+} = require("../common/audit");
 const {
     parseLimit,
     decodeCursor,
@@ -259,27 +261,33 @@ async function createInvitation(event, organizationId, eventId) {
         ttl: Math.floor(now.getTime() / 1000) + 45 * 86400,
         schemaVersion: 2,
     };
-    await client.send(
-        new PutCommand({
-            TableName: INVITATIONS_TABLE,
-            Item: invitation,
-            ConditionExpression: "attribute_not_exists(invitationId)",
-        }),
+    await transactWithAudit(
+        client,
+        [
+            {
+                Put: {
+                    TableName: INVITATIONS_TABLE,
+                    Item: invitation,
+                    ConditionExpression: "attribute_not_exists(invitationId)",
+                },
+            },
+        ],
+        AUDIT_TABLE,
+        {
+            organizationId,
+            actorUserId: auth.actor.userId,
+            action: "invitation.created",
+            resourceType: "invitation",
+            resourceId: invitation.invitationId,
+            requestId: event.requestId,
+            metadata: { eventId, email, deliveryStatus: "queued" },
+        },
     );
     const delivery = await deliver(
         invitation,
         eventItem,
         organizationResult.Item || { name: "AI Pavilion" },
     );
-    await writeAuditEvent(client, AUDIT_TABLE, {
-        organizationId,
-        actorUserId: auth.actor.userId,
-        action: "invitation.created",
-        resourceType: "invitation",
-        resourceId: invitation.invitationId,
-        requestId: event.requestId,
-        metadata: { eventId, email, deliveryStatus: delivery.status },
-    });
     return respond(
         201,
         {
@@ -383,31 +391,37 @@ async function manageInvitation(
         if (invitation.status !== "pending") {
             return respond(409, { error: "INVITATION_NOT_PENDING" }, event);
         }
-        await client.send(
-            new UpdateCommand({
-                TableName: INVITATIONS_TABLE,
-                Key: { invitationId },
-                UpdateExpression:
-                    "SET #status = :revoked, revokedAt = :now, revokedBy = :actor, updatedAt = :now",
-                ConditionExpression: "#status = :pending",
-                ExpressionAttributeNames: { "#status": "status" },
-                ExpressionAttributeValues: {
-                    ":revoked": "revoked",
-                    ":pending": "pending",
-                    ":now": new Date().toISOString(),
-                    ":actor": auth.actor.userId,
+        await transactWithAudit(
+            client,
+            [
+                {
+                    Update: {
+                        TableName: INVITATIONS_TABLE,
+                        Key: { invitationId },
+                        UpdateExpression:
+                            "SET #status = :revoked, revokedAt = :now, revokedBy = :actor, updatedAt = :now",
+                        ConditionExpression: "#status = :pending",
+                        ExpressionAttributeNames: { "#status": "status" },
+                        ExpressionAttributeValues: {
+                            ":revoked": "revoked",
+                            ":pending": "pending",
+                            ":now": new Date().toISOString(),
+                            ":actor": auth.actor.userId,
+                        },
+                    },
                 },
-            }),
+            ],
+            AUDIT_TABLE,
+            {
+                organizationId,
+                actorUserId: auth.actor.userId,
+                action: "invitation.revoked",
+                resourceType: "invitation",
+                resourceId: invitationId,
+                requestId: event.requestId,
+                metadata: { eventId },
+            },
         );
-        await writeAuditEvent(client, AUDIT_TABLE, {
-            organizationId,
-            actorUserId: auth.actor.userId,
-            action: "invitation.revoked",
-            resourceType: "invitation",
-            resourceId: invitationId,
-            requestId: event.requestId,
-            metadata: { eventId },
-        });
         return respond(200, { revoked: true }, event);
     }
     if (invitation.status !== "pending") {
@@ -415,35 +429,46 @@ async function manageInvitation(
     }
     const now = new Date();
     const expiresAt = new Date(now.getTime() + 14 * 86400000).toISOString();
-    await client.send(
-        new UpdateCommand({
-            TableName: INVITATIONS_TABLE,
-            Key: { invitationId },
-            UpdateExpression:
-                "SET expiresAt = :expiresAt, updatedAt = :now, deliveryStatus = :queued, #ttl = :ttl",
-            ExpressionAttributeNames: { "#ttl": "ttl" },
-            ExpressionAttributeValues: {
-                ":expiresAt": expiresAt,
-                ":now": now.toISOString(),
-                ":queued": "queued",
-                ":ttl": Math.floor(now.getTime() / 1000) + 45 * 86400,
+    await transactWithAudit(
+        client,
+        [
+            {
+                Update: {
+                    TableName: INVITATIONS_TABLE,
+                    Key: { invitationId },
+                    UpdateExpression:
+                        "SET expiresAt = :expiresAt, updatedAt = :now, deliveryStatus = :queued, #ttl = :ttl",
+                    ConditionExpression: "#status = :pending",
+                    ExpressionAttributeNames: {
+                        "#ttl": "ttl",
+                        "#status": "status",
+                    },
+                    ExpressionAttributeValues: {
+                        ":expiresAt": expiresAt,
+                        ":now": now.toISOString(),
+                        ":queued": "queued",
+                        ":ttl": Math.floor(now.getTime() / 1000) + 45 * 86400,
+                        ":pending": "pending",
+                    },
+                },
             },
-        }),
+        ],
+        AUDIT_TABLE,
+        {
+            organizationId,
+            actorUserId: auth.actor.userId,
+            action: "invitation.resent",
+            resourceType: "invitation",
+            resourceId: invitationId,
+            requestId: event.requestId,
+            metadata: { eventId, deliveryStatus: "queued" },
+        },
     );
     const delivery = await deliver(
         { ...invitation, expiresAt },
         eventItem,
         organizationResult.Item || { name: "AI Pavilion" },
     );
-    await writeAuditEvent(client, AUDIT_TABLE, {
-        organizationId,
-        actorUserId: auth.actor.userId,
-        action: "invitation.resent",
-        resourceType: "invitation",
-        resourceId: invitationId,
-        requestId: event.requestId,
-        metadata: { eventId, deliveryStatus: delivery.status },
-    });
     return respond(
         200,
         { resent: true, deliveryStatus: delivery.status, expiresAt },
@@ -530,16 +555,23 @@ async function acceptInvitation(event, invitationId) {
         description: "",
         category: "general",
         status: "draft",
+        moderationStatus: "draft",
         eventStatus: eventItem.status,
         visibility: "public",
+        publicStatus: "draft",
         publicationKey: `draft#${now}`,
+        publicContact: {
+            showEmail: false,
+            showPhone: false,
+            showWebsite: false,
+        },
         products: [],
         images: [],
         createdAt: now,
         updatedAt: now,
         created_at: now,
         updated_at: now,
-        schemaVersion: 3,
+        schemaVersion: 4,
     };
     const transactItems = [
         {
@@ -588,19 +620,20 @@ async function acceptInvitation(event, invitationId) {
             },
         });
     }
+    const auditPut = buildAuditTransactPut(AUDIT_TABLE, {
+        organizationId: invitation.organizationId,
+        actorUserId: actor.userId,
+        action: "invitation.accepted",
+        resourceType: "stand",
+        resourceId: standId,
+        requestId: event.requestId,
+        metadata: { eventId: invitation.eventId, invitationId },
+    });
+    if (auditPut) transactItems.push(auditPut);
     try {
         await client.send(
             new TransactWriteCommand({ TransactItems: transactItems }),
         );
-        await writeAuditEvent(client, AUDIT_TABLE, {
-            organizationId: invitation.organizationId,
-            actorUserId: actor.userId,
-            action: "invitation.accepted",
-            resourceType: "stand",
-            resourceId: standId,
-            requestId: event.requestId,
-            metadata: { eventId: invitation.eventId, invitationId },
-        });
         return respond(
             200,
             {

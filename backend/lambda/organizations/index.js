@@ -6,9 +6,6 @@ const {
     DynamoDBDocumentClient,
     GetCommand,
     QueryCommand,
-    UpdateCommand,
-    DeleteCommand,
-    PutCommand,
     TransactWriteCommand,
 } = require("@aws-sdk/lib-dynamodb");
 const { respond, preflight } = require("../common/cors");
@@ -22,7 +19,10 @@ const {
     listMemberships,
     getMembership,
 } = require("../common/tenant");
-const { writeAuditEvent } = require("../common/audit");
+const {
+    buildAuditEvent,
+    transactWithAudit,
+} = require("../common/audit");
 const {
     parseLimit,
     decodeCursor,
@@ -34,6 +34,7 @@ const ORGANIZATIONS_TABLE = process.env.ORGANIZATIONS_TABLE;
 const MEMBERSHIPS_TABLE = process.env.MEMBERSHIPS_TABLE;
 const ENTITLEMENTS_TABLE = process.env.ENTITLEMENTS_TABLE;
 const AUDIT_TABLE = process.env.AUDIT_TABLE;
+const USERS_TABLE = process.env.USERS_TABLE;
 const ORGANIZATION_MEMBERS_INDEX =
     process.env.ORGANIZATION_MEMBERS_INDEX || "organization-members-index";
 
@@ -179,45 +180,45 @@ async function createOrganization(event) {
     };
 
     try {
-        await docClient.send(
-            new TransactWriteCommand({
-                TransactItems: [
-                    {
-                        Put: {
-                            TableName: ORGANIZATIONS_TABLE,
-                            Item: organization,
-                            ConditionExpression:
-                                "attribute_not_exists(organizationId)",
-                        },
+        await transactWithAudit(
+            docClient,
+            [
+                {
+                    Put: {
+                        TableName: ORGANIZATIONS_TABLE,
+                        Item: organization,
+                        ConditionExpression:
+                            "attribute_not_exists(organizationId)",
                     },
-                    {
-                        Put: {
-                            TableName: MEMBERSHIPS_TABLE,
-                            Item: membership,
-                            ConditionExpression:
-                                "attribute_not_exists(userId) AND attribute_not_exists(organizationId)",
-                        },
+                },
+                {
+                    Put: {
+                        TableName: MEMBERSHIPS_TABLE,
+                        Item: membership,
+                        ConditionExpression:
+                            "attribute_not_exists(userId) AND attribute_not_exists(organizationId)",
                     },
-                    {
-                        Put: {
-                            TableName: ENTITLEMENTS_TABLE,
-                            Item: entitlement,
-                            ConditionExpression:
-                                "attribute_not_exists(organizationId)",
-                        },
+                },
+                {
+                    Put: {
+                        TableName: ENTITLEMENTS_TABLE,
+                        Item: entitlement,
+                        ConditionExpression:
+                            "attribute_not_exists(organizationId)",
                     },
-                ],
-            }),
+                },
+            ],
+            AUDIT_TABLE,
+            {
+                organizationId,
+                actorUserId: actor.userId,
+                action: "organization.created",
+                resourceType: "organization",
+                resourceId: organizationId,
+                requestId: event.requestId,
+                metadata: { ownerUserId, plan },
+            },
         );
-        await writeAuditEvent(docClient, AUDIT_TABLE, {
-            organizationId,
-            actorUserId: actor.userId,
-            action: "organization.created",
-            resourceType: "organization",
-            resourceId: organizationId,
-            requestId: event.requestId,
-            metadata: { ownerUserId, plan },
-        });
         return respond(
             201,
             {
@@ -371,21 +372,27 @@ async function updateOrganization(event, organizationId) {
     }
     next.updatedAt = new Date().toISOString();
     next.schemaVersion = 2;
-    await docClient.send(
-        new PutCommand({
-            TableName: ORGANIZATIONS_TABLE,
-            Item: next,
-            ConditionExpression: "attribute_exists(organizationId)",
-        }),
+    await transactWithAudit(
+        docClient,
+        [
+            {
+                Put: {
+                    TableName: ORGANIZATIONS_TABLE,
+                    Item: next,
+                    ConditionExpression: "attribute_exists(organizationId)",
+                },
+            },
+        ],
+        AUDIT_TABLE,
+        {
+            organizationId,
+            actorUserId: auth.actor.userId,
+            action: "organization.updated",
+            resourceType: "organization",
+            resourceId: organizationId,
+            requestId: event.requestId,
+        },
     );
-    await writeAuditEvent(docClient, AUDIT_TABLE, {
-        organizationId,
-        actorUserId: auth.actor.userId,
-        action: "organization.updated",
-        resourceType: "organization",
-        resourceId: organizationId,
-        requestId: event.requestId,
-    });
     return respond(200, { organization: privateOrganization(next) }, event);
 }
 
@@ -425,13 +432,28 @@ async function addOrganizationMember(event, organizationId) {
         schemaVersion: 2,
     };
     try {
-        await docClient.send(
-            new PutCommand({
-                TableName: MEMBERSHIPS_TABLE,
-                Item: membership,
-                ConditionExpression:
-                    "attribute_not_exists(userId) AND attribute_not_exists(organizationId)",
-            }),
+        await transactWithAudit(
+            docClient,
+            [
+                {
+                    Put: {
+                        TableName: MEMBERSHIPS_TABLE,
+                        Item: membership,
+                        ConditionExpression:
+                            "attribute_not_exists(userId) AND attribute_not_exists(organizationId)",
+                    },
+                },
+            ],
+            AUDIT_TABLE,
+            {
+                organizationId,
+                actorUserId: auth.actor.userId,
+                action: "membership.created",
+                resourceType: "membership",
+                resourceId: userId,
+                requestId: event.requestId,
+                metadata: { role },
+            },
         );
     } catch (error) {
         if (error.name === "ConditionalCheckFailedException") {
@@ -439,15 +461,6 @@ async function addOrganizationMember(event, organizationId) {
         }
         throw error;
     }
-    await writeAuditEvent(docClient, AUDIT_TABLE, {
-        organizationId,
-        actorUserId: auth.actor.userId,
-        action: "membership.created",
-        resourceType: "membership",
-        resourceId: userId,
-        requestId: event.requestId,
-        metadata: { role },
-    });
     return respond(201, { membership }, event);
 }
 
@@ -480,21 +493,28 @@ async function changeOrganizationMember(
         return respond(409, { error: "OWNER_MEMBERSHIP_PROTECTED" }, event);
     }
     if (remove) {
-        await docClient.send(
-            new DeleteCommand({
-                TableName: MEMBERSHIPS_TABLE,
-                Key: { userId, organizationId },
-            }),
+        await transactWithAudit(
+            docClient,
+            [
+                {
+                    Delete: {
+                        TableName: MEMBERSHIPS_TABLE,
+                        Key: { userId, organizationId },
+                        ConditionExpression: "attribute_exists(userId)",
+                    },
+                },
+            ],
+            AUDIT_TABLE,
+            {
+                organizationId,
+                actorUserId: auth.actor.userId,
+                action: "membership.removed",
+                resourceType: "membership",
+                resourceId: userId,
+                requestId: event.requestId,
+                metadata: { previousRole: membership.role },
+            },
         );
-        await writeAuditEvent(docClient, AUDIT_TABLE, {
-            organizationId,
-            actorUserId: auth.actor.userId,
-            action: "membership.removed",
-            resourceType: "membership",
-            resourceId: userId,
-            requestId: event.requestId,
-            metadata: { previousRole: membership.role },
-        });
         return respond(200, { removed: true }, event);
     }
     const parsed = parseJsonBody(event);
@@ -509,33 +529,226 @@ async function changeOrganizationMember(
     ) {
         return respond(400, { error: "VALIDATION_ERROR" }, event);
     }
-    const result = await docClient.send(
-        new UpdateCommand({
-            TableName: MEMBERSHIPS_TABLE,
-            Key: { userId, organizationId },
-            UpdateExpression:
-                "SET #role = :role, #status = :status, membershipKey = :membershipKey, updatedAt = :now, schemaVersion = :schemaVersion",
-            ExpressionAttributeNames: { "#role": "role", "#status": "status" },
-            ExpressionAttributeValues: {
-                ":role": role,
-                ":status": status,
-                ":membershipKey": `${role}#${userId}`,
-                ":now": new Date().toISOString(),
-                ":schemaVersion": 2,
+    const now = new Date().toISOString();
+    await transactWithAudit(
+        docClient,
+        [
+            {
+                Update: {
+                    TableName: MEMBERSHIPS_TABLE,
+                    Key: { userId, organizationId },
+                    UpdateExpression:
+                        "SET #role = :role, #status = :status, membershipKey = :membershipKey, updatedAt = :now, schemaVersion = :schemaVersion",
+                    ConditionExpression: "attribute_exists(userId)",
+                    ExpressionAttributeNames: {
+                        "#role": "role",
+                        "#status": "status",
+                    },
+                    ExpressionAttributeValues: {
+                        ":role": role,
+                        ":status": status,
+                        ":membershipKey": `${role}#${userId}`,
+                        ":now": now,
+                        ":schemaVersion": 2,
+                    },
+                },
             },
-            ReturnValues: "ALL_NEW",
-        }),
+        ],
+        AUDIT_TABLE,
+        {
+            organizationId,
+            actorUserId: auth.actor.userId,
+            action: "membership.updated",
+            resourceType: "membership",
+            resourceId: userId,
+            requestId: event.requestId,
+            metadata: { role, status },
+        },
     );
-    await writeAuditEvent(docClient, AUDIT_TABLE, {
+    return respond(
+        200,
+        {
+            membership: {
+                ...membership,
+                role,
+                status,
+                membershipKey: `${role}#${userId}`,
+                updatedAt: now,
+                schemaVersion: 2,
+            },
+        },
+        event,
+    );
+}
+
+async function transferOrganizationOwnership(event, organizationId) {
+    const auth = await authorizeOrganization({
+        event,
+        client: docClient,
+        membershipsTable: MEMBERSHIPS_TABLE,
         organizationId,
-        actorUserId: auth.actor.userId,
-        action: "membership.updated",
-        resourceType: "membership",
-        resourceId: userId,
-        requestId: event.requestId,
-        metadata: { role, status },
+        roles: ["owner"],
     });
-    return respond(200, { membership: result.Attributes }, event);
+    if (!auth.ok) {
+        return respond(auth.statusCode, { error: auth.code }, event);
+    }
+
+    const parsed = parseJsonBody(event);
+    if (parsed.error || !hasExactShape(parsed.value, ["newOwnerUserId"])) {
+        return respond(400, { error: "VALIDATION_ERROR" }, event);
+    }
+    const newOwnerUserId = cleanText(parsed.value.newOwnerUserId, 120);
+    if (!validId(newOwnerUserId) || newOwnerUserId === auth.actor.userId) {
+        return respond(400, { error: "INVALID_NEW_OWNER" }, event);
+    }
+
+    const [targetMembership, targetUser] = await Promise.all([
+        getMembership(
+            docClient,
+            MEMBERSHIPS_TABLE,
+            newOwnerUserId,
+            organizationId,
+        ),
+        docClient.send(
+            new GetCommand({
+                TableName: USERS_TABLE,
+                Key: { userId: newOwnerUserId },
+            }),
+        ),
+    ]);
+    if (
+        !targetMembership ||
+        targetMembership.status !== "active" ||
+        targetMembership.role !== "organizer"
+    ) {
+        return respond(
+            409,
+            { error: "ACTIVE_ORGANIZER_REQUIRED" },
+            event,
+        );
+    }
+    if (!targetUser.Item?.email) {
+        return respond(409, { error: "OWNER_PROFILE_REQUIRED" }, event);
+    }
+
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const audit = buildAuditEvent(
+        {
+            organizationId,
+            actorUserId: auth.actor.userId,
+            action: "organization.ownership_transferred",
+            resourceType: "organization",
+            resourceId: organizationId,
+            requestId: event.requestId,
+            metadata: {
+                previousOwnerUserId: auth.actor.userId,
+                newOwnerUserId,
+            },
+        },
+        now,
+    );
+
+    try {
+        await docClient.send(
+            new TransactWriteCommand({
+                TransactItems: [
+                    {
+                        Update: {
+                            TableName: ORGANIZATIONS_TABLE,
+                            Key: { organizationId },
+                            UpdateExpression:
+                                "SET ownerUserId = :newOwner, ownerEmail = :newEmail, updatedAt = :now, schemaVersion = :schemaVersion",
+                            ConditionExpression: "ownerUserId = :currentOwner",
+                            ExpressionAttributeValues: {
+                                ":newOwner": newOwnerUserId,
+                                ":newEmail": targetUser.Item.email,
+                                ":now": nowIso,
+                                ":schemaVersion": 3,
+                                ":currentOwner": auth.actor.userId,
+                            },
+                        },
+                    },
+                    {
+                        Update: {
+                            TableName: MEMBERSHIPS_TABLE,
+                            Key: {
+                                userId: newOwnerUserId,
+                                organizationId,
+                            },
+                            UpdateExpression:
+                                "SET #role = :owner, membershipKey = :ownerKey, updatedAt = :now, schemaVersion = :schemaVersion",
+                            ConditionExpression:
+                                "#status = :active AND #role = :organizer",
+                            ExpressionAttributeNames: {
+                                "#role": "role",
+                                "#status": "status",
+                            },
+                            ExpressionAttributeValues: {
+                                ":owner": "owner",
+                                ":ownerKey": `owner#${newOwnerUserId}`,
+                                ":now": nowIso,
+                                ":schemaVersion": 3,
+                                ":active": "active",
+                                ":organizer": "organizer",
+                            },
+                        },
+                    },
+                    {
+                        Update: {
+                            TableName: MEMBERSHIPS_TABLE,
+                            Key: {
+                                userId: auth.actor.userId,
+                                organizationId,
+                            },
+                            UpdateExpression:
+                                "SET #role = :organizer, membershipKey = :organizerKey, updatedAt = :now, schemaVersion = :schemaVersion",
+                            ConditionExpression:
+                                "#status = :active AND #role = :owner",
+                            ExpressionAttributeNames: {
+                                "#role": "role",
+                                "#status": "status",
+                            },
+                            ExpressionAttributeValues: {
+                                ":organizer": "organizer",
+                                ":organizerKey": `organizer#${auth.actor.userId}`,
+                                ":now": nowIso,
+                                ":schemaVersion": 3,
+                                ":active": "active",
+                                ":owner": "owner",
+                            },
+                        },
+                    },
+                    {
+                        Put: {
+                            TableName: AUDIT_TABLE,
+                            Item: audit,
+                            ConditionExpression: "attribute_not_exists(auditId)",
+                        },
+                    },
+                ],
+            }),
+        );
+    } catch (error) {
+        if (
+            error?.name === "TransactionCanceledException" ||
+            error?.name === "ConditionalCheckFailedException"
+        ) {
+            return respond(409, { error: "OWNERSHIP_CHANGED" }, event);
+        }
+        throw error;
+    }
+
+    return respond(
+        200,
+        {
+            transferred: true,
+            organizationId,
+            previousOwnerUserId: auth.actor.userId,
+            newOwnerUserId,
+        },
+        event,
+    );
 }
 
 async function listOrganizationMembers(event, organizationId) {
@@ -621,6 +834,15 @@ const handler = async (event) => {
         }
         if (match && method === "PATCH") {
             return updateOrganization(event, decodeURIComponent(match[1]));
+        }
+        const ownershipMatch = path.match(
+            /^\/organizations\/([^/]+)\/ownership-transfer$/,
+        );
+        if (ownershipMatch && method === "POST") {
+            return transferOrganizationOwnership(
+                event,
+                decodeURIComponent(ownershipMatch[1]),
+            );
         }
         const membersMatch = path.match(
             /^\/organizations\/([^/]+)\/memberships$/,

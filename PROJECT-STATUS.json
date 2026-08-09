@@ -1,0 +1,83 @@
+{
+  "project": "AI Pavilion",
+  "version": "0.8.5",
+  "snapshot_date": "2026-08-06",
+  "snapshot_type": "complete-current-state-documentation",
+  "product_state": "pre-production",
+  "recommended_commercial_scope": "B2B virtual/hybrid events, exhibitor stands, lead generation, essential analytics and SaaS billing",
+  "excluded_from_pilot": [
+    "multi-vendor product marketplace",
+    "Stripe Connect payouts",
+    "commercial AR experience",
+    "commercial 360-degree showroom",
+    "production AI recommendations",
+    "streaming and advanced networking"
+  ],
+  "implemented_domains": [
+    "multi-tenant organizations and memberships",
+    "events",
+    "invitations",
+    "exhibitor stands",
+    "public catalogue",
+    "lead management",
+    "Cognito authentication lifecycle",
+    "SaaS billing",
+    "audit",
+    "data export and account deletion",
+    "staging infrastructure automation",
+    "payment reconciliation"
+  ],
+  "verification": {
+    "static_checks_executed": true,
+    "lockfile_portability": "passed",
+    "node_syntax": "passed",
+    "sam_openapi_contracts": "passed",
+    "infrastructure_contracts": "passed",
+    "phase_asset_checks": "passed",
+    "pilot_template_parity": "passed",
+    "npm_install_in_snapshot_environment": "not executed",
+    "jest": "not executed",
+    "eslint": "not executed",
+    "prettier": "not executed",
+    "vite_build": "not executed",
+    "sam_validate_build": "not executed",
+    "aws_deployment": "not executed",
+    "manual_accessibility": "not executed",
+    "penetration_test": "not executed",
+    "restore_drill": "not executed"
+  },
+  "open_gates": [
+    "public CI with npm install, tests, lint, coverage and build",
+    "real AWS staging deployment without console changes",
+    "deployed Cognito, SES, Stripe, WAF and CloudWatch evidence",
+    "manual WCAG 2.2 AA review",
+    "privacy/legal approval",
+    "restore drill with measured RPO/RTO",
+    "independent penetration and tenant-isolation testing",
+    "controlled customer pilot"
+  ],
+  "metrics": {
+    "total_files_before_manifest": 211,
+    "javascript_files": 103,
+    "markdown_files": 70,
+    "yaml_files": 9,
+    "json_files": 9,
+    "lambda_functions": 23,
+    "api_paths": 54,
+    "api_operations": 66,
+    "dynamodb_tables": 14,
+    "dynamodb_indexes": 17,
+    "frontend_modules": 22,
+    "test_files": 20,
+    "total_files_in_snapshot_including_manifests": 215,
+    "tracked_files_excluding_manifest_files": 213
+  },
+  "canonical_documents": [
+    "DOCUMENTAZIONE-COMPLETA-IT.md",
+    "docs/it/00-INDICE-GENERALE.md",
+    "docs/product/PRODUCT-INTENT.md",
+    "docs/api/openapi.json",
+    "template.yaml",
+    "docs/development/NEXT-PHASE.md"
+  ]
+}

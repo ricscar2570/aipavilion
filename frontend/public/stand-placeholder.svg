@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" role="img" aria-labelledby="title desc">
+  <title id="title">Stand image placeholder</title>
+  <desc id="desc">A neutral placeholder used when a stand image is unavailable.</desc>
+  <rect width="400" height="300" fill="#eef2f7"/>
+  <path d="M90 220h220V95H90z" fill="#d8e0ea"/>
+  <path d="M115 190l55-55 38 38 28-28 49 45z" fill="#aebdca"/>
+  <circle cx="260" cy="125" r="18" fill="#f8fafc"/>
+  <text x="200" y="255" text-anchor="middle" font-family="system-ui,sans-serif" font-size="18" fill="#526273">Stand image unavailable</text>
+</svg>

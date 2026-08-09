@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "AI Pavilion API",
-    "version": "0.8.0",
-    "description": "Phase 4 production-pilot contract for multi-tenant events, invitation delivery, organizer billing, audit access, privacy export and lifecycle controls."
+    "version": "0.8.5",
+    "description": "Pre-production multi-tenant event SaaS contract with fail-closed public catalogues, opt-in public contacts, organizer billing, audit, privacy export and lifecycle controls."
   },
   "servers": [
     {
@@ -399,7 +399,10 @@
               "schema": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["orderId", "paymentIntentId"],
+                "required": [
+                  "orderId",
+                  "paymentIntentId"
+                ],
                 "properties": {
                   "orderId": {
                     "type": "string"
@@ -666,7 +669,10 @@
                       "type": "integer"
                     },
                     "nextCursor": {
-                      "type": ["string", "null"]
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   }
                 }
@@ -796,7 +802,10 @@
                       "type": "integer"
                     },
                     "nextCursor": {
-                      "type": ["string", "null"]
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   }
                 }
@@ -887,7 +896,10 @@
                       "type": "integer"
                     },
                     "nextCursor": {
-                      "type": ["string", "null"]
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   }
                 }
@@ -1153,7 +1165,10 @@
                       "type": "integer"
                     },
                     "nextCursor": {
-                      "type": ["string", "null"]
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   }
                 }
@@ -1530,7 +1545,11 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["accepted", "organizationId", "eventId"],
+                  "required": [
+                    "accepted",
+                    "organizationId",
+                    "eventId"
+                  ],
                   "properties": {
                     "accepted": {
                       "type": "boolean",
@@ -1654,7 +1673,10 @@
                       "type": "integer"
                     },
                     "nextCursor": {
-                      "type": ["string", "null"]
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   }
                 }
@@ -1985,7 +2007,10 @@
                       "type": "integer"
                     },
                     "nextCursor": {
-                      "type": ["string", "null"]
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   }
                 }
@@ -2439,7 +2464,10 @@
                       }
                     },
                     "nextCursor": {
-                      "type": ["string", "null"]
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   }
                 }
@@ -2684,7 +2712,10 @@
                       "type": "integer"
                     },
                     "nextCursor": {
-                      "type": ["string", "null"]
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   }
                 }
@@ -2911,7 +2942,10 @@
                       "type": "integer"
                     },
                     "nextCursor": {
-                      "type": ["string", "null"]
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   }
                 }
@@ -3151,7 +3185,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["stands", "count"],
+                  "required": [
+                    "stands",
+                    "count"
+                  ],
                   "properties": {
                     "stands": {
                       "type": "array",
@@ -3398,9 +3435,76 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "operationId": "deleteUserAccount"
+      },
+      "get": {
+        "summary": "Check whether the current account can be deleted",
+        "security": [
+          {
+            "CognitoAccessToken": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deletion readiness",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ready",
+                    "blockers"
+                  ],
+                  "properties": {
+                    "ready": {
+                      "type": "boolean"
+                    },
+                    "blockers": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getAccountDeletionReadiness"
       }
     },
     "/user/orders": {
@@ -3434,7 +3538,10 @@
                       }
                     },
                     "nextCursor": {
-                      "type": ["string", "null"]
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   }
                 }
@@ -3486,7 +3593,10 @@
                       }
                     },
                     "nextCursor": {
-                      "type": ["string", "null"]
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   }
                 }
@@ -3606,7 +3716,11 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["totalOrders", "totalSpent", "savedStands"],
+                  "required": [
+                    "totalOrders",
+                    "totalSpent",
+                    "savedStands"
+                  ],
                   "properties": {
                     "totalOrders": {
                       "type": "integer"
@@ -4907,6 +5021,253 @@
           }
         }
       }
+    },
+    "/organizations/{organizationId}/ownership-transfer": {
+      "post": {
+        "summary": "Transfer organization ownership to an active organizer",
+        "security": [
+          {
+            "CognitoAccessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "newOwnerUserId"
+                ],
+                "properties": {
+                  "newOwnerUserId": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 120
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ownership transferred",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "transferred",
+                    "organizationId",
+                    "previousOwnerUserId",
+                    "newOwnerUserId"
+                  ],
+                  "properties": {
+                    "transferred": {
+                      "type": "boolean"
+                    },
+                    "organizationId": {
+                      "type": "string"
+                    },
+                    "previousOwnerUserId": {
+                      "type": "string"
+                    },
+                    "newOwnerUserId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "transferOrganizationOwnership"
+      }
+    },
+    "/organizations/{organizationId}/events/{eventId}/stands/{standId}/assignment": {
+      "patch": {
+        "summary": "Reassign a stand to an active organization member",
+        "security": [
+          {
+            "CognitoAccessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "standId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "newOwnerUserId"
+                ],
+                "properties": {
+                  "newOwnerUserId": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 120
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stand reassigned"
+          },
+          "400": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "reassignEventStand"
+      }
     }
   },
   "components": {
@@ -4958,7 +5319,9 @@
     "schemas": {
       "Error": {
         "type": "object",
-        "required": ["error"],
+        "required": [
+          "error"
+        ],
         "properties": {
           "error": {
             "type": "string"
@@ -4973,7 +5336,11 @@
       },
       "Stand": {
         "type": "object",
-        "required": ["stand_id", "name", "status"],
+        "required": [
+          "stand_id",
+          "name",
+          "status"
+        ],
         "properties": {
           "stand_id": {
             "type": "string"
@@ -4982,10 +5349,15 @@
             "type": "string"
           },
           "status": {
-            "enum": ["approved", "published"]
+            "enum": [
+              "approved",
+              "published"
+            ]
           },
           "visibility": {
-            "enum": ["public"]
+            "enum": [
+              "public"
+            ]
           },
           "description": {
             "type": "string"
@@ -5005,7 +5377,11 @@
       "CheckoutItemRequest": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["standId", "productId", "quantity"],
+        "required": [
+          "standId",
+          "productId",
+          "quantity"
+        ],
         "properties": {
           "standId": {
             "type": "string",
@@ -5027,7 +5403,11 @@
       "CreateIntentRequest": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["items", "customerEmail", "checkoutRequestId"],
+        "required": [
+          "items",
+          "customerEmail",
+          "checkoutRequestId"
+        ],
         "properties": {
           "items": {
             "type": "array",
@@ -5060,16 +5440,25 @@
         ],
         "properties": {
           "clientSecret": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "orderId": {
             "type": "string"
           },
           "paymentIntentId": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "paymentMode": {
-            "enum": ["simulated", "stripe"]
+            "enum": [
+              "simulated",
+              "stripe"
+            ]
           },
           "amountInCents": {
             "type": "integer"
@@ -5143,7 +5532,11 @@
       "InteractionRequest": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["standId", "interactionType", "clientRequestId"],
+        "required": [
+          "standId",
+          "interactionType",
+          "clientRequestId"
+        ],
         "properties": {
           "standId": {
             "type": "string",
@@ -5174,7 +5567,9 @@
       "SavedStandRequest": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["standId"],
+        "required": [
+          "standId"
+        ],
         "properties": {
           "standId": {
             "type": "string",
@@ -5184,7 +5579,10 @@
       },
       "SavedStand": {
         "type": "object",
-        "required": ["standId", "savedAt"],
+        "required": [
+          "standId",
+          "savedAt"
+        ],
         "properties": {
           "standId": {
             "type": "string"
@@ -5206,7 +5604,12 @@
       },
       "Order": {
         "type": "object",
-        "required": ["orderId", "status", "amountInCents", "currency"],
+        "required": [
+          "orderId",
+          "status",
+          "amountInCents",
+          "currency"
+        ],
         "properties": {
           "orderId": {
             "type": "string"
@@ -5277,7 +5680,10 @@
       "OrganizationCreateRequest": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["name", "ownerUserId"],
+        "required": [
+          "name",
+          "ownerUserId"
+        ],
         "properties": {
           "name": {
             "type": "string",
@@ -5300,13 +5706,22 @@
             "maxLength": 254
           },
           "plan": {
-            "enum": ["pilot", "starter", "professional"]
+            "enum": [
+              "pilot",
+              "starter",
+              "professional"
+            ]
           }
         }
       },
       "Organization": {
         "type": "object",
-        "required": ["organizationId", "name", "slug", "status"],
+        "required": [
+          "organizationId",
+          "name",
+          "slug",
+          "status"
+        ],
         "properties": {
           "organizationId": {
             "type": "string"
@@ -5318,7 +5733,11 @@
             "type": "string"
           },
           "status": {
-            "enum": ["active", "suspended", "cancelled"]
+            "enum": [
+              "active",
+              "suspended",
+              "cancelled"
+            ]
           },
           "ownerUserId": {
             "type": "string"
@@ -5336,7 +5755,12 @@
       },
       "Membership": {
         "type": "object",
-        "required": ["userId", "organizationId", "role", "status"],
+        "required": [
+          "userId",
+          "organizationId",
+          "role",
+          "status"
+        ],
         "properties": {
           "userId": {
             "type": "string"
@@ -5345,13 +5769,24 @@
             "type": "string"
           },
           "role": {
-            "enum": ["owner", "organizer", "exhibitor"]
+            "enum": [
+              "owner",
+              "organizer",
+              "exhibitor"
+            ]
           },
           "status": {
-            "enum": ["active", "invited", "suspended"]
+            "enum": [
+              "active",
+              "invited",
+              "suspended"
+            ]
           },
           "joinedAt": {
-            "type": ["string", "null"],
+            "type": [
+              "string",
+              "null"
+            ],
             "format": "date-time"
           }
         },
@@ -5364,10 +5799,18 @@
             "type": "string"
           },
           "plan": {
-            "enum": ["pilot", "starter", "professional"]
+            "enum": [
+              "pilot",
+              "starter",
+              "professional"
+            ]
           },
           "status": {
-            "enum": ["active", "past_due", "suspended"]
+            "enum": [
+              "active",
+              "past_due",
+              "suspended"
+            ]
           },
           "maxActiveEvents": {
             "type": "integer"
@@ -5379,7 +5822,10 @@
             "type": "object"
           },
           "validUntil": {
-            "type": ["string", "null"],
+            "type": [
+              "string",
+              "null"
+            ],
             "format": "date-time"
           }
         },
@@ -5388,7 +5834,11 @@
       "EventCreateRequest": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["name", "startsAt", "endsAt"],
+        "required": [
+          "name",
+          "startsAt",
+          "endsAt"
+        ],
         "properties": {
           "name": {
             "type": "string",
@@ -5417,7 +5867,10 @@
             "maxLength": 100
           },
           "visibility": {
-            "enum": ["public", "private"]
+            "enum": [
+              "public",
+              "private"
+            ]
           },
           "branding": {
             "type": "object",
@@ -5456,7 +5909,10 @@
             "maxLength": 100
           },
           "visibility": {
-            "enum": ["public", "private"]
+            "enum": [
+              "public",
+              "private"
+            ]
           },
           "branding": {
             "type": "object",
@@ -5490,10 +5946,18 @@
             "type": "string"
           },
           "status": {
-            "enum": ["draft", "published", "archived", "cancelled"]
+            "enum": [
+              "draft",
+              "published",
+              "archived",
+              "cancelled"
+            ]
           },
           "visibility": {
-            "enum": ["public", "private"]
+            "enum": [
+              "public",
+              "private"
+            ]
           },
           "startsAt": {
             "type": "string",
@@ -5507,7 +5971,10 @@
             "type": "string"
           },
           "publishedAt": {
-            "type": ["string", "null"],
+            "type": [
+              "string",
+              "null"
+            ],
             "format": "date-time"
           }
         },
@@ -5516,7 +5983,10 @@
       "InvitationCreateRequest": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["email", "standName"],
+        "required": [
+          "email",
+          "standName"
+        ],
         "properties": {
           "email": {
             "type": "string",
@@ -5564,7 +6034,12 @@
             "type": "string"
           },
           "status": {
-            "enum": ["pending", "accepted", "revoked", "expired"]
+            "enum": [
+              "pending",
+              "accepted",
+              "revoked",
+              "expired"
+            ]
           },
           "deliveryStatus": {
             "enum": [
@@ -5660,7 +6135,11 @@
                   "maximum": 10000000
                 },
                 "currency": {
-                  "enum": ["eur", "usd", "gbp"]
+                  "enum": [
+                    "eur",
+                    "usd",
+                    "gbp"
+                  ]
                 },
                 "category": {
                   "type": "string",
@@ -5672,8 +6151,30 @@
                   "maxLength": 2048
                 },
                 "status": {
-                  "enum": ["active", "hidden"]
+                  "enum": [
+                    "active",
+                    "hidden"
+                  ]
                 }
+              }
+            }
+          },
+          "contactPhone": {
+            "type": "string",
+            "maxLength": 40
+          },
+          "publicContact": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "showEmail": {
+                "type": "boolean"
+              },
+              "showPhone": {
+                "type": "boolean"
+              },
+              "showWebsite": {
+                "type": "boolean"
               }
             }
           }
@@ -5682,10 +6183,15 @@
       "ModerationRequest": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["status"],
+        "required": [
+          "status"
+        ],
         "properties": {
           "status": {
-            "enum": ["published", "rejected"]
+            "enum": [
+              "published",
+              "rejected"
+            ]
           },
           "moderationNote": {
             "type": "string",
@@ -5698,14 +6204,23 @@
         "additionalProperties": false,
         "properties": {
           "status": {
-            "enum": ["new", "contacted", "qualified", "closed", "spam"]
+            "enum": [
+              "new",
+              "contacted",
+              "qualified",
+              "closed",
+              "spam"
+            ]
           },
           "notes": {
             "type": "string",
             "maxLength": 5000
           },
           "assignedTo": {
-            "type": ["string", "null"],
+            "type": [
+              "string",
+              "null"
+            ],
             "maxLength": 120
           }
         }
@@ -5742,10 +6257,19 @@
             "type": "string"
           },
           "status": {
-            "enum": ["new", "contacted", "qualified", "closed", "spam"]
+            "enum": [
+              "new",
+              "contacted",
+              "qualified",
+              "closed",
+              "spam"
+            ]
           },
           "assignedTo": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "notes": {
             "type": "string"
@@ -5763,7 +6287,10 @@
             "maxLength": 160
           },
           "billingEmail": {
-            "type": ["string", "null"],
+            "type": [
+              "string",
+              "null"
+            ],
             "format": "email",
             "maxLength": 254
           },
@@ -5783,7 +6310,10 @@
       "MembershipCreateRequest": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["userId", "role"],
+        "required": [
+          "userId",
+          "role"
+        ],
         "properties": {
           "userId": {
             "type": "string",
@@ -5791,7 +6321,10 @@
             "maxLength": 120
           },
           "role": {
-            "enum": ["organizer", "exhibitor"]
+            "enum": [
+              "organizer",
+              "exhibitor"
+            ]
           }
         }
       },
@@ -5800,17 +6333,28 @@
         "additionalProperties": false,
         "properties": {
           "role": {
-            "enum": ["organizer", "exhibitor"]
+            "enum": [
+              "organizer",
+              "exhibitor"
+            ]
           },
           "status": {
-            "enum": ["active", "suspended"]
+            "enum": [
+              "active",
+              "suspended"
+            ]
           }
         }
       },
       "DuplicateEventRequest": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["name", "startsAt", "endsAt", "timezone"],
+        "required": [
+          "name",
+          "startsAt",
+          "endsAt",
+          "timezone"
+        ],
         "properties": {
           "name": {
             "type": "string",
@@ -5833,10 +6377,18 @@
       "BillingCheckoutRequest": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["plan", "successUrl", "cancelUrl"],
+        "required": [
+          "plan",
+          "successUrl",
+          "cancelUrl"
+        ],
         "properties": {
           "plan": {
-            "enum": ["pilot", "starter", "professional"]
+            "enum": [
+              "pilot",
+              "starter",
+              "professional"
+            ]
           },
           "billingEmail": {
             "type": "string",
@@ -5855,7 +6407,9 @@
       "BillingPortalRequest": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["returnUrl"],
+        "required": [
+          "returnUrl"
+        ],
         "properties": {
           "returnUrl": {
             "type": "string",

@@ -88,7 +88,7 @@ For an application regression with a healthy disposable stack, redeploy a known-
 
 ```bash
 git checkout <known-good-tag>
-npm ci
+npm run ci:install
 npm run verify
 sam build --template-file template.yaml
 sam deploy \

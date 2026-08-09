@@ -1,12 +1,13 @@
 "use strict";
 
-const { createHash } = require("crypto");
+const { createHash, randomUUID } = require("crypto");
 const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
 const {
     DynamoDBDocumentClient,
     GetCommand,
     PutCommand,
     UpdateCommand,
+    TransactWriteCommand,
 } = require("@aws-sdk/lib-dynamodb");
 const {
     SecretsManagerClient,
@@ -18,7 +19,10 @@ const { withObservability } = require("../common/observability");
 const { parseJsonBody, hasExactShape } = require("../common/validation");
 const { cleanText, validId } = require("../common/domain");
 const { authorizeOrganization } = require("../common/tenant");
-const { writeAuditEvent } = require("../common/audit");
+const {
+    writeAuditEvent,
+    buildAuditTransactPut,
+} = require("../common/audit");
 
 const client = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const secrets = new SecretsManagerClient({});
@@ -30,6 +34,7 @@ const AUDIT_TABLE = process.env.AUDIT_TABLE;
 const BILLING_MODE = process.env.BILLING_MODE || "disabled";
 const PRICE_MAP = JSON.parse(process.env.STRIPE_PRICE_MAP || "{}");
 const APP_URL = process.env.APP_URL || "http://127.0.0.1:3000";
+const WEBHOOK_LEASE_SECONDS = 120;
 
 const PLAN_LIMITS = {
     pilot: {
@@ -234,15 +239,9 @@ async function createCheckout(event, organizationId) {
             validUntil: new Date(Date.now() + 30 * 86400000).toISOString(),
             source: "simulated",
             updatedAt: now,
-        });
-        await writeAuditEvent(client, AUDIT_TABLE, {
-            organizationId,
             actorUserId: auth.actor.userId,
-            action: "billing.simulated_checkout",
-            resourceType: "entitlement",
-            resourceId: organizationId,
             requestId: event.requestId,
-            metadata: { plan },
+            auditAction: "billing.simulated_checkout",
         });
         return respond(
             201,
@@ -319,8 +318,11 @@ async function createPortal(event, organizationId) {
     return respond(201, { url: session.url }, event);
 }
 
-async function claimEvent(eventId, type) {
+async function claimEvent(eventId, type, stripeCreatedAt = null) {
     const key = { eventId: `billing#${eventId}` };
+    const nowEpoch = Math.floor(Date.now() / 1000);
+    const leaseToken = randomUUID();
+    const leaseExpiresAt = nowEpoch + WEBHOOK_LEASE_SECONDS;
     try {
         await client.send(
             new PutCommand({
@@ -330,13 +332,17 @@ async function claimEvent(eventId, type) {
                     type,
                     status: "processing",
                     attempts: 1,
+                    claimedAt: new Date().toISOString(),
+                    leaseToken,
+                    leaseExpiresAt,
+                    stripeCreatedAt: stripeCreatedAt || nowEpoch,
                     createdAt: new Date().toISOString(),
-                    ttl: Math.floor(Date.now() / 1000) + 90 * 86400,
+                    ttl: nowEpoch + 90 * 86400,
                 },
                 ConditionExpression: "attribute_not_exists(eventId)",
             }),
         );
-        return true;
+        return { claimed: true, leaseToken };
     } catch (error) {
         if (error.name !== "ConditionalCheckFailedException") {
             throw error;
@@ -350,8 +356,14 @@ async function claimEvent(eventId, type) {
             ConsistentRead: true,
         }),
     );
-    if (existing.Item?.status !== "failed") {
-        return false;
+    if (!existing.Item || existing.Item.status === "processed") {
+        return { claimed: false, reason: "duplicate" };
+    }
+    const expired =
+        existing.Item.status === "processing" &&
+        Number(existing.Item.leaseExpiresAt || 0) < nowEpoch;
+    if (existing.Item.status !== "failed" && !expired) {
+        return { claimed: false, reason: "in_flight" };
     }
 
     try {
@@ -360,8 +372,9 @@ async function claimEvent(eventId, type) {
                 TableName: PAYMENT_EVENTS_TABLE,
                 Key: key,
                 UpdateExpression:
-                    "SET #status = :processing, #type = :type, lastAttemptAt = :now ADD attempts :one REMOVE failureReason, failedAt",
-                ConditionExpression: "#status = :failed",
+                    "SET #status = :processing, #type = :type, claimedAt = :claimedAt, leaseToken = :leaseToken, leaseExpiresAt = :leaseExpiresAt, stripeCreatedAt = :stripeCreatedAt ADD attempts :one REMOVE failureReason, failedAt, processedAt",
+                ConditionExpression:
+                    "#status = :failed OR (#status = :processing AND leaseExpiresAt < :nowEpoch)",
                 ExpressionAttributeNames: {
                     "#status": "status",
                     "#type": "type",
@@ -370,36 +383,45 @@ async function claimEvent(eventId, type) {
                     ":processing": "processing",
                     ":failed": "failed",
                     ":type": type,
-                    ":now": new Date().toISOString(),
+                    ":claimedAt": new Date().toISOString(),
+                    ":leaseToken": leaseToken,
+                    ":leaseExpiresAt": leaseExpiresAt,
+                    ":stripeCreatedAt": stripeCreatedAt || nowEpoch,
+                    ":nowEpoch": nowEpoch,
                     ":one": 1,
                 },
             }),
         );
-        return true;
+        return { claimed: true, leaseToken, reclaimed: true };
     } catch (error) {
         if (error.name === "ConditionalCheckFailedException") {
-            return false;
+            return { claimed: false, reason: "concurrent" };
         }
         throw error;
     }
 }
 
-async function completeEvent(eventId) {
+async function completeEvent(eventId, leaseToken) {
     await client.send(
         new UpdateCommand({
             TableName: PAYMENT_EVENTS_TABLE,
             Key: { eventId: `billing#${eventId}` },
-            UpdateExpression: "SET #status = :processed, processedAt = :now",
+            UpdateExpression:
+                "SET #status = :processed, processedAt = :now REMOVE leaseToken, leaseExpiresAt",
+            ConditionExpression:
+                "#status = :processing AND leaseToken = :leaseToken",
             ExpressionAttributeNames: { "#status": "status" },
             ExpressionAttributeValues: {
                 ":processed": "processed",
+                ":processing": "processing",
+                ":leaseToken": leaseToken,
                 ":now": new Date().toISOString(),
             },
         }),
     );
 }
 
-async function failEvent(eventId, error) {
+async function failEvent(eventId, leaseToken, error) {
     const reason = cleanText(
         error?.message || "Webhook processing failed",
         500,
@@ -409,12 +431,14 @@ async function failEvent(eventId, error) {
             TableName: PAYMENT_EVENTS_TABLE,
             Key: { eventId: `billing#${eventId}` },
             UpdateExpression:
-                "SET #status = :failed, failedAt = :now, failureReason = :reason",
-            ConditionExpression: "#status = :processing",
+                "SET #status = :failed, failedAt = :now, failureReason = :reason REMOVE leaseToken, leaseExpiresAt",
+            ConditionExpression:
+                "#status = :processing AND leaseToken = :leaseToken",
             ExpressionAttributeNames: { "#status": "status" },
             ExpressionAttributeValues: {
                 ":processing": "processing",
                 ":failed": "failed",
+                ":leaseToken": leaseToken,
                 ":now": new Date().toISOString(),
                 ":reason": reason,
             },
@@ -432,31 +456,81 @@ async function applyPlan({
     subscriptionId,
     priceId,
     updatedAt,
+    stripeEventId = null,
+    stripeEventCreatedAt = null,
+    actorUserId = null,
+    requestId = null,
+    auditAction = null,
 }) {
     const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.pilot;
-    await client.send(
-        new UpdateCommand({
+    const values = {
+        ":plan": plan,
+        ":status": status,
+        ":maxEvents": limits.maxActiveEvents,
+        ":maxStands": limits.maxStandsPerEvent,
+        ":features": limits.features,
+        ":validUntil": validUntil || null,
+        ":source": source,
+        ":customerId": customerId || null,
+        ":subscriptionId": subscriptionId || null,
+        ":priceId": priceId || null,
+        ":now": updatedAt || new Date().toISOString(),
+        ":schemaVersion": 2,
+    };
+    const ordered = Number.isFinite(stripeEventCreatedAt);
+    let updateExpression =
+        "SET #plan = :plan, #status = :status, maxActiveEvents = :maxEvents, maxStandsPerEvent = :maxStands, features = :features, validFrom = if_not_exists(validFrom, :now), validUntil = :validUntil, billingSource = :source, stripeCustomerId = :customerId, stripeSubscriptionId = :subscriptionId, stripePriceId = :priceId, updatedAt = :now, schemaVersion = :schemaVersion";
+    if (ordered) {
+        updateExpression +=
+            ", lastStripeEventId = :eventId, lastStripeEventCreatedAt = :eventCreatedAt";
+        values[":eventId"] = stripeEventId;
+        values[":eventCreatedAt"] = stripeEventCreatedAt;
+    }
+    const entitlementUpdate = {
+        Update: {
             TableName: ENTITLEMENTS_TABLE,
             Key: { organizationId },
-            UpdateExpression:
-                "SET #plan = :plan, #status = :status, maxActiveEvents = :maxEvents, maxStandsPerEvent = :maxStands, features = :features, validFrom = if_not_exists(validFrom, :now), validUntil = :validUntil, billingSource = :source, stripeCustomerId = :customerId, stripeSubscriptionId = :subscriptionId, stripePriceId = :priceId, updatedAt = :now, schemaVersion = :schemaVersion",
-            ExpressionAttributeNames: { "#plan": "plan", "#status": "status" },
-            ExpressionAttributeValues: {
-                ":plan": plan,
-                ":status": status,
-                ":maxEvents": limits.maxActiveEvents,
-                ":maxStands": limits.maxStandsPerEvent,
-                ":features": limits.features,
-                ":validUntil": validUntil || null,
-                ":source": source,
-                ":customerId": customerId || null,
-                ":subscriptionId": subscriptionId || null,
-                ":priceId": priceId || null,
-                ":now": updatedAt || new Date().toISOString(),
-                ":schemaVersion": 2,
+            UpdateExpression: updateExpression,
+            ConditionExpression: ordered
+                ? "attribute_not_exists(lastStripeEventCreatedAt) OR lastStripeEventCreatedAt <= :eventCreatedAt"
+                : undefined,
+            ExpressionAttributeNames: {
+                "#plan": "plan",
+                "#status": "status",
             },
-        }),
-    );
+            ExpressionAttributeValues: values,
+        },
+    };
+    const auditPut = buildAuditTransactPut(AUDIT_TABLE, {
+        organizationId,
+        actorUserId: actorUserId || (source === "stripe" ? "stripe" : "system"),
+        action: auditAction || "billing.entitlement_updated",
+        resourceType: "entitlement",
+        resourceId: organizationId,
+        requestId: requestId || stripeEventId || null,
+        metadata: {
+            plan,
+            status,
+            source,
+            stripeEventId,
+        },
+    });
+    try {
+        await client.send(
+            new TransactWriteCommand({
+                TransactItems: [entitlementUpdate, auditPut],
+            }),
+        );
+        return { applied: true };
+    } catch (error) {
+        const conditionalCancellation =
+            error.name === "ConditionalCheckFailedException" ||
+            error.CancellationReasons?.[0]?.Code === "ConditionalCheckFailed";
+        if (conditionalCancellation && ordered) {
+            return { applied: false, reason: "out_of_order" };
+        }
+        throw error;
+    }
 }
 
 function planFromSubscription(subscription) {
@@ -496,7 +570,9 @@ async function processStripeEvent(stripeEvent) {
             source: "stripe",
             customerId: object.customer,
             subscriptionId: object.subscription,
-            updatedAt: new Date().toISOString(),
+            updatedAt: new Date(stripeEvent.created * 1000).toISOString(),
+            stripeEventId: stripeEvent.id,
+            stripeEventCreatedAt: stripeEvent.created,
         });
         return;
     }
@@ -521,7 +597,9 @@ async function processStripeEvent(stripeEvent) {
             customerId: object.customer,
             subscriptionId: object.id,
             priceId: object.items?.data?.[0]?.price?.id,
-            updatedAt: new Date().toISOString(),
+            updatedAt: new Date(stripeEvent.created * 1000).toISOString(),
+            stripeEventId: stripeEvent.id,
+            stripeEventCreatedAt: stripeEvent.created,
         });
     }
 }
@@ -548,17 +626,25 @@ async function webhook(event) {
     } catch {
         return respond(400, { error: "INVALID_SIGNATURE" }, event);
     }
-    const claimed = await claimEvent(stripeEvent.id, stripeEvent.type);
-    if (!claimed) {
-        return respond(200, { received: true, duplicate: true }, event);
+    const claim = await claimEvent(
+        stripeEvent.id,
+        stripeEvent.type,
+        stripeEvent.created,
+    );
+    if (!claim.claimed) {
+        return respond(
+            200,
+            { received: true, duplicate: true, reason: claim.reason },
+            event,
+        );
     }
     try {
         await processStripeEvent(stripeEvent);
-        await completeEvent(stripeEvent.id);
+        await completeEvent(stripeEvent.id, claim.leaseToken);
         return respond(200, { received: true }, event);
     } catch (error) {
         try {
-            await failEvent(stripeEvent.id, error);
+            await failEvent(stripeEvent.id, claim.leaseToken, error);
         } catch (stateError) {
             console.error("Could not mark billing event as failed", stateError);
         }
@@ -605,3 +691,4 @@ exports.applyPlan = applyPlan;
 exports.processStripeEvent = processStripeEvent;
 exports.claimEvent = claimEvent;
 exports.failEvent = failEvent;
+exports.completeEvent = completeEvent;

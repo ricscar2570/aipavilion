@@ -9,6 +9,9 @@
 import { apiService } from "../core/api.js";
 import { authService } from "./auth.js";
 import { uiManager } from "../ui/ui.js";
+import { validatePassword } from "../core/validators.js";
+import { escapeHtml } from "../core/helpers.js";
+import { CONFIG } from "../core/config.js";
 import {
     dashboardShellHTML,
     ordersHTML,
@@ -107,6 +110,7 @@ class UserDashboard {
             stats: this.stats,
             ordersHTML: ordersHTML(this.orders),
             savedStandsHTML: savedStandsHTML(this.savedStands),
+            paymentsEnabled: CONFIG.payments.enabled,
         });
 
         // Inject email into the already-rendered settings panel
@@ -153,20 +157,17 @@ class UserDashboard {
                 case "view-cart":
                     window.location.hash = "/cart";
                     break;
-                case "recommendations":
-                    this.viewRecommendations();
-                    break;
                 case "download-data":
                     this.downloadData();
-                    break;
-                case "change-language":
-                    this.changeLanguage();
                     break;
                 case "change-password":
                     this.changePassword();
                     break;
-                case "manage-notifications":
-                    this.manageNotifications();
+                case "setup-mfa":
+                    this.setupMfa();
+                    break;
+                case "disable-mfa":
+                    this.disableMfa();
                     break;
                 case "delete-account":
                     this.deleteAccount();
@@ -305,8 +306,11 @@ class UserDashboard {
                             document.getElementById("newPassword")?.value;
                         const confirm =
                             document.getElementById("confirmPassword")?.value;
-                        if (next !== confirm) {
-                            uiManager.error("Passwords do not match.");
+                        const check = validatePassword(next);
+                        if (!check.ok || next !== confirm) {
+                            uiManager.error(
+                                !check.ok ? check.error : "Passwords do not match.",
+                            );
                             return;
                         }
                         try {
@@ -321,49 +325,61 @@ class UserDashboard {
         });
     }
 
-    viewRecommendations() {
-        // Recommendations Lambda not yet implemented — redirect to search.
-        window.location.hash = "/search";
+    async setupMfa() {
+        try {
+            const { secretCode } = await authService.beginTotpSetup();
+            const username =
+                this.currentUser?.attributes?.email ||
+                this.currentUser?.username ||
+                "account";
+            const issuer = "AI Pavilion";
+            const uri = `otpauth://totp/${encodeURIComponent(issuer)}:${encodeURIComponent(username)}?secret=${encodeURIComponent(secretCode)}&issuer=${encodeURIComponent(issuer)}`;
+            uiManager.showModal({
+                title: "Set up authenticator MFA",
+                content: `
+                    <p>Add this secret to your authenticator application, then enter the current six-digit code.</p>
+                    <p class="font-mono break-all p-3 border rounded mt-3" id="mfa-secret">${escapeHtml(secretCode)}</p>
+                    <details class="mt-3"><summary>Manual authenticator URI</summary><code class="break-all text-xs">${escapeHtml(uri)}</code></details>
+                    <label class="block mt-4">Verification code<input id="mfa-setup-code" inputmode="numeric" autocomplete="one-time-code" class="w-full px-3 py-2 border rounded" /></label>`,
+                buttons: [
+                    { label: "Cancel", className: "btn-secondary", action: "cancel" },
+                    {
+                        label: "Enable MFA",
+                        className: "btn-primary",
+                        action: "enable",
+                        onClick: async () => {
+                            const code = document.getElementById("mfa-setup-code")?.value.trim();
+                            if (!code) {
+                                uiManager.error("Enter the authenticator code.");
+                                return;
+                            }
+                            try {
+                                await authService.completeTotpSetup(code);
+                                uiManager.success("Authenticator MFA enabled.");
+                            } catch {
+                                uiManager.error("The authenticator code could not be verified.");
+                            }
+                        },
+                    },
+                ],
+            });
+        } catch {
+            uiManager.error("Unable to start MFA setup.");
+        }
     }
 
-    changeLanguage() {
-        uiManager.showModal({
-            title: "Change Language",
-            content: "<p>Multi-language support is coming soon.</p>",
-            buttons: [
-                {
-                    label: "Close",
-                    className: "btn-secondary",
-                    action: "cancel",
-                },
-            ],
-        });
-    }
-
-    manageNotifications() {
-        uiManager.showModal({
-            title: "Notification Preferences",
-            content: `
-                <div class="form-group">
-                    <label><input type="checkbox" id="notifOrders" checked> Order confirmations</label>
-                </div>
-                <div class="form-group">
-                    <label><input type="checkbox" id="notifStands"> New stands in my categories</label>
-                </div>`,
-            buttons: [
-                {
-                    label: "Cancel",
-                    className: "btn-secondary",
-                    action: "cancel",
-                },
-                {
-                    label: "Save",
-                    className: "btn-primary",
-                    action: "save",
-                    onClick: () => uiManager.success("Preferences saved."),
-                },
-            ],
-        });
+    disableMfa() {
+        uiManager.showConfirm(
+            "Disable authenticator MFA for this account?",
+            async () => {
+                try {
+                    await authService.disableTotp();
+                    uiManager.success("Authenticator MFA disabled.");
+                } catch {
+                    uiManager.error("Unable to disable MFA.");
+                }
+            },
+        );
     }
 
     async downloadData() {
@@ -400,11 +416,26 @@ class UserDashboard {
             "Are you sure you want to delete your account? This cannot be undone.",
             async () => {
                 try {
+                    const readiness = await apiService.get("/user/account");
+                    if (!readiness.ready) {
+                        const codes = (readiness.blockers || [])
+                            .map((item) => item.code)
+                            .join(", ");
+                        uiManager.error(
+                            `Account deletion is blocked: ${codes}. Transfer organization ownership and ask an organizer to reassign your stands first.`,
+                        );
+                        return;
+                    }
                     await apiService.delete("/user/account");
-                    await authService.signOut();
+                    await authService.signOut({ global: true });
                     window.location.hash = "/";
-                } catch {
-                    uiManager.error("Failed to delete account.");
+                } catch (error) {
+                    const blockers = error?.details?.blockers;
+                    uiManager.error(
+                        blockers?.length
+                            ? "Account deletion is blocked by owned resources."
+                            : "Failed to delete account.",
+                    );
                 }
             },
         );

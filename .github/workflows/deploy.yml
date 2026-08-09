@@ -43,6 +43,7 @@ jobs:
         with:
           node-version: "22.16.0"
           cache: npm
+          registry-url: "https://registry.npmjs.org"
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -70,7 +71,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          npm ci
+          node scripts/check-lockfile-portability.js
+          npm run ci:install
           pip install -r requirements-dev.txt
           python -m playwright install --with-deps chromium
 

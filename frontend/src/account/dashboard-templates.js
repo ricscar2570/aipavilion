@@ -15,6 +15,7 @@ export function dashboardShellHTML({
     stats,
     ordersHTML,
     savedStandsHTML,
+    paymentsEnabled = false,
 }) {
     return `
         <div class="dashboard">
@@ -41,7 +42,7 @@ export function dashboardShellHTML({
                 <div class="dashboard-right">
                     <div class="dashboard-section">
                         <h2>Quick Actions</h2>
-                        ${quickActionsHTML()}
+                        ${quickActionsHTML(paymentsEnabled)}
                     </div>
                     <div class="dashboard-section">
                         <h2>Account Settings</h2>
@@ -144,21 +145,21 @@ export function savedStandsHTML(stands = []) {
         </div>`;
 }
 
-export function quickActionsHTML() {
+export function quickActionsHTML(paymentsEnabled = false) {
     return `
         <div class="quick-actions">
             <button class="action-btn" data-action="browse-stands">
                 <span class="action-icon">🏢</span>
                 <span class="action-label">Browse Stands</span>
             </button>
-            <button class="action-btn" data-action="view-cart">
+            ${
+                paymentsEnabled
+                    ? `<button class="action-btn" data-action="view-cart">
                 <span class="action-icon">🛒</span>
                 <span class="action-label">View Cart</span>
-            </button>
-            <button class="action-btn" data-action="recommendations">
-                <span class="action-icon">✨</span>
-                <span class="action-label">Recommendations</span>
-            </button>
+            </button>`
+                    : ""
+            }
             <button class="action-btn" data-action="download-data">
                 <span class="action-icon">📥</span>
                 <span class="action-label">Download Data</span>
@@ -175,16 +176,12 @@ export function accountSettingsHTML() {
                 <span id="db-user-email">—</span>
             </div>
             <div class="setting-item">
-                <span>Language</span>
-                <button class="btn btn-sm btn-secondary" data-action="change-language">Change</button>
-            </div>
-            <div class="setting-item">
                 <span>Password</span>
                 <button class="btn btn-sm btn-secondary" data-action="change-password">Change</button>
             </div>
             <div class="setting-item">
-                <span>Notifications</span>
-                <button class="btn btn-sm btn-secondary" data-action="manage-notifications">Manage</button>
+                <span>Multi-factor authentication</span>
+                <span><button class="btn btn-sm btn-secondary" data-action="setup-mfa">Set up</button> <button class="btn btn-sm btn-secondary" data-action="disable-mfa">Disable</button></span>
             </div>
             <hr>
             <button class="btn btn-danger" data-testid="delete-account" data-action="delete-account">Delete Account</button>
@@ -224,11 +221,11 @@ export function changePasswordFormHTML() {
             </div>
             <div class="form-group">
                 <label>New Password</label>
-                <input type="password" id="newPassword" required>
+                <input type="password" id="newPassword" minlength="12" autocomplete="new-password" placeholder="12+ chars, upper/lower, number, symbol" required>
             </div>
             <div class="form-group">
                 <label>Confirm New Password</label>
-                <input type="password" id="confirmPassword" required>
+                <input type="password" id="confirmPassword" minlength="12" autocomplete="new-password" required>
             </div>
         </form>`;
 }

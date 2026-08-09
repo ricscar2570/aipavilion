@@ -15,7 +15,7 @@ The repository root is the only canonical application tree.
 - `frontend/` contains the only active browser application.
 - `template.yaml` is the only infrastructure definition.
 - AWS SAM plus esbuild is the only backend packaging and deployment path.
-- `package-lock.json` is committed and `npm ci` is mandatory in CI.
+- `package-lock.json` is committed and `npm run ci:install` is mandatory in CI.
 - Historical code and product documents are archived outside the active source graph.
 
 Each Lambda uses a shared `CodeUri` and a specific esbuild `EntryPoints` value. Shared modules are bundled into each artifact rather than referenced through invalid runtime-relative layer paths.

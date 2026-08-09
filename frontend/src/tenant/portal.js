@@ -337,6 +337,22 @@ class TenantPortal {
                         target.dataset.organizationId = organizationId;
                         target.dataset.eventId = button.dataset.eventId;
                     }
+                    if (action === "reassign-stand") {
+                        const target = button.closest("[data-event-stands]");
+                        const newOwnerUserId = window.prompt(
+                            "Enter the Cognito user ID of an active organization member:",
+                        );
+                        if (!newOwnerUserId) return;
+                        await apiService.patch(
+                            `/organizations/${target.dataset.organizationId}/events/${target.dataset.eventId}/stands/${button.dataset.standId}/assignment`,
+                            { newOwnerUserId: newOwnerUserId.trim() },
+                        );
+                        const result = await apiService.get(
+                            `/organizations/${target.dataset.organizationId}/events/${target.dataset.eventId}/stands`,
+                        );
+                        target.innerHTML = moderationStandsHTML(result.stands || []);
+                        feedback("Stand reassigned.");
+                    }
                     if (action === "moderate-stand") {
                         const target = button.closest("[data-event-stands]");
                         await apiService.patch(
@@ -368,6 +384,18 @@ class TenantPortal {
                         );
                         await this.renderOrganizer(content);
                         feedback("Invitation revoked.");
+                    }
+                    if (action === "transfer-ownership") {
+                        const confirmed = window.confirm(
+                            "Transfer ownership to this organizer? Your role will become organizer.",
+                        );
+                        if (!confirmed) return;
+                        await apiService.post(
+                            `/organizations/${organizationId}/ownership-transfer`,
+                            { newOwnerUserId: button.dataset.userId },
+                        );
+                        await this.renderOrganizer(content);
+                        feedback("Organization ownership transferred.");
                     }
                     if (action === "toggle-member") {
                         await apiService.patch(
@@ -482,6 +510,14 @@ class TenantPortal {
                             category: data.get("category"),
                             description: data.get("description"),
                             imageUrl: data.get("imageUrl"),
+                            contactEmail: data.get("contactEmail"),
+                            contactPhone: data.get("contactPhone"),
+                            website: data.get("website"),
+                            publicContact: {
+                                showEmail: data.get("showEmail") === "on",
+                                showPhone: data.get("showPhone") === "on",
+                                showWebsite: data.get("showWebsite") === "on",
+                            },
                         });
                         feedback("Stand saved.");
                     }

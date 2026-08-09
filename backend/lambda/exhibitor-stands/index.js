@@ -4,16 +4,14 @@ const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
 const {
     DynamoDBDocumentClient,
     GetCommand,
-    PutCommand,
     QueryCommand,
-    UpdateCommand,
 } = require("@aws-sdk/lib-dynamodb");
 const { respond, preflight } = require("../common/cors");
 const { withObservability } = require("../common/observability");
 const { parseJsonBody, hasExactShape } = require("../common/validation");
 const { cleanText, validId } = require("../common/domain");
 const { identity } = require("../common/tenant");
-const { writeAuditEvent } = require("../common/audit");
+const { transactWithAudit } = require("../common/audit");
 const {
     parseLimit,
     decodeCursor,
@@ -83,6 +81,19 @@ async function getStand(event, actor, standId) {
     return respond(200, { stand: privateStand(stand) }, event);
 }
 
+function validPublicContact(value) {
+    if (value === undefined) {
+        return true;
+    }
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+        return false;
+    }
+    if (!hasExactShape(value, ["showEmail", "showPhone", "showWebsite"])) {
+        return false;
+    }
+    return Object.values(value).every((entry) => typeof entry === "boolean");
+}
+
 function normalizeProducts(value) {
     if (!Array.isArray(value)) {
         return [];
@@ -138,10 +149,16 @@ async function updateStand(event, actor, standId) {
         "imageUrl",
         "website",
         "contactEmail",
+        "contactPhone",
+        "publicContact",
         "products",
         "tags",
     ];
-    if (parsed.error || !hasExactShape(parsed.value, allowed)) {
+    if (
+        parsed.error ||
+        !hasExactShape(parsed.value, allowed) ||
+        !validPublicContact(parsed.value?.publicContact)
+    ) {
         return respond(
             400,
             {
@@ -181,6 +198,22 @@ async function updateStand(event, actor, standId) {
             parsed.value.contactEmail !== undefined
                 ? cleanText(parsed.value.contactEmail, 254).toLowerCase()
                 : existing.contact_email,
+        contact_phone:
+            parsed.value.contactPhone !== undefined
+                ? cleanText(parsed.value.contactPhone, 40)
+                : existing.contact_phone,
+        publicContact:
+            parsed.value.publicContact !== undefined
+                ? {
+                      showEmail: parsed.value.publicContact?.showEmail === true,
+                      showPhone: parsed.value.publicContact?.showPhone === true,
+                      showWebsite: parsed.value.publicContact?.showWebsite === true,
+                  }
+                : existing.publicContact || {
+                      showEmail: false,
+                      showPhone: false,
+                      showWebsite: false,
+                  },
         products:
             parsed.value.products !== undefined
                 ? normalizeProducts(parsed.value.products)
@@ -206,30 +239,38 @@ async function updateStand(event, actor, standId) {
     const now = new Date().toISOString();
     next.updatedAt = now;
     next.updated_at = now;
+    next.moderationStatus = "draft";
+    next.publicStatus = "draft";
     next.publicationKey = `${next.status}#${now}`;
-    await client.send(
-        new PutCommand({
-            TableName: STANDS_TABLE,
-            Item: next,
-            ConditionExpression:
-                "ownerUserId = :userId AND #status IN (:draft, :rejected)",
-            ExpressionAttributeNames: { "#status": "status" },
-            ExpressionAttributeValues: {
-                ":userId": actor.userId,
-                ":draft": "draft",
-                ":rejected": "rejected",
+    await transactWithAudit(
+        client,
+        [
+            {
+                Put: {
+                    TableName: STANDS_TABLE,
+                    Item: next,
+                    ConditionExpression:
+                        "ownerUserId = :userId AND #status IN (:draft, :rejected)",
+                    ExpressionAttributeNames: { "#status": "status" },
+                    ExpressionAttributeValues: {
+                        ":userId": actor.userId,
+                        ":draft": "draft",
+                        ":rejected": "rejected",
+                    },
+                },
             },
-        }),
+        ],
+        AUDIT_TABLE,
+        {
+            organizationId: next.organizationId,
+            actorUserId: actor.userId,
+            action: "stand.updated",
+            resourceType: "stand",
+            resourceId: standId,
+            requestId: event.requestId,
+            metadata: { eventId: next.eventId },
+        },
     );
-    await writeAuditEvent(client, AUDIT_TABLE, {
-        organizationId: next.organizationId,
-        actorUserId: actor.userId,
-        action: "stand.updated",
-        resourceType: "stand",
-        resourceId: standId,
-        requestId: event.requestId,
-        metadata: { eventId: next.eventId },
-    });
     return respond(200, { stand: privateStand(next) }, event);
 }
 
@@ -264,37 +305,62 @@ async function submitStand(event, actor, standId) {
         return respond(409, { error: "EVENT_NOT_AVAILABLE" }, event);
     }
     const now = new Date().toISOString();
-    const result = await client.send(
-        new UpdateCommand({
-            TableName: STANDS_TABLE,
-            Key: { stand_id: standId },
-            UpdateExpression:
-                "SET #status = :pending, eventStatus = :eventStatus, publicationKey = :publicationKey, submittedAt = :now, updatedAt = :now, updated_at = :now REMOVE moderationNote",
-            ConditionExpression:
-                "ownerUserId = :userId AND #status IN (:draft, :rejected)",
-            ExpressionAttributeNames: { "#status": "status" },
-            ExpressionAttributeValues: {
-                ":pending": "pending_review",
-                ":eventStatus": eventResult.Item.status,
-                ":publicationKey": `pending_review#${now}`,
-                ":now": now,
-                ":userId": actor.userId,
-                ":draft": "draft",
-                ":rejected": "rejected",
+    const publicationKey = `pending_review#${now}`;
+    await transactWithAudit(
+        client,
+        [
+            {
+                Update: {
+                    TableName: STANDS_TABLE,
+                    Key: { stand_id: standId },
+                    UpdateExpression:
+                        "SET #status = :pending, moderationStatus = :moderationStatus, publicStatus = :draftPublic, eventStatus = :eventStatus, publicationKey = :publicationKey, submittedAt = :now, updatedAt = :now, updated_at = :now REMOVE moderationNote",
+                    ConditionExpression:
+                        "ownerUserId = :userId AND #status IN (:draft, :rejected)",
+                    ExpressionAttributeNames: { "#status": "status" },
+                    ExpressionAttributeValues: {
+                        ":pending": "pending_review",
+                        ":moderationStatus": "pending",
+                        ":draftPublic": "draft",
+                        ":eventStatus": eventResult.Item.status,
+                        ":publicationKey": publicationKey,
+                        ":now": now,
+                        ":userId": actor.userId,
+                        ":draft": "draft",
+                        ":rejected": "rejected",
+                    },
+                },
             },
-            ReturnValues: "ALL_NEW",
-        }),
+        ],
+        AUDIT_TABLE,
+        {
+            organizationId: existing.organizationId,
+            actorUserId: actor.userId,
+            action: "stand.submitted",
+            resourceType: "stand",
+            resourceId: standId,
+            requestId: event.requestId,
+            metadata: { eventId: existing.eventId },
+        },
     );
-    await writeAuditEvent(client, AUDIT_TABLE, {
-        organizationId: existing.organizationId,
-        actorUserId: actor.userId,
-        action: "stand.submitted",
-        resourceType: "stand",
-        resourceId: standId,
-        requestId: event.requestId,
-        metadata: { eventId: existing.eventId },
-    });
-    return respond(200, { stand: privateStand(result.Attributes) }, event);
+    return respond(
+        200,
+        {
+            stand: privateStand({
+                ...existing,
+                status: "pending_review",
+                moderationStatus: "pending",
+                publicStatus: "draft",
+                eventStatus: eventResult.Item.status,
+                publicationKey,
+                submittedAt: now,
+                updatedAt: now,
+                updated_at: now,
+                moderationNote: undefined,
+            }),
+        },
+        event,
+    );
 }
 
 const handler = async (event) => {

@@ -22,16 +22,20 @@ Report vulnerabilities privately to the repository owner with the affected route
 - Critical mutations use strict payload shapes and idempotency identifiers.
 - Checkout reserves a deterministic order before creating a payment intent.
 - Stripe payment and billing webhook signatures are verified against the raw body.
-- Webhook event IDs are conditionally claimed; failed billing events can be safely retried and stale state regressions are blocked.
+- Webhook event IDs are claimed with expiring lease tokens; failed or abandoned claims can be reclaimed and stale Stripe state regressions are blocked.
 - SES event publication is restricted to the account-owned invitation SNS topic.
 - Anonymous lead submission supports Turnstile verification and infrastructure rate limiting.
 - User-facing responses exclude Stripe, ownership, idempotency and internal retention fields.
-- Privileged tenant actions create retained audit events.
+- Critical tenant mutations and their audit events are committed in the same DynamoDB transaction; resumable sagas are used where one transaction cannot cover the full operation.
+- Stripe-driven entitlement changes and SES delivery-state changes commit their matching tenant audit records atomically.
 - Personal-data export excludes payment secrets and internal processing identifiers.
 - Request lifecycle logs exclude authorization headers and request bodies.
 - Cognito confirmation creates an application profile without trusting browser role data.
 - Staging CI uses short-lived AWS credentials through GitHub OIDC.
 - Pilot templates enable point-in-time recovery and retain stateful resources.
+- Dependency installation is pinned to the public npm registry and private registry URLs are rejected before `npm ci`.
+- Lambda table/index environment contracts and matching table policies are checked semantically in both development and pilot templates.
+- A scheduled payment reconciler expires abandoned webhook leases and compares stale orders and Stripe-backed entitlements with Stripe test or live state according to the configured environment.
 
 ## Environment boundaries
 
@@ -50,6 +54,19 @@ Report vulnerabilities privately to the repository owner with the affected route
 - manual WCAG 2.2 AA keyboard and screen-reader assessment;
 - privacy/legal approval, retention sign-off and processor/subprocessor register;
 - operational on-call ownership, customer support process and incident exercise;
-- removal of CSP `style-src 'unsafe-inline'` after legacy inline styles are eliminated;
+- deployed-browser verification that the strict CSP blocks inline code without breaking supported journeys;
 - possible BFF/HttpOnly-cookie migration if required by the final threat model;
 - Stripe Connect and legal/financial design before any third-party marketplace settlement.
+
+## Pilot commerce boundary
+
+Persistent staging and the first customer pilot default to `PRODUCT_PAYMENT_MODE=disabled`. Stripe remains enabled for organizer SaaS subscriptions, but the platform does not claim multi-vendor product settlement, payouts or merchant-of-record operation. Enabling visitor checkout requires a separate threat, legal and operational review.
+
+## Authentication and lifecycle controls
+
+- Cognito enforces a 12-character password with uppercase, lowercase, number and symbol requirements; frontend validation uses the same policy.
+- Software-token MFA is enabled as an optional User Pool factor and challenge completion is supported by the SPA.
+- Password recovery requires the Cognito delivery code and never passes a password through an application Lambda.
+- Organization ownership transfer and stand reassignment use DynamoDB transactions with audit records.
+- Account deletion is denied while the user owns an organization or remains assigned to a stand.
+- Successful deletion removes saved stands, anonymizes orders, removes ordinary memberships and deletes the Cognito identity.

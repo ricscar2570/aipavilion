@@ -68,3 +68,20 @@ body {
         transition-duration: 0.01ms !important;
     }
 }
+
+.contact-honeypot {
+    position: absolute;
+    left: -10000px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+}
+
+.interactive-card {
+    cursor: pointer;
+    transition: transform 0.3s ease;
+}
+.interactive-card:hover,
+.interactive-card:focus-visible {
+    transform: translateY(-5px);
+}

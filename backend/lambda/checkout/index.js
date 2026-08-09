@@ -6,7 +6,6 @@ const {
     PutItemCommand,
     GetItemCommand,
     UpdateItemCommand,
-    DeleteItemCommand,
     BatchGetItemCommand,
 } = require("@aws-sdk/client-dynamodb");
 const { marshall, unmarshall } = require("@aws-sdk/util-dynamodb");
@@ -15,9 +14,10 @@ const {
     GetSecretValueCommand,
 } = require("@aws-sdk/client-secrets-manager");
 const Stripe = require("stripe");
-const { createHash } = require("crypto");
+const { createHash, randomUUID } = require("crypto");
 const { respond, preflight } = require("../common/cors");
 const { isPublicStand } = require("../common/catalog");
+const { retryUnprocessedBatchGet } = require("../common/retry");
 const {
     parseJsonBody,
     hasExactShape,
@@ -33,11 +33,12 @@ const PAYMENT_EVENTS_TABLE =
 const CURRENCY = "eur";
 const MAX_CART_ITEMS = 50;
 const MAX_QUANTITY = 99;
+const WEBHOOK_LEASE_SECONDS = 120;
 const TERMINAL_STATUSES = new Set(["paid", "cancelled", "refunded"]);
 const ALLOWED_TRANSITIONS = {
     creating: new Set(["pending", "paid", "failed", "cancelled"]),
     pending: new Set(["paid", "failed", "cancelled"]),
-    failed: new Set(["pending", "cancelled"]),
+    failed: new Set(["pending", "paid", "cancelled"]),
     paid: new Set(["refunded"]),
     cancelled: new Set(),
     refunded: new Set(),
@@ -167,19 +168,19 @@ function cartFingerprint(items, amountInCents) {
 
 async function resolveCatalogueItems(requestedItems) {
     const standIds = [...new Set(requestedItems.map((item) => item.standId))];
-    const result = await dynamo.send(
-        new BatchGetItemCommand({
-            RequestItems: {
-                [STANDS_TABLE]: {
-                    Keys: standIds.map((standId) =>
-                        marshall({ stand_id: standId }),
-                    ),
-                    ConsistentRead: true,
-                },
+    const responses = await retryUnprocessedBatchGet(
+        dynamo,
+        BatchGetItemCommand,
+        {
+            [STANDS_TABLE]: {
+                Keys: standIds.map((standId) =>
+                    marshall({ stand_id: standId }),
+                ),
+                ConsistentRead: true,
             },
-        }),
+        },
     );
-    const stands = (result.Responses?.[STANDS_TABLE] || []).map((item) =>
+    const stands = (responses[STANDS_TABLE] || []).map((item) =>
         unmarshall(item),
     );
     const standsById = new Map(stands.map((stand) => [stand.stand_id, stand]));
@@ -297,10 +298,11 @@ async function attachPaymentIntent(
                     ":pending": "pending",
                     ":updatedAt": new Date().toISOString(),
                     ":expected": expectedStatus,
+                    ":failed": "failed",
                 },
                 { removeUndefinedValues: true },
             ),
-            ConditionExpression: "#status = :expected",
+            ConditionExpression: "#status IN (:expected, :failed)",
         }),
     );
 }
@@ -453,6 +455,15 @@ async function transitionOrder(orderId, targetStatus, extra = {}) {
     if (!order) {
         return { applied: false, reason: "missing" };
     }
+    const eventCreatedAt = Number.isFinite(extra.eventCreatedAt)
+        ? extra.eventCreatedAt
+        : Math.floor(Date.now() / 1000);
+    if (
+        Number.isFinite(order.lastPaymentEventCreatedAt) &&
+        eventCreatedAt < order.lastPaymentEventCreatedAt
+    ) {
+        return { applied: false, reason: "out_of_order", order };
+    }
     if (order.status === targetStatus) {
         return { applied: false, reason: "duplicate", order };
     }
@@ -465,7 +476,7 @@ async function transitionOrder(orderId, targetStatus, extra = {}) {
                 TableName: ORDERS_TABLE,
                 Key: marshall({ orderId }),
                 UpdateExpression:
-                    "SET #status = :target, updatedAt = :updatedAt, lastPaymentEventId = :eventId",
+                    "SET #status = :target, updatedAt = :updatedAt, lastPaymentEventId = :eventId, lastPaymentEventCreatedAt = :eventCreatedAt",
                 ExpressionAttributeNames: { "#status": "status" },
                 ExpressionAttributeValues: marshall(
                     {
@@ -473,13 +484,23 @@ async function transitionOrder(orderId, targetStatus, extra = {}) {
                         ":current": order.status,
                         ":updatedAt": new Date().toISOString(),
                         ":eventId": extra.eventId || "manual-confirmation",
+                        ":eventCreatedAt": eventCreatedAt,
                     },
                     { removeUndefinedValues: true },
                 ),
-                ConditionExpression: "#status = :current",
+                ConditionExpression:
+                    "#status = :current AND (attribute_not_exists(lastPaymentEventCreatedAt) OR lastPaymentEventCreatedAt <= :eventCreatedAt)",
             }),
         );
-        return { applied: true, order: { ...order, status: targetStatus } };
+        return {
+            applied: true,
+            order: {
+                ...order,
+                status: targetStatus,
+                lastPaymentEventId: extra.eventId || "manual-confirmation",
+                lastPaymentEventCreatedAt: eventCreatedAt,
+            },
+        };
     } catch (error) {
         if (error.name === "ConditionalCheckFailedException") {
             return { applied: false, reason: "concurrent" };
@@ -563,53 +584,132 @@ async function confirmOrder(body, userId, event) {
 }
 
 async function claimWebhookEvent(stripeEvent) {
+    const nowEpoch = Math.floor(Date.now() / 1000);
+    const leaseToken = randomUUID();
+    const leaseExpiresAt = nowEpoch + WEBHOOK_LEASE_SECONDS;
+    const item = {
+        eventId: stripeEvent.id,
+        eventType: stripeEvent.type,
+        status: "processing",
+        attempts: 1,
+        claimedAt: new Date().toISOString(),
+        leaseToken,
+        leaseExpiresAt,
+        stripeCreatedAt: stripeEvent.created || nowEpoch,
+        createdAt: new Date().toISOString(),
+        ttl: nowEpoch + 30 * 24 * 60 * 60,
+    };
     try {
         await dynamo.send(
             new PutItemCommand({
                 TableName: PAYMENT_EVENTS_TABLE,
-                Item: marshall({
-                    eventId: stripeEvent.id,
-                    eventType: stripeEvent.type,
-                    status: "processing",
-                    createdAt: new Date().toISOString(),
-                    ttl: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
-                }),
+                Item: marshall(item),
                 ConditionExpression: "attribute_not_exists(eventId)",
             }),
         );
-        return true;
+        return { claimed: true, leaseToken };
+    } catch (error) {
+        if (error.name !== "ConditionalCheckFailedException") {
+            throw error;
+        }
+    }
+
+    const existingResult = await dynamo.send(
+        new GetItemCommand({
+            TableName: PAYMENT_EVENTS_TABLE,
+            Key: marshall({ eventId: stripeEvent.id }),
+            ConsistentRead: true,
+        }),
+    );
+    const existing = existingResult.Item
+        ? unmarshall(existingResult.Item)
+        : null;
+    if (!existing || existing.status === "processed") {
+        return { claimed: false, reason: "duplicate" };
+    }
+    const expired =
+        existing.status === "processing" &&
+        Number(existing.leaseExpiresAt || 0) < nowEpoch;
+    if (existing.status !== "failed" && !expired) {
+        return { claimed: false, reason: "in_flight" };
+    }
+
+    try {
+        await dynamo.send(
+            new UpdateItemCommand({
+                TableName: PAYMENT_EVENTS_TABLE,
+                Key: marshall({ eventId: stripeEvent.id }),
+                UpdateExpression:
+                    "SET #status = :processing, eventType = :eventType, claimedAt = :claimedAt, leaseToken = :leaseToken, leaseExpiresAt = :leaseExpiresAt, stripeCreatedAt = :stripeCreatedAt ADD attempts :one REMOVE failedAt, failureReason, processedAt",
+                ConditionExpression:
+                    "#status = :failed OR (#status = :processing AND leaseExpiresAt < :nowEpoch)",
+                ExpressionAttributeNames: { "#status": "status" },
+                ExpressionAttributeValues: marshall({
+                    ":processing": "processing",
+                    ":failed": "failed",
+                    ":eventType": stripeEvent.type,
+                    ":claimedAt": new Date().toISOString(),
+                    ":leaseToken": leaseToken,
+                    ":leaseExpiresAt": leaseExpiresAt,
+                    ":stripeCreatedAt": stripeEvent.created || nowEpoch,
+                    ":nowEpoch": nowEpoch,
+                    ":one": 1,
+                }),
+            }),
+        );
+        return { claimed: true, leaseToken, reclaimed: true };
     } catch (error) {
         if (error.name === "ConditionalCheckFailedException") {
-            return false;
+            return { claimed: false, reason: "concurrent" };
         }
         throw error;
     }
 }
 
-async function markWebhookEventProcessed(eventId, transitionResult) {
+async function markWebhookEventProcessed(
+    eventId,
+    leaseToken,
+    transitionResult,
+) {
     await dynamo.send(
         new UpdateItemCommand({
             TableName: PAYMENT_EVENTS_TABLE,
             Key: marshall({ eventId }),
             UpdateExpression:
-                "SET #status = :processed, processedAt = :processedAt, transitionResult = :transitionResult",
+                "SET #status = :processed, processedAt = :processedAt, transitionResult = :transitionResult REMOVE leaseToken, leaseExpiresAt",
             ExpressionAttributeNames: { "#status": "status" },
             ExpressionAttributeValues: marshall({
                 ":processed": "processed",
                 ":processedAt": new Date().toISOString(),
                 ":transitionResult": transitionResult || "ignored",
                 ":processing": "processing",
+                ":leaseToken": leaseToken,
             }),
-            ConditionExpression: "#status = :processing",
+            ConditionExpression:
+                "#status = :processing AND leaseToken = :leaseToken",
         }),
     );
 }
 
-async function releaseWebhookEvent(eventId) {
+async function failWebhookEvent(eventId, leaseToken, error) {
     await dynamo.send(
-        new DeleteItemCommand({
+        new UpdateItemCommand({
             TableName: PAYMENT_EVENTS_TABLE,
             Key: marshall({ eventId }),
+            UpdateExpression:
+                "SET #status = :failed, failedAt = :failedAt, failureReason = :failureReason REMOVE leaseToken, leaseExpiresAt",
+            ExpressionAttributeNames: { "#status": "status" },
+            ExpressionAttributeValues: marshall({
+                ":failed": "failed",
+                ":failedAt": new Date().toISOString(),
+                ":failureReason": String(
+                    error?.message || "Webhook processing failed",
+                ).slice(0, 500),
+                ":processing": "processing",
+                ":leaseToken": leaseToken,
+            }),
+            ConditionExpression:
+                "#status = :processing AND leaseToken = :leaseToken",
         }),
     );
 }
@@ -645,8 +745,13 @@ async function handleWebhook(event) {
     } catch {
         return respond(400, { error: "INVALID_SIGNATURE" }, event);
     }
-    if (!(await claimWebhookEvent(stripeEvent))) {
-        return respond(200, { received: true, duplicate: true }, event);
+    const claim = await claimWebhookEvent(stripeEvent);
+    if (!claim.claimed) {
+        return respond(
+            200,
+            { received: true, duplicate: true, reason: claim.reason },
+            event,
+        );
     }
 
     try {
@@ -661,13 +766,22 @@ async function handleWebhook(event) {
         if (orderId && target) {
             const result = await transitionOrder(orderId, target, {
                 eventId: stripeEvent.id,
+                eventCreatedAt: stripeEvent.created,
             });
             transitionResult = result.applied ? "applied" : result.reason;
         }
-        await markWebhookEventProcessed(stripeEvent.id, transitionResult);
+        await markWebhookEventProcessed(
+            stripeEvent.id,
+            claim.leaseToken,
+            transitionResult,
+        );
         return respond(200, { received: true }, event);
     } catch (error) {
-        await releaseWebhookEvent(stripeEvent.id).catch(() => undefined);
+        await failWebhookEvent(
+            stripeEvent.id,
+            claim.leaseToken,
+            error,
+        ).catch(() => undefined);
         throw error;
     }
 }
@@ -750,4 +864,7 @@ exports.__private = {
     deterministicOrderId,
     cartFingerprint,
     transitionOrder,
+    claimWebhookEvent,
+    markWebhookEventProcessed,
+    failWebhookEvent,
 };

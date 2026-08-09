@@ -1,8 +1,8 @@
 {
   "name": "ai-pavilion",
-  "version": "0.8.0",
+  "version": "0.8.5",
   "private": true,
-  "description": "Production-pilot staging, billing, trust and operations foundation for AI Pavilion.",
+  "description": "Pre-production multi-tenant serverless SaaS foundation for virtual and hybrid events.",
   "license": "MIT",
   "engines": {
     "node": "^20.19.0 || >=22.12.0",
@@ -22,7 +22,7 @@
     "format": "prettier --write \"**/*.{js,json,md,yml,yaml}\"",
     "format:check": "prettier --check \"**/*.{js,json,md,yml,yaml}\"",
     "check:syntax": "node scripts/check-syntax.js",
-    "verify": "npm run format:check && npm run lint && npm run check:syntax && npm run check:contracts && npm run check:openapi && npm run check:bundles && npm run check:phase3 && npm run check:phase4 && npm run test:coverage -- --silent && npm run build",
+    "verify": "npm run check:lockfile && npm run format:check && npm run lint && npm run check:syntax && npm run check:contracts && npm run check:openapi && npm run check:bundles && npm run check:infrastructure && npm run check:phase3 && npm run check:phase4 && npm run check:phase45c && npm run check:phase45d && npm run check:phase45e && npm run test:coverage -- --silent && npm run build",
     "sam:validate": "sam validate --lint --template-file template.yaml",
     "sam:build": "sam build --template-file template.yaml",
     "deploy:guided": "npm run verify && npm run sam:validate && sam deploy --guided",
@@ -39,7 +39,7 @@
     "dev:users": "node scripts/dev/create-test-users.js",
     "check:openapi": "node scripts/check-openapi.js",
     "check:phase3": "node scripts/check-phase3-assets.js && bash -n scripts/dev/*.sh",
-    "check:phase4": "node scripts/check-phase4-assets.js && bash -n scripts/pilot/*.sh",
+    "check:phase4": "node scripts/check-phase4-assets.js && node scripts/pilot/check-origin-resolution.js && bash -n scripts/pilot/*.sh",
     "pilot:generate": "node scripts/pilot/generate-pilot-backend.js",
     "pilot:check": "node scripts/pilot/generate-pilot-backend.js --check",
     "pilot:migrate": "node scripts/pilot/migrate.js apply",
@@ -47,7 +47,16 @@
     "pilot:migrate:verify": "node scripts/pilot/migrate.js verify",
     "pilot:deploy": "bash scripts/pilot/deploy-staging.sh",
     "pilot:synthetic": "node scripts/pilot/synthetic-check.js",
-    "pilot:restore-drill": "bash scripts/pilot/restore-drill.sh"
+    "pilot:restore-drill": "bash scripts/pilot/restore-drill.sh",
+    "lockfile:normalize": "node scripts/normalize-lockfile-registry.js",
+    "check:lockfile": "node scripts/check-lockfile-portability.js",
+    "check:infrastructure": "node scripts/check-infrastructure-contracts.js",
+    "ci:install": "npm ci --registry=https://registry.npmjs.org",
+    "pilot:preflight": "node scripts/pilot/preflight-staging.js",
+    "pilot:evidence": "bash scripts/pilot/run-staging-evidence.sh",
+    "check:phase45c": "node scripts/check-phase45c-assets.js",
+    "check:phase45d": "node scripts/check-phase45d-assets.js",
+    "check:phase45e": "node scripts/check-phase45e-assets.js"
   },
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.600.0",
@@ -96,5 +105,6 @@
         "statements": 75
       }
     }
-  }
+  },
+  "packageManager": "npm@10.9.2"
 }
