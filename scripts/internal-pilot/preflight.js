@@ -63,6 +63,7 @@ const tools = {
     git: commandAvailable("git", ["--version"]),
     aws: commandAvailable("aws", ["--version"]),
     sam: commandAvailable("sam", ["--version"]),
+    python3: commandAvailable("python3", ["--version"]),
 };
 for (const [name, available] of Object.entries(tools)) {
     if (!available) {
@@ -76,9 +77,6 @@ if (!plan.allowedEnvironments.includes(environment)) {
     failures.push(`environment:${environment}`);
 }
 const apiUrl = process.env.API_URL || "";
-if (!apiUrl) {
-    missing.push("API_URL");
-}
 if (productionLike(apiUrl)) {
     failures.push("production-like API_URL refused");
 }

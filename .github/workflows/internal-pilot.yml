@@ -47,16 +47,31 @@ jobs:
     env:
       ALLOW_INTERNAL_PILOT: "true"
       EVIDENCE_ENVIRONMENT: internal-pilot
-      ENVIRONMENT: internal-pilot
+      ENVIRONMENT: staging
       AWS_REGION: ${{ vars.AWS_REGION || 'eu-west-1' }}
+      BACKEND_STACK: ${{ vars.BACKEND_STACK || 'ai-pavilion-staging-backend' }}
+      FRONTEND_STACK: ${{ vars.FRONTEND_STACK || 'ai-pavilion-staging-frontend' }}
+      OPERATIONS_STACK: ${{ vars.OPERATIONS_STACK || 'ai-pavilion-staging-operations' }}
       API_URL: ${{ secrets.STAGING_API_URL }}
       APP_URL: ${{ secrets.STAGING_APP_URL }}
+      ALERT_EMAIL: ${{ vars.ALERT_EMAIL }}
+      INVITATION_EMAIL_FROM: ${{ vars.INVITATION_EMAIL_FROM }}
+      BOT_CHALLENGE_SECRET: ${{ secrets.BOT_CHALLENGE_SECRET }}
+      TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
       STRIPE_SECRET_KEY: ${{ secrets.STRIPE_TEST_SECRET_KEY }}
-      TENANT_ACCESS_TOKEN: ${{ secrets.TENANT_ACCESS_TOKEN }}
+      STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+      STRIPE_BILLING_WEBHOOK_SECRET: ${{ secrets.STRIPE_BILLING_WEBHOOK_SECRET }}
+      STRIPE_PILOT_PRICE_ID: ${{ vars.STRIPE_PILOT_PRICE_ID }}
+      STRIPE_STARTER_PRICE_ID: ${{ vars.STRIPE_STARTER_PRICE_ID }}
+      STRIPE_PROFESSIONAL_PRICE_ID: ${{ vars.STRIPE_PROFESSIONAL_PRICE_ID }}
+      STRIPE_PUBLISHABLE_KEY: ${{ vars.STRIPE_PUBLISHABLE_KEY }}
+      MONTHLY_BUDGET_USD: ${{ vars.MONTHLY_BUDGET_USD || '150' }}
+      PRODUCT_PAYMENT_MODE: ${{ vars.PRODUCT_PAYMENT_MODE || 'disabled' }}
       STRIPE_PROOF_ORGANIZATION_ID: ${{ vars.STRIPE_PROOF_ORGANIZATION_ID }}
       SES_PROOF_FROM: ${{ vars.SES_PROOF_FROM }}
       SES_PROOF_TO: ${{ vars.SES_PROOF_TO }}
       WAF_PROOF_URL: ${{ secrets.WAF_PROOF_URL }}
+      RESTORE_BACKUP_TIMESTAMP: ${{ vars.RESTORE_BACKUP_TIMESTAMP }}
       ALLOW_EXTERNAL_EMAIL_PROOF: "true"
       ALLOW_WAF_PROOF: "true"
       ALLOW_LOAD_TEST: "true"
@@ -70,8 +85,18 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version-file: .nvmrc
+          node-version: "22.16.0"
           cache: npm
+          registry-url: "https://registry.npmjs.org"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
 
       - uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -79,7 +104,15 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Install exact dependencies
-        run: npm ci
+        run: |
+          node scripts/check-lockfile-portability.js
+          npm run ci:install
+
+      - name: Install browser evidence dependencies
+        if: inputs.suite == 'all' || inputs.suite == 'browser-csp'
+        run: |
+          python -m pip install --requirement requirements-dev.txt
+          python -m playwright install --with-deps chromium
 
       - name: Preflight
         run: npm run internal-pilot:preflight
@@ -88,19 +121,47 @@ jobs:
         if: inputs.suite == 'all' || inputs.suite == 'source-ci'
         run: >-
           node scripts/internal-pilot/command-proof.js --kind dependency-ci --
-          bash -lc "npm run verify && npm audit --audit-level=high"
+          bash -lc "npm run verify && npm run verify:source && npm run manifest:verify && npm audit --audit-level=high"
 
       - name: SAM proof
         if: inputs.suite == 'all' || inputs.suite == 'sam-build'
         run: >-
           node scripts/internal-pilot/command-proof.js --kind sam-build --
-          bash -lc 'export PATH="$PWD/node_modules/.bin:$PATH"; sam validate && sam build'
+          bash -lc 'sam validate --lint --template-file template.yaml && sam validate --lint --template-file infrastructure/backend-pilot.yaml && sam build --template-file template.yaml --build-dir .aws-sam-internal-dev && sam build --template-file infrastructure/backend-pilot.yaml --build-dir .aws-sam-internal-pilot'
 
       - name: Deployment proof
         if: inputs.suite == 'all' || inputs.suite == 'deploy'
         run: >-
           node scripts/internal-pilot/command-proof.js --kind aws-deployment --
           bash -lc "npm run pilot:preflight && npm run pilot:deploy"
+
+      - name: Prepare isolated staging fixtures and runtime tokens
+        if: >-
+          inputs.suite == 'all' ||
+          contains(fromJSON('["auth","core-aws-contracts","browser-csp","tenant-escape","failure-injection","stripe-test-mode","load-profile"]'), inputs.suite)
+        run: bash scripts/internal-pilot/prepare-staging-fixtures.sh
+
+      - name: Materialize protected adversarial matrices
+        if: >-
+          inputs.suite == 'all' ||
+          contains(fromJSON('["tenant-escape","failure-injection"]'), inputs.suite)
+        env:
+          TENANT_ESCAPE_MATRIX_JSON: ${{ secrets.TENANT_ESCAPE_MATRIX_JSON }}
+          FAILURE_INJECTION_CASES_JSON: ${{ secrets.FAILURE_INJECTION_CASES_JSON }}
+        shell: bash
+        run: |
+          mkdir -p .artifacts/internal-pilot
+          chmod 700 .artifacts/internal-pilot
+          if [[ -n "$TENANT_ESCAPE_MATRIX_JSON" ]]; then
+            printf '%s' "$TENANT_ESCAPE_MATRIX_JSON" > .artifacts/internal-pilot/tenant-escape.json
+            chmod 600 .artifacts/internal-pilot/tenant-escape.json
+            echo "TENANT_ESCAPE_MATRIX_FILE=.artifacts/internal-pilot/tenant-escape.json" >> "$GITHUB_ENV"
+          fi
+          if [[ -n "$FAILURE_INJECTION_CASES_JSON" ]]; then
+            printf '%s' "$FAILURE_INJECTION_CASES_JSON" > .artifacts/internal-pilot/failure-injection.json
+            chmod 600 .artifacts/internal-pilot/failure-injection.json
+            echo "FAILURE_INJECTION_CASES_FILE=.artifacts/internal-pilot/failure-injection.json" >> "$GITHUB_ENV"
+          fi
 
       - name: Authentication proof
         if: inputs.suite == 'all' || inputs.suite == 'auth'
@@ -110,12 +171,19 @@ jobs:
 
       - name: Core AWS contract proof
         if: inputs.suite == 'all' || inputs.suite == 'core-aws-contracts'
+        env:
+          RUN_DEPLOYED_INTEGRATION: "1"
+          ALLOW_SYNTHETIC_FIXTURES: "true"
+          TEST_USER_ENVIRONMENT: staging
+          SMOKE_PRODUCT_CHECKOUT: "false"
         run: >-
           node scripts/internal-pilot/command-proof.js --kind core-aws-contracts --
           bash -lc "npm run test:invite:deployed && npm run test:integration && npm run test:smoke:deployed"
 
       - name: Browser and strict-CSP proof
         if: inputs.suite == 'all' || inputs.suite == 'browser-csp'
+        env:
+          E2E_PRODUCT_CHECKOUT: "false"
         run: >-
           node scripts/internal-pilot/command-proof.js --kind browser-csp --
           bash -lc "npm run test:e2e:deployed"

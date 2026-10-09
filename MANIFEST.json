@@ -9,8 +9,8 @@
     "RELEASE-MANIFEST.md",
     "RELEASE-MANIFEST.sha256"
   ],
-  "fileCount": 313,
-  "totalBytes": 2565332,
+  "fileCount": 315,
+  "totalBytes": 2580919,
   "files": [
     {
       "path": ".editorconfig",
@@ -39,8 +39,8 @@
     },
     {
       "path": ".github/workflows/ci.yml",
-      "bytes": 2269,
-      "sha256": "5484cf16c96c045a198685d88f1fd26c7df25ea8a4c51e090de9154b855599b6"
+      "bytes": 2282,
+      "sha256": "8fd05531e842a7cd88ea2517cfd1f7683b62be5b80694c12523d1fd99fa8c734"
     },
     {
       "path": ".github/workflows/deploy.yml",
@@ -49,8 +49,8 @@
     },
     {
       "path": ".github/workflows/internal-pilot.yml",
-      "bytes": 4867,
-      "sha256": "42f5e8a4024490be43d02a3eae4a53c838e332423c4017f9110f1fa56aeca3e4"
+      "bytes": 8550,
+      "sha256": "0d50a73e07fc536f6a37ce7ba3f2a1cff28de426d2f1b96de86a2293b1e19a2a"
     },
     {
       "path": ".github/workflows/phase-4.5g.yml",
@@ -164,8 +164,8 @@
     },
     {
       "path": "backend/lambda/common/export-utils.js",
-      "bytes": 4434,
-      "sha256": "0bc00298d418257a310c54ef0136b609bec6610b57555fc18ec692a0402a12d3"
+      "bytes": 4461,
+      "sha256": "9ff07ea086e718a5fb8e6f80ac3fd2c44685adf404e33f0bdfdfe6f006195f4f"
     },
     {
       "path": "backend/lambda/common/invite-policy.js",
@@ -819,8 +819,8 @@
     },
     {
       "path": "docs/operations/INTERNAL-PILOT-RUNBOOK.md",
-      "bytes": 3276,
-      "sha256": "4ebb79db6e386b33ab2083530f6e06272d4734c53b23ddc302f90b77b4bddbe3"
+      "bytes": 5935,
+      "sha256": "5d7eac1f390d129a4983957aee7d9a4076c4001ea1df58a3e6f349bfb0c6438f"
     },
     {
       "path": "docs/operations/PILOT-SERVICE-OBJECTIVES.md",
@@ -1094,8 +1094,8 @@
     },
     {
       "path": "scripts/check-internal-pilot.js",
-      "bytes": 1912,
-      "sha256": "b45ef25f7023cb21b8d11b09f14cee02b706c95af824607d9bc6c8335f61ffc8"
+      "bytes": 2974,
+      "sha256": "5330a3db08ed53b859d2b8236b9341348ad4fbb0313b9bfeba5d05941ffd3b62"
     },
     {
       "path": "scripts/check-lambda-bundles.js",
@@ -1213,14 +1213,24 @@
       "sha256": "cac0f99fa40fefa5e4b2bc05a4bb36a9444e65a40233cb09c8a60d2cdf8433fd"
     },
     {
+      "path": "scripts/internal-pilot/export-test-context.js",
+      "bytes": 3175,
+      "sha256": "b09e8d50e37f7458f2dbadc07f82afcbbcf7e7f76f8ab0c8fb8b64eb5bd20487"
+    },
+    {
       "path": "scripts/internal-pilot/lib.js",
       "bytes": 8586,
       "sha256": "c81f6e2a400afdea9ca76e8bae2210bab3680327c4e835fe9c8d398fff6c1fa5"
     },
     {
       "path": "scripts/internal-pilot/preflight.js",
-      "bytes": 3554,
-      "sha256": "bd4a867b6c76ff6574053b22c5ae5389be2385b412049c93319132a3fe269948"
+      "bytes": 3565,
+      "sha256": "523b6ff348cad9ecd93a5cca80ccb52f94381b1cfca5a737f603001ff4fc58cd"
+    },
+    {
+      "path": "scripts/internal-pilot/prepare-staging-fixtures.sh",
+      "bytes": 3349,
+      "sha256": "430dac1df6b8b33caa69ae443abe3d6b79c7a45366987b3592d60d740af07cbf"
     },
     {
       "path": "scripts/internal-pilot/promote.js",
@@ -1239,8 +1249,8 @@
     },
     {
       "path": "scripts/invitations/test-deployed.js",
-      "bytes": 2451,
-      "sha256": "6be74c4385be9bdba24f40e1bc243acac443e318dd4da1a1a06682e17c1810d9"
+      "bytes": 4046,
+      "sha256": "5eb11770cc9057957b2a64ab72589d3d01bd7e2f82617a29cda0d179ffaee99a"
     },
     {
       "path": "scripts/legacy/self-test.js",
@@ -1329,8 +1339,8 @@
     },
     {
       "path": "scripts/pilot/deploy-staging.sh",
-      "bytes": 8713,
-      "sha256": "b5125078c18a6c3f882531fe1b862caed52253a266adf182ea00fadae1a01baa"
+      "bytes": 8726,
+      "sha256": "11b951e5854a833ad8a27ec887b1945f8720dada13bb7909276d23cd237797b6"
     },
     {
       "path": "scripts/pilot/generate-evidence-manifest.js",

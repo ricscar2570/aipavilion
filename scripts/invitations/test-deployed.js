@@ -3,27 +3,75 @@
 
 const assert = require("assert");
 const crypto = require("crypto");
+const fs = require("fs");
+const {
+    CognitoIdentityProviderClient,
+    InitiateAuthCommand,
+} = require("@aws-sdk/client-cognito-identity-provider");
+const { readStackOutputs } = require("../dev/stack-outputs");
 
-const required = ["API_URL", "ACCESS_TOKEN", "ORGANIZATION_ID", "EVENT_ID"];
-for (const name of required) {
-    if (!process.env[name]) {
-        console.error(
-            `Missing ${name}. This test must run against a disposable AWS stack.`,
+const outputs = readStackOutputs();
+const region = process.env.AWS_REGION || "eu-west-1";
+const base = String(process.env.API_URL || outputs.ApiEndpoint || "").replace(
+    /\/$/,
+    "",
+);
+const organizationId = process.env.ORGANIZATION_ID || "org_atlas";
+const eventId = process.env.EVENT_ID || "evt_atlas_2026";
+const cognito = new CognitoIdentityProviderClient({ region });
+let accessToken = process.env.ACCESS_TOKEN || "";
+
+function readOrganizer() {
+    const filePath =
+        process.env.TEST_USERS_FILE ||
+        process.env.DEV_TEST_USERS_FILE ||
+        ".artifacts/staging-test-users.json";
+    if (!fs.existsSync(filePath)) {
+        throw new Error(
+            `Pilot test users not found at ${filePath}; prepare staging fixtures first`,
         );
-        process.exit(2);
     }
+    const users = JSON.parse(fs.readFileSync(filePath, "utf8")).users || [];
+    const organizer = users.find((item) =>
+        item.email.startsWith("organizer.atlas."),
+    );
+    if (!organizer) {
+        throw new Error("Atlas organizer test identity is missing");
+    }
+    return organizer;
 }
 
-const base = process.env.API_URL.replace(/\/$/, "");
-const headers = {
-    Authorization: `Bearer ${process.env.ACCESS_TOKEN}`,
-    "Content-Type": "application/json",
-};
+async function resolveAccessToken() {
+    if (accessToken) {
+        return accessToken;
+    }
+    const organizer = readOrganizer();
+    const result = await cognito.send(
+        new InitiateAuthCommand({
+            ClientId: outputs.UserPoolClientId,
+            AuthFlow: "USER_PASSWORD_AUTH",
+            AuthParameters: {
+                USERNAME: organizer.email,
+                PASSWORD: organizer.password,
+            },
+        }),
+    );
+    accessToken = result.AuthenticationResult?.AccessToken || "";
+    if (!accessToken) {
+        throw new Error("Cognito returned no organizer access token");
+    }
+    return accessToken;
+}
 
 async function request(path, options = {}) {
+    const token = await resolveAccessToken();
     const response = await fetch(`${base}${path}`, {
         ...options,
-        headers: { ...headers, ...(options.headers || {}) },
+        headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            ...(options.headers || {}),
+        },
     });
     const text = await response.text();
     let body;
@@ -39,7 +87,7 @@ async function main() {
     const email =
         process.env.INVITE_TEST_EMAIL || `invite-${Date.now()}@example.invalid`;
     const key = crypto.randomUUID();
-    const path = `/organizations/${process.env.ORGANIZATION_ID}/events/${process.env.EVENT_ID}/invitations`;
+    const path = `/organizations/${organizationId}/events/${eventId}/invitations`;
     const first = await request(path, {
         method: "POST",
         headers: { "Idempotency-Key": key },
