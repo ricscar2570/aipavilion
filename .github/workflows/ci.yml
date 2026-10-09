@@ -1,4 +1,4 @@
-name: Continuous integration
+name: Coverage diagnostic
 
 on:
   push:
@@ -12,27 +12,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  prettier-diagnostic:
+  coverage-diagnostic:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "22.16.0"
           cache: npm
           registry-url: "https://registry.npmjs.org"
-
       - name: Install dependencies
         run: |
           node scripts/check-lockfile-portability.js
           npm run ci:install
-
-      - name: Print exact Prettier patch
+      - name: Print coverage counts
         run: |
-          npx prettier --write docs/operations/INTERNAL-PILOT-RUNBOOK.md scripts/check-internal-pilot.js scripts/internal-pilot/export-test-context.js tests/unit/phase4-endpoints.test.js
-          git --no-pager diff -- docs/operations/INTERNAL-PILOT-RUNBOOK.md scripts/check-internal-pilot.js scripts/internal-pilot/export-test-context.js tests/unit/phase4-endpoints.test.js
+          npx jest --coverage --runInBand --silent --coverageReporters=json-summary || true
+          node -e 'const s=require("./coverage/coverage-summary.json"); console.log(JSON.stringify(s,null,2))'
           exit 1
