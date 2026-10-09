@@ -1296,9 +1296,7 @@ describe("Phase 4 tenant operations", () => {
         expect(removed.statusCode).toBe(200);
         expect(JSON.parse(removed.body).removed).toBe(true);
         expect(mockSend.mock.calls[2][0].type).toBe("TransactWrite");
-        expect(
-            mockSend.mock.calls[2][0].input.TransactItems[0].Update,
-        ).toEqual(
+        expect(mockSend.mock.calls[2][0].input.TransactItems[0].Update).toEqual(
             expect.objectContaining({
                 UpdateExpression: expect.stringContaining(
                     "membershipKey = :removedKey",
