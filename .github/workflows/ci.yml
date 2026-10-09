@@ -2,9 +2,7 @@ name: Continuous integration
 
 on:
   push:
-    branches: [main, develop]
-  pull_request:
-    branches: [main, develop]
+    branches: [diagnostic/prettier-20261009]
 
 permissions:
   contents: read
@@ -14,9 +12,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  quality:
+  prettier-diagnostic:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -33,55 +31,8 @@ jobs:
           node scripts/check-lockfile-portability.js
           npm run ci:install
 
-      - name: Verify source, contracts, tests, and frontend build
-        run: npm run verify
-
-      - name: Audit dependencies
-        run: npm audit --audit-level=high
-
-      - name: Upload frontend build
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-dist
-          path: dist/
-          if-no-files-found: error
-
-  sam:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22.16.0"
-          cache: npm
-          registry-url: "https://registry.npmjs.org"
-
-      - name: Set up AWS SAM CLI
-        uses: aws-actions/setup-sam@v2
-        with:
-          use-installer: true
-
-      - name: Install dependencies
+      - name: Print exact Prettier patch
         run: |
-          node scripts/check-lockfile-portability.js
-          npm run ci:install
-
-      - name: Generate and verify retained pilot template
-        run: |
-          npm run pilot:generate
-          npm run pilot:check
-
-      - name: Validate development and pilot SAM templates
-        run: |
-          sam validate --lint --template-file template.yaml
-          sam validate --lint --template-file infrastructure/backend-pilot.yaml
-
-      - name: Build development and pilot Lambda artifacts
-        run: |
-          export PATH="$PWD/node_modules/.bin:$PATH"
-          sam build --template-file template.yaml --build-dir .aws-sam-dev
-          sam build --template-file infrastructure/backend-pilot.yaml --base-dir . --build-dir .aws-sam-pilot
+          npx prettier --write docs/operations/INTERNAL-PILOT-RUNBOOK.md scripts/check-internal-pilot.js scripts/internal-pilot/export-test-context.js tests/unit/phase4-endpoints.test.js
+          git --no-pager diff -- docs/operations/INTERNAL-PILOT-RUNBOOK.md scripts/check-internal-pilot.js scripts/internal-pilot/export-test-context.js tests/unit/phase4-endpoints.test.js
+          exit 1
