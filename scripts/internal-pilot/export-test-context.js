@@ -100,11 +100,7 @@ async function main() {
             {
                 status: "PASS",
                 usersFile,
-                tokenContexts: [
-                    "tenant-owner",
-                    "tenant-exhibitor",
-                    "visitor",
-                ],
+                tokenContexts: ["tenant-owner", "tenant-exhibitor", "visitor"],
             },
             null,
             2,

@@ -149,9 +149,9 @@ The command writes a promotion receipt only when the full matrix is eligible. Th
 
 ```json
 {
-  "internalPilotReady": true,
-  "production": false,
-  "customerData": false
+    "internalPilotReady": true,
+    "production": false,
+    "customerData": false
 }
 ```
 

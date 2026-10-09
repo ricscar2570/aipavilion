@@ -49,7 +49,10 @@ for (const file of [
     assert.ok(fs.existsSync(file), `missing internal-pilot asset ${file}`);
 }
 
-const workflow = fs.readFileSync(".github/workflows/internal-pilot.yml", "utf8");
+const workflow = fs.readFileSync(
+    ".github/workflows/internal-pilot.yml",
+    "utf8",
+);
 assert.match(workflow, /EVIDENCE_ENVIRONMENT: internal-pilot/);
 assert.match(workflow, /ENVIRONMENT: staging/);
 assert.match(workflow, /aws-actions\/setup-sam@v2/);
@@ -68,7 +71,8 @@ const fixtureSyntax = spawnSync(
 assert.equal(
     fixtureSyntax.status,
     0,
-    fixtureSyntax.stderr || "internal-pilot fixture script has invalid shell syntax",
+    fixtureSyntax.stderr ||
+        "internal-pilot fixture script has invalid shell syntax",
 );
 
 const promotion = fs.readFileSync("scripts/internal-pilot/promote.js", "utf8");

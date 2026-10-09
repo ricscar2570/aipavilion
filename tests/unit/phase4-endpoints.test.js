@@ -193,14 +193,12 @@ describe("Phase 4 SaaS billing", () => {
         );
 
         mockSend.mockReset();
-        mockSend
-            .mockRejectedValueOnce(conditionalError)
-            .mockResolvedValueOnce({
-                Item: {
-                    status: "processing",
-                    leaseExpiresAt: Number.MAX_SAFE_INTEGER,
-                },
-            });
+        mockSend.mockRejectedValueOnce(conditionalError).mockResolvedValueOnce({
+            Item: {
+                status: "processing",
+                leaseExpiresAt: Number.MAX_SAFE_INTEGER,
+            },
+        });
         await expect(
             billing.claimEvent("evt_duplicate", "invoice.paid", 1760000000),
         ).resolves.toMatchObject({ claimed: false, reason: "in_flight" });
