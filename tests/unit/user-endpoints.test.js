@@ -144,7 +144,7 @@ describe("user-saved-stands Lambda", () => {
         expect(response.statusCode).toBe(201);
         expect(body.stand.name).toBe("Canonical Stand");
         expect(body.stand.imageUrl).toBe("https://example.com/image.jpg");
-        expect(mockDynamoSend.mock.calls[1][0].input.Item.schemaVersion).toBe(
+        expect(mockDynamoSend.mock.calls[2][0].input.Item.schemaVersion).toBe(
             2,
         );
     });

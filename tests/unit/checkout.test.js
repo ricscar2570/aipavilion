@@ -41,6 +41,7 @@ const CATALOGUE_RESPONSE = {
         "ai-pavilion-stands-test": [
             {
                 stand_id: "stand-1",
+                name: "Test Stand",
                 status: "published",
                 moderationStatus: "approved",
                 visibility: "public",
