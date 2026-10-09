@@ -1,0 +1,29 @@
+{
+  "description": "Copy to a protected evidence location and replace every fixture before execution.",
+  "cases": [
+    {
+      "name": "owner-a-cannot-read-organization-b",
+      "tokenEnv": "TENANT_A_OWNER_TOKEN",
+      "method": "GET",
+      "path": "/organizations/REPLACE_ME_ORG_B",
+      "expectedStatuses": [403, 404],
+      "forbiddenSubstrings": ["REPLACE_ME_ORG_B_SENTINEL"]
+    },
+    {
+      "name": "exhibitor-a-cannot-read-stand-b",
+      "tokenEnv": "TENANT_A_EXHIBITOR_TOKEN",
+      "method": "GET",
+      "path": "/exhibitor/stands/REPLACE_ME_STAND_B",
+      "expectedStatuses": [403, 404],
+      "forbiddenSubstrings": ["REPLACE_ME_STAND_B_SENTINEL"]
+    },
+    {
+      "name": "user-a-cannot-read-order-b",
+      "tokenEnv": "USER_A_TOKEN",
+      "method": "GET",
+      "path": "/checkout/order/REPLACE_ME_ORDER_B",
+      "expectedStatuses": [403, 404],
+      "forbiddenSubstrings": ["REPLACE_ME_ORDER_B_SENTINEL"]
+    }
+  ]
+}

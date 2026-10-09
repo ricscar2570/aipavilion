@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "AI Pavilion API",
-    "version": "0.8.5",
+    "version": "0.9.0-internal-pilot.1",
     "description": "Pre-production multi-tenant event SaaS contract with fail-closed public catalogues, opt-in public contacts, organizer billing, audit, privacy export and lifecycle controls."
   },
   "servers": [
@@ -53,7 +53,8 @@
             }
           }
         },
-        "operationId": "getAdminAnalytics"
+        "operationId": "getAdminAnalytics",
+        "x-cognito-authorization-scope": "aipavilion/platform-admin"
       }
     },
     "/admin/dashboard": {
@@ -86,7 +87,8 @@
             }
           }
         },
-        "operationId": "getAdminDashboard"
+        "operationId": "getAdminDashboard",
+        "x-cognito-authorization-scope": "aipavilion/platform-admin"
       }
     },
     "/admin/orders": {
@@ -119,7 +121,8 @@
             }
           }
         },
-        "operationId": "getAdminOrders"
+        "operationId": "getAdminOrders",
+        "x-cognito-authorization-scope": "aipavilion/platform-admin"
       }
     },
     "/admin/stands": {
@@ -152,58 +155,9 @@
             }
           }
         },
-        "operationId": "getAdminStands"
-      },
-      "post": {
-        "summary": "Create a stand administratively",
-        "security": [
-          {
-            "CognitoAccessToken": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Stand"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Error response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Error response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "operationId": "postAdminStands"
+        "operationId": "getAdminStands",
+        "x-cognito-authorization-scope": "aipavilion/platform-admin",
+        "description": "Read-only platform administration view. Canonical stand mutations are available only through tenant-scoped event and exhibitor workflows."
       }
     },
     "/admin/stands/{standId}": {
@@ -256,99 +210,9 @@
             }
           }
         },
-        "operationId": "getAdminStandsStandIdStandId"
-      },
-      "put": {
-        "summary": "Update a stand administratively",
-        "security": [
-          {
-            "CognitoAccessToken": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Stand"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Error response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Error response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "operationId": "putAdminStandsStandIdStandId"
-      },
-      "delete": {
-        "summary": "Delete a stand administratively",
-        "security": [
-          {
-            "CognitoAccessToken": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MutationResult"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Error response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Error response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "operationId": "deleteAdminStandsStandIdStandId"
+        "operationId": "getAdminStandsStandIdStandId",
+        "x-cognito-authorization-scope": "aipavilion/platform-admin",
+        "description": "Read-only platform administration view. Canonical stand mutations are available only through tenant-scoped event and exhibitor workflows."
       }
     },
     "/admin/users": {
@@ -381,7 +245,8 @@
             }
           }
         },
-        "operationId": "getAdminUsers"
+        "operationId": "getAdminUsers",
+        "x-cognito-authorization-scope": "aipavilion/platform-admin"
       }
     },
     "/checkout/confirm-order": {
@@ -399,10 +264,7 @@
               "schema": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": [
-                  "orderId",
-                  "paymentIntentId"
-                ],
+                "required": ["orderId", "paymentIntentId"],
                 "properties": {
                   "orderId": {
                     "type": "string"
@@ -467,7 +329,8 @@
             }
           }
         },
-        "operationId": "postCheckoutConfirmOrder"
+        "operationId": "postCheckoutConfirmOrder",
+        "x-cognito-authorization-scope": "aipavilion/user"
       }
     },
     "/checkout/create-intent": {
@@ -545,7 +408,8 @@
             }
           }
         },
-        "operationId": "postCheckoutCreateIntent"
+        "operationId": "postCheckoutCreateIntent",
+        "x-cognito-authorization-scope": "aipavilion/user"
       }
     },
     "/checkout/order/{orderId}": {
@@ -598,7 +462,8 @@
             }
           }
         },
-        "operationId": "getCheckoutOrderOrderIdOrderId"
+        "operationId": "getCheckoutOrderOrderIdOrderId",
+        "x-cognito-authorization-scope": "aipavilion/user"
       }
     },
     "/checkout/webhook": {
@@ -669,10 +534,7 @@
                       "type": "integer"
                     },
                     "nextCursor": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
+                      "type": ["string", "null"]
                     }
                   }
                 }
@@ -802,10 +664,7 @@
                       "type": "integer"
                     },
                     "nextCursor": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
+                      "type": ["string", "null"]
                     }
                   }
                 }
@@ -896,10 +755,7 @@
                       "type": "integer"
                     },
                     "nextCursor": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
+                      "type": ["string", "null"]
                     }
                   }
                 }
@@ -946,7 +802,8 @@
               }
             }
           }
-        }
+        },
+        "x-cognito-authorization-scope": "aipavilion/tenant"
       }
     },
     "/exhibitor/leads/export": {
@@ -1027,7 +884,8 @@
               }
             }
           }
-        }
+        },
+        "x-cognito-authorization-scope": "aipavilion/tenant"
       }
     },
     "/exhibitor/leads/{leadId}": {
@@ -1127,7 +985,8 @@
               }
             }
           }
-        }
+        },
+        "x-cognito-authorization-scope": "aipavilion/tenant"
       }
     },
     "/exhibitor/stands": {
@@ -1165,10 +1024,7 @@
                       "type": "integer"
                     },
                     "nextCursor": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
+                      "type": ["string", "null"]
                     }
                   }
                 }
@@ -1195,7 +1051,8 @@
               }
             }
           }
-        }
+        },
+        "x-cognito-authorization-scope": "aipavilion/tenant"
       }
     },
     "/exhibitor/stands/{standId}": {
@@ -1265,7 +1122,8 @@
               }
             }
           }
-        }
+        },
+        "x-cognito-authorization-scope": "aipavilion/tenant"
       },
       "put": {
         "summary": "Update a stand owned by the exhibitor",
@@ -1351,7 +1209,8 @@
               }
             }
           }
-        }
+        },
+        "x-cognito-authorization-scope": "aipavilion/tenant"
       }
     },
     "/exhibitor/stands/{standId}/submit": {
@@ -1441,7 +1300,8 @@
               }
             }
           }
-        }
+        },
+        "x-cognito-authorization-scope": "aipavilion/tenant"
       }
     },
     "/interactions": {
@@ -1463,7 +1323,7 @@
           }
         },
         "responses": {
-          "201": {
+          "200": {
             "description": "Successful response",
             "content": {
               "application/json": {
@@ -1473,7 +1333,7 @@
               }
             }
           },
-          "200": {
+          "201": {
             "description": "Successful response",
             "content": {
               "application/json": {
@@ -1545,11 +1405,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "accepted",
-                    "organizationId",
-                    "eventId"
-                  ],
+                  "required": ["accepted", "organizationId", "eventId"],
                   "properties": {
                     "accepted": {
                       "type": "boolean",
@@ -1635,7 +1491,8 @@
               }
             }
           }
-        }
+        },
+        "x-cognito-authorization-scope": "aipavilion/user"
       }
     },
     "/me/memberships": {
@@ -1673,10 +1530,7 @@
                       "type": "integer"
                     },
                     "nextCursor": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
+                      "type": ["string", "null"]
                     }
                   }
                 }
@@ -1703,7 +1557,8 @@
               }
             }
           }
-        }
+        },
+        "x-cognito-authorization-scope": "aipavilion/user"
       }
     },
     "/organizations/{organizationId}": {
@@ -1786,7 +1641,8 @@
               }
             }
           }
-        }
+        },
+        "x-cognito-authorization-scope": "aipavilion/tenant"
       },
       "patch": {
         "summary": "Complete or update organization onboarding",
@@ -1877,7 +1733,8 @@
               }
             }
           }
-        }
+        },
+        "x-cognito-authorization-scope": "aipavilion/tenant"
       }
     },
     "/organizations/{organizationId}/entitlement": {
@@ -1957,7 +1814,8 @@
               }
             }
           }
-        }
+        },
+        "x-cognito-authorization-scope": "aipavilion/tenant"
       }
     },
     "/organizations/{organizationId}/events": {
@@ -2007,10 +1865,7 @@
                       "type": "integer"
                     },
                     "nextCursor": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
+                      "type": ["string", "null"]
                     }
                   }
                 }
@@ -2047,7 +1902,8 @@
               }
             }
           }
-        }
+        },
+        "x-cognito-authorization-scope": "aipavilion/tenant"
       },
       "post": {
         "summary": "Create an event in an organization",
@@ -2133,7 +1989,8 @@
               }
             }
           }
-        }
+        },
+        "x-cognito-authorization-scope": "aipavilion/tenant"
       }
     },
     "/organizations/{organizationId}/events/{eventId}": {
@@ -2223,7 +2080,8 @@
               }
             }
           }
-        }
+        },
+        "x-cognito-authorization-scope": "aipavilion/tenant"
       },
       "put": {
         "summary": "Update an organization event",
@@ -2319,7 +2177,8 @@
               }
             }
           }
-        }
+        },
+        "x-cognito-authorization-scope": "aipavilion/tenant"
       }
     },
     "/organizations/{organizationId}/events/{eventId}/invitations": {
@@ -2439,7 +2298,8 @@
               }
             }
           }
-        }
+        },
+        "x-cognito-authorization-scope": "aipavilion/tenant"
       },
       "get": {
         "summary": "List event invitations and delivery status",
@@ -2464,10 +2324,7 @@
                       }
                     },
                     "nextCursor": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
+                      "type": ["string", "null"]
                     }
                   }
                 }
@@ -2542,7 +2399,8 @@
           {
             "$ref": "#/components/parameters/Limit"
           }
-        ]
+        ],
+        "x-cognito-authorization-scope": "aipavilion/tenant"
       }
     },
     "/organizations/{organizationId}/events/{eventId}/publish": {
@@ -2602,6 +2460,50 @@
               }
             }
           },
+          "202": {
+            "description": "Publication saga accepted and still in progress",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds before the client should resume the saga",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "publishOperationId",
+                    "retryAfterSeconds"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "const": "publishing"
+                    },
+                    "event": {
+                      "$ref": "#/components/schemas/Event"
+                    },
+                    "publishOperationId": {
+                      "type": "string"
+                    },
+                    "processedStands": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "retryAfterSeconds": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
           "401": {
             "description": "Error response",
             "content": {
@@ -2651,8 +2553,19 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Publication failed safely and can be resumed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
-        }
+        },
+        "x-cognito-authorization-scope": "aipavilion/tenant"
       }
     },
     "/organizations/{organizationId}/events/{eventId}/stands": {
@@ -2712,10 +2625,7 @@
                       "type": "integer"
                     },
                     "nextCursor": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
+                      "type": ["string", "null"]
                     }
                   }
                 }
@@ -2762,7 +2672,8 @@
               }
             }
           }
-        }
+        },
+        "x-cognito-authorization-scope": "aipavilion/tenant"
       }
     },
     "/organizations/{organizationId}/events/{eventId}/stands/{standId}/moderation": {
@@ -2892,7 +2803,8 @@
               }
             }
           }
-        }
+        },
+        "x-cognito-authorization-scope": "aipavilion/tenant"
       }
     },
     "/organizations/{organizationId}/memberships": {
@@ -2942,10 +2854,7 @@
                       "type": "integer"
                     },
                     "nextCursor": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
+                      "type": ["string", "null"]
                     }
                   }
                 }
@@ -2982,7 +2891,8 @@
               }
             }
           }
-        }
+        },
+        "x-cognito-authorization-scope": "aipavilion/tenant"
       },
       "post": {
         "summary": "Grant an organization membership",
@@ -3078,7 +2988,8 @@
               }
             }
           }
-        }
+        },
+        "x-cognito-authorization-scope": "aipavilion/tenant"
       }
     },
     "/platform/organizations": {
@@ -3172,7 +3083,8 @@
               }
             }
           }
-        }
+        },
+        "x-cognito-authorization-scope": "aipavilion/platform-admin"
       }
     },
     "/stands": {
@@ -3185,10 +3097,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "stands",
-                    "count"
-                  ],
+                  "required": ["stands", "count"],
                   "properties": {
                     "stands": {
                       "type": "array",
@@ -3237,7 +3146,7 @@
           }
         },
         "responses": {
-          "201": {
+          "200": {
             "description": "Successful response",
             "content": {
               "application/json": {
@@ -3247,7 +3156,7 @@
               }
             }
           },
-          "200": {
+          "201": {
             "description": "Successful response",
             "content": {
               "application/json": {
@@ -3426,7 +3335,7 @@
               }
             }
           },
-          "500": {
+          "409": {
             "description": "Error response",
             "content": {
               "application/json": {
@@ -3436,7 +3345,7 @@
               }
             }
           },
-          "409": {
+          "500": {
             "description": "Error response",
             "content": {
               "application/json": {
@@ -3447,7 +3356,8 @@
             }
           }
         },
-        "operationId": "deleteUserAccount"
+        "operationId": "deleteUserAccount",
+        "x-cognito-authorization-scope": "aipavilion/user"
       },
       "get": {
         "summary": "Check whether the current account can be deleted",
@@ -3463,10 +3373,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "ready",
-                    "blockers"
-                  ],
+                  "required": ["ready", "blockers"],
                   "properties": {
                     "ready": {
                       "type": "boolean"
@@ -3504,7 +3411,8 @@
             }
           }
         },
-        "operationId": "getAccountDeletionReadiness"
+        "operationId": "getAccountDeletionReadiness",
+        "x-cognito-authorization-scope": "aipavilion/user"
       }
     },
     "/user/orders": {
@@ -3538,10 +3446,7 @@
                       }
                     },
                     "nextCursor": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
+                      "type": ["string", "null"]
                     }
                   }
                 }
@@ -3559,7 +3464,8 @@
             }
           }
         },
-        "operationId": "getUserOrders"
+        "operationId": "getUserOrders",
+        "x-cognito-authorization-scope": "aipavilion/user"
       }
     },
     "/user/saved-stands": {
@@ -3593,10 +3499,7 @@
                       }
                     },
                     "nextCursor": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
+                      "type": ["string", "null"]
                     }
                   }
                 }
@@ -3614,7 +3517,8 @@
             }
           }
         },
-        "operationId": "getUserSavedStands"
+        "operationId": "getUserSavedStands",
+        "x-cognito-authorization-scope": "aipavilion/user"
       },
       "post": {
         "summary": "Save canonical server-side stand metadata",
@@ -3655,7 +3559,8 @@
             }
           }
         },
-        "operationId": "postUserSavedStands"
+        "operationId": "postUserSavedStands",
+        "x-cognito-authorization-scope": "aipavilion/user"
       }
     },
     "/user/saved-stands/{standId}": {
@@ -3698,7 +3603,8 @@
             }
           }
         },
-        "operationId": "deleteUserSavedStandsStandIdStandId"
+        "operationId": "deleteUserSavedStandsStandIdStandId",
+        "x-cognito-authorization-scope": "aipavilion/user"
       }
     },
     "/user/stats": {
@@ -3716,11 +3622,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "totalOrders",
-                    "totalSpent",
-                    "savedStands"
-                  ],
+                  "required": ["totalOrders", "totalSpent", "savedStands"],
                   "properties": {
                     "totalOrders": {
                       "type": "integer"
@@ -3747,7 +3649,8 @@
             }
           }
         },
-        "operationId": "getUserStats"
+        "operationId": "getUserStats",
+        "x-cognito-authorization-scope": "aipavilion/user"
       }
     },
     "/organizations/{organizationId}/memberships/{userId}": {
@@ -3862,7 +3765,8 @@
               }
             }
           }
-        }
+        },
+        "x-cognito-authorization-scope": "aipavilion/tenant"
       },
       "delete": {
         "summary": "Remove a non-owner member",
@@ -3943,7 +3847,8 @@
               }
             }
           }
-        }
+        },
+        "x-cognito-authorization-scope": "aipavilion/tenant"
       }
     },
     "/organizations/{organizationId}/events/{eventId}/duplicate": {
@@ -4058,7 +3963,8 @@
               }
             }
           }
-        }
+        },
+        "x-cognito-authorization-scope": "aipavilion/tenant"
       }
     },
     "/organizations/{organizationId}/events/{eventId}/archive": {
@@ -4174,7 +4080,8 @@
               }
             }
           }
-        }
+        },
+        "x-cognito-authorization-scope": "aipavilion/tenant"
       }
     },
     "/organizations/{organizationId}/events/{eventId}/invitations/{invitationId}": {
@@ -4289,7 +4196,8 @@
               }
             }
           }
-        }
+        },
+        "x-cognito-authorization-scope": "aipavilion/tenant"
       }
     },
     "/organizations/{organizationId}/events/{eventId}/invitations/{invitationId}/resend": {
@@ -4415,7 +4323,8 @@
               }
             }
           }
-        }
+        },
+        "x-cognito-authorization-scope": "aipavilion/tenant"
       }
     },
     "/organizations/{organizationId}/billing": {
@@ -4515,7 +4424,8 @@
               }
             }
           }
-        }
+        },
+        "x-cognito-authorization-scope": "aipavilion/tenant"
       }
     },
     "/organizations/{organizationId}/billing/checkout": {
@@ -4625,7 +4535,8 @@
               }
             }
           }
-        }
+        },
+        "x-cognito-authorization-scope": "aipavilion/tenant"
       }
     },
     "/organizations/{organizationId}/billing/portal": {
@@ -4730,7 +4641,8 @@
               }
             }
           }
-        }
+        },
+        "x-cognito-authorization-scope": "aipavilion/tenant"
       }
     },
     "/billing/webhook": {
@@ -4936,7 +4848,8 @@
               "format": "date-time"
             }
           }
-        ]
+        ],
+        "x-cognito-authorization-scope": "aipavilion/tenant"
       }
     },
     "/user/export": {
@@ -5019,7 +4932,8 @@
               }
             }
           }
-        }
+        },
+        "x-cognito-authorization-scope": "aipavilion/user"
       }
     },
     "/organizations/{organizationId}/ownership-transfer": {
@@ -5047,9 +4961,7 @@
               "schema": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": [
-                  "newOwnerUserId"
-                ],
+                "required": ["newOwnerUserId"],
                 "properties": {
                   "newOwnerUserId": {
                     "type": "string",
@@ -5143,7 +5055,8 @@
             }
           }
         },
-        "operationId": "transferOrganizationOwnership"
+        "operationId": "transferOrganizationOwnership",
+        "x-cognito-authorization-scope": "aipavilion/tenant"
       }
     },
     "/organizations/{organizationId}/events/{eventId}/stands/{standId}/assignment": {
@@ -5187,9 +5100,7 @@
               "schema": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": [
-                  "newOwnerUserId"
-                ],
+                "required": ["newOwnerUserId"],
                 "properties": {
                   "newOwnerUserId": {
                     "type": "string",
@@ -5266,7 +5177,8 @@
             }
           }
         },
-        "operationId": "reassignEventStand"
+        "operationId": "reassignEventStand",
+        "x-cognito-authorization-scope": "aipavilion/tenant"
       }
     }
   },
@@ -5275,7 +5187,14 @@
       "CognitoAccessToken": {
         "type": "http",
         "scheme": "bearer",
-        "bearerFormat": "JWT"
+        "bearerFormat": "JWT",
+        "description": "Amazon Cognito access token. API Gateway requires the operation-specific scope; ID tokens are not accepted for protected application APIs.",
+        "x-token-use": "access",
+        "x-cognito-scopes": {
+          "aipavilion/user": "Signed-in user APIs. Fine-grained ownership remains server-side.",
+          "aipavilion/tenant": "Tenant APIs. Membership, role, ownership and entitlement remain server-side.",
+          "aipavilion/platform-admin": "Platform administration APIs. The backend also requires the Cognito admin group."
+        }
       }
     },
     "parameters": {
@@ -5319,12 +5238,10 @@
     "schemas": {
       "Error": {
         "type": "object",
-        "required": [
-          "error"
-        ],
+        "required": ["error", "message", "requestId"],
         "properties": {
           "error": {
-            "type": "string"
+            "$ref": "#/components/schemas/ApiError"
           },
           "message": {
             "type": "string"
@@ -5332,15 +5249,12 @@
           "requestId": {
             "type": "string"
           }
-        }
+        },
+        "additionalProperties": false
       },
       "Stand": {
         "type": "object",
-        "required": [
-          "stand_id",
-          "name",
-          "status"
-        ],
+        "required": ["stand_id", "name", "status"],
         "properties": {
           "stand_id": {
             "type": "string"
@@ -5349,15 +5263,10 @@
             "type": "string"
           },
           "status": {
-            "enum": [
-              "approved",
-              "published"
-            ]
+            "enum": ["approved", "published"]
           },
           "visibility": {
-            "enum": [
-              "public"
-            ]
+            "enum": ["public"]
           },
           "description": {
             "type": "string"
@@ -5377,11 +5286,7 @@
       "CheckoutItemRequest": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "standId",
-          "productId",
-          "quantity"
-        ],
+        "required": ["standId", "productId", "quantity"],
         "properties": {
           "standId": {
             "type": "string",
@@ -5403,11 +5308,7 @@
       "CreateIntentRequest": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "items",
-          "customerEmail",
-          "checkoutRequestId"
-        ],
+        "required": ["items", "customerEmail", "checkoutRequestId"],
         "properties": {
           "items": {
             "type": "array",
@@ -5440,25 +5341,16 @@
         ],
         "properties": {
           "clientSecret": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "orderId": {
             "type": "string"
           },
           "paymentIntentId": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "paymentMode": {
-            "enum": [
-              "simulated",
-              "stripe"
-            ]
+            "enum": ["simulated", "stripe"]
           },
           "amountInCents": {
             "type": "integer"
@@ -5532,11 +5424,7 @@
       "InteractionRequest": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "standId",
-          "interactionType",
-          "clientRequestId"
-        ],
+        "required": ["standId", "interactionType", "clientRequestId"],
         "properties": {
           "standId": {
             "type": "string",
@@ -5567,9 +5455,7 @@
       "SavedStandRequest": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "standId"
-        ],
+        "required": ["standId"],
         "properties": {
           "standId": {
             "type": "string",
@@ -5579,10 +5465,7 @@
       },
       "SavedStand": {
         "type": "object",
-        "required": [
-          "standId",
-          "savedAt"
-        ],
+        "required": ["standId", "savedAt"],
         "properties": {
           "standId": {
             "type": "string"
@@ -5604,12 +5487,7 @@
       },
       "Order": {
         "type": "object",
-        "required": [
-          "orderId",
-          "status",
-          "amountInCents",
-          "currency"
-        ],
+        "required": ["orderId", "status", "amountInCents", "currency"],
         "properties": {
           "orderId": {
             "type": "string"
@@ -5680,10 +5558,7 @@
       "OrganizationCreateRequest": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "name",
-          "ownerUserId"
-        ],
+        "required": ["name", "ownerUserId"],
         "properties": {
           "name": {
             "type": "string",
@@ -5706,22 +5581,13 @@
             "maxLength": 254
           },
           "plan": {
-            "enum": [
-              "pilot",
-              "starter",
-              "professional"
-            ]
+            "enum": ["pilot", "starter", "professional"]
           }
         }
       },
       "Organization": {
         "type": "object",
-        "required": [
-          "organizationId",
-          "name",
-          "slug",
-          "status"
-        ],
+        "required": ["organizationId", "name", "slug", "status"],
         "properties": {
           "organizationId": {
             "type": "string"
@@ -5733,11 +5599,7 @@
             "type": "string"
           },
           "status": {
-            "enum": [
-              "active",
-              "suspended",
-              "cancelled"
-            ]
+            "enum": ["active", "suspended", "cancelled"]
           },
           "ownerUserId": {
             "type": "string"
@@ -5755,12 +5617,7 @@
       },
       "Membership": {
         "type": "object",
-        "required": [
-          "userId",
-          "organizationId",
-          "role",
-          "status"
-        ],
+        "required": ["userId", "organizationId", "role", "status"],
         "properties": {
           "userId": {
             "type": "string"
@@ -5769,24 +5626,13 @@
             "type": "string"
           },
           "role": {
-            "enum": [
-              "owner",
-              "organizer",
-              "exhibitor"
-            ]
+            "enum": ["owner", "organizer", "exhibitor"]
           },
           "status": {
-            "enum": [
-              "active",
-              "invited",
-              "suspended"
-            ]
+            "enum": ["active", "invited", "suspended"]
           },
           "joinedAt": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "format": "date-time"
           }
         },
@@ -5799,18 +5645,10 @@
             "type": "string"
           },
           "plan": {
-            "enum": [
-              "pilot",
-              "starter",
-              "professional"
-            ]
+            "enum": ["pilot", "starter", "professional"]
           },
           "status": {
-            "enum": [
-              "active",
-              "past_due",
-              "suspended"
-            ]
+            "enum": ["active", "past_due", "suspended"]
           },
           "maxActiveEvents": {
             "type": "integer"
@@ -5822,10 +5660,7 @@
             "type": "object"
           },
           "validUntil": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "format": "date-time"
           }
         },
@@ -5834,11 +5669,7 @@
       "EventCreateRequest": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "name",
-          "startsAt",
-          "endsAt"
-        ],
+        "required": ["name", "startsAt", "endsAt"],
         "properties": {
           "name": {
             "type": "string",
@@ -5867,10 +5698,7 @@
             "maxLength": 100
           },
           "visibility": {
-            "enum": [
-              "public",
-              "private"
-            ]
+            "enum": ["public", "private"]
           },
           "branding": {
             "type": "object",
@@ -5909,10 +5737,7 @@
             "maxLength": 100
           },
           "visibility": {
-            "enum": [
-              "public",
-              "private"
-            ]
+            "enum": ["public", "private"]
           },
           "branding": {
             "type": "object",
@@ -5946,18 +5771,10 @@
             "type": "string"
           },
           "status": {
-            "enum": [
-              "draft",
-              "published",
-              "archived",
-              "cancelled"
-            ]
+            "enum": ["draft", "published", "archived", "cancelled"]
           },
           "visibility": {
-            "enum": [
-              "public",
-              "private"
-            ]
+            "enum": ["public", "private"]
           },
           "startsAt": {
             "type": "string",
@@ -5971,11 +5788,38 @@
             "type": "string"
           },
           "publishedAt": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "format": "date-time"
+          },
+          "publicationState": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "publishing",
+              "published",
+              "publish_failed",
+              "archiving",
+              "archived"
+            ]
+          },
+          "publishOperationId": {
+            "type": ["string", "null"]
+          },
+          "publishStartedAt": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "publishUpdatedAt": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "publishCompletedAt": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "publishCheckpoint": {
+            "type": ["object", "null"],
+            "additionalProperties": true
           }
         },
         "additionalProperties": true
@@ -5983,10 +5827,7 @@
       "InvitationCreateRequest": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "email",
-          "standName"
-        ],
+        "required": ["email", "standName"],
         "properties": {
           "email": {
             "type": "string",
@@ -6034,12 +5875,7 @@
             "type": "string"
           },
           "status": {
-            "enum": [
-              "pending",
-              "accepted",
-              "revoked",
-              "expired"
-            ]
+            "enum": ["pending", "accepted", "revoked", "expired"]
           },
           "deliveryStatus": {
             "enum": [
@@ -6135,11 +5971,7 @@
                   "maximum": 10000000
                 },
                 "currency": {
-                  "enum": [
-                    "eur",
-                    "usd",
-                    "gbp"
-                  ]
+                  "enum": ["eur", "usd", "gbp"]
                 },
                 "category": {
                   "type": "string",
@@ -6151,10 +5983,7 @@
                   "maxLength": 2048
                 },
                 "status": {
-                  "enum": [
-                    "active",
-                    "hidden"
-                  ]
+                  "enum": ["active", "hidden"]
                 }
               }
             }
@@ -6183,15 +6012,10 @@
       "ModerationRequest": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "status"
-        ],
+        "required": ["status"],
         "properties": {
           "status": {
-            "enum": [
-              "published",
-              "rejected"
-            ]
+            "enum": ["published", "rejected"]
           },
           "moderationNote": {
             "type": "string",
@@ -6204,23 +6028,14 @@
         "additionalProperties": false,
         "properties": {
           "status": {
-            "enum": [
-              "new",
-              "contacted",
-              "qualified",
-              "closed",
-              "spam"
-            ]
+            "enum": ["new", "contacted", "qualified", "closed", "spam"]
           },
           "notes": {
             "type": "string",
             "maxLength": 5000
           },
           "assignedTo": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "maxLength": 120
           }
         }
@@ -6257,19 +6072,10 @@
             "type": "string"
           },
           "status": {
-            "enum": [
-              "new",
-              "contacted",
-              "qualified",
-              "closed",
-              "spam"
-            ]
+            "enum": ["new", "contacted", "qualified", "closed", "spam"]
           },
           "assignedTo": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "notes": {
             "type": "string"
@@ -6287,10 +6093,7 @@
             "maxLength": 160
           },
           "billingEmail": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "format": "email",
             "maxLength": 254
           },
@@ -6310,10 +6113,7 @@
       "MembershipCreateRequest": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "userId",
-          "role"
-        ],
+        "required": ["userId", "role"],
         "properties": {
           "userId": {
             "type": "string",
@@ -6321,10 +6121,7 @@
             "maxLength": 120
           },
           "role": {
-            "enum": [
-              "organizer",
-              "exhibitor"
-            ]
+            "enum": ["organizer", "exhibitor"]
           }
         }
       },
@@ -6333,28 +6130,17 @@
         "additionalProperties": false,
         "properties": {
           "role": {
-            "enum": [
-              "organizer",
-              "exhibitor"
-            ]
+            "enum": ["organizer", "exhibitor"]
           },
           "status": {
-            "enum": [
-              "active",
-              "suspended"
-            ]
+            "enum": ["active", "suspended"]
           }
         }
       },
       "DuplicateEventRequest": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "name",
-          "startsAt",
-          "endsAt",
-          "timezone"
-        ],
+        "required": ["name", "startsAt", "endsAt", "timezone"],
         "properties": {
           "name": {
             "type": "string",
@@ -6377,18 +6163,10 @@
       "BillingCheckoutRequest": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "plan",
-          "successUrl",
-          "cancelUrl"
-        ],
+        "required": ["plan", "successUrl", "cancelUrl"],
         "properties": {
           "plan": {
-            "enum": [
-              "pilot",
-              "starter",
-              "professional"
-            ]
+            "enum": ["pilot", "starter", "professional"]
           },
           "billingEmail": {
             "type": "string",
@@ -6407,15 +6185,36 @@
       "BillingPortalRequest": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "returnUrl"
-        ],
+        "required": ["returnUrl"],
         "properties": {
           "returnUrl": {
             "type": "string",
             "format": "uri"
           }
         }
+      },
+      "ApiError": {
+        "type": "object",
+        "required": ["code", "message", "requestId", "retryable"],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": false
       }
     }
   }

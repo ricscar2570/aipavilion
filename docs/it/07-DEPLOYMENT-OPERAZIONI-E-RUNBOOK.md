@@ -30,6 +30,9 @@ Sono presenti procedure per incidenti, synthetic, budget, backup e restore. Ogni
 # Installazione riproducibile
 npm run ci:install
 
+# Contratto AUTH-01 senza dipendenze esterne
+npm run check:auth
+
 # Gate completo locale
 npm run verify
 npm audit --audit-level=high
@@ -39,6 +42,9 @@ export AWS_REGION=eu-west-1
 export STACK_NAME=ai-pavilion-dev
 export ALLOWED_ORIGIN=http://127.0.0.1:3000
 npm run dev:deploy
+
+# Prova distribuita AUTH-01 su uno stack già predisposto
+npm run test:auth:deployed
 
 # Staging persistente
 npm run pilot:generate

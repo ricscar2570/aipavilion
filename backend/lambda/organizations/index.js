@@ -19,15 +19,20 @@ const {
     listMemberships,
     getMembership,
 } = require("../common/tenant");
-const {
-    buildAuditEvent,
-    transactWithAudit,
-} = require("../common/audit");
+const { buildAuditEvent, transactWithAudit } = require("../common/audit");
 const {
     parseLimit,
     decodeCursor,
     encodeCursor,
 } = require("../common/pagination");
+const {
+    expectedRevision,
+    revisionOf,
+    revisionHeaders,
+    revisionCondition,
+    nextRevision,
+    isConditionalConflict,
+} = require("../common/concurrency");
 
 const docClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const ORGANIZATIONS_TABLE = process.env.ORGANIZATIONS_TABLE;
@@ -65,7 +70,7 @@ function privateOrganization(item) {
         ownerEmail: _ownerEmail,
         ...safe
     } = item;
-    return safe;
+    return { ...safe, revision: revisionOf(item) };
 }
 
 function organizationIdFor() {
@@ -82,7 +87,7 @@ function publicOrganization(item) {
         internalNotes: _internalNotes,
         ...safe
     } = item;
-    return safe;
+    return { ...safe, revision: revisionOf(item) };
 }
 
 async function createOrganization(event) {
@@ -146,6 +151,7 @@ async function createOrganization(event) {
         createdAt: now,
         updatedAt: now,
         schemaVersion: 1,
+        revision: 1,
     };
     const membership = {
         userId: ownerUserId,
@@ -157,6 +163,7 @@ async function createOrganization(event) {
         joinedAt: now,
         updatedAt: now,
         schemaVersion: 1,
+        revision: 1,
     };
     const entitlement = {
         organizationId,
@@ -177,6 +184,7 @@ async function createOrganization(event) {
         ).toISOString(),
         updatedAt: now,
         schemaVersion: 1,
+        revision: 1,
     };
 
     try {
@@ -305,6 +313,7 @@ async function getOrganization(event, organizationId) {
             membership: auth.membership,
         },
         event,
+        revisionHeaders(result.Item),
     );
 }
 
@@ -319,6 +328,14 @@ async function updateOrganization(event, organizationId) {
     if (!auth.ok) {
         return respond(auth.statusCode, { error: auth.code }, event);
     }
+    const precondition = expectedRevision(event);
+    if (!precondition.ok) {
+        return respond(
+            precondition.missing ? 428 : 400,
+            { error: precondition.code },
+            event,
+        );
+    }
     const parsed = parseJsonBody(event);
     const allowed = [
         "name",
@@ -327,73 +344,140 @@ async function updateOrganization(event, organizationId) {
         "locale",
         "profileCompleted",
     ];
-    if (parsed.error || !hasExactShape(parsed.value, allowed)) {
+    if (
+        parsed.error ||
+        !hasExactShape(parsed.value, allowed) ||
+        Object.keys(parsed.value || {}).length === 0
+    ) {
         return respond(400, { error: "VALIDATION_ERROR" }, event);
     }
     const existing = await docClient.send(
         new GetCommand({
             TableName: ORGANIZATIONS_TABLE,
             Key: { organizationId },
+            ConsistentRead: true,
         }),
     );
     if (!existing.Item) {
         return respond(404, { error: "ORGANIZATION_NOT_FOUND" }, event);
     }
+
     const next = { ...existing.Item };
+    const assignments = [];
+    const names = {
+        "#revision": "revision",
+        "#updatedAt": "updatedAt",
+        "#schemaVersion": "schemaVersion",
+    };
+    const values = {};
+    const assign = (field, value) => {
+        const name = `#field${assignments.length}`;
+        const token = `:value${assignments.length}`;
+        names[name] = field;
+        values[token] = value;
+        assignments.push(`${name} = ${token}`);
+        next[field] = value;
+    };
+
     if (parsed.value.name !== undefined) {
-        next.name = cleanText(parsed.value.name, 160);
+        const name = cleanText(parsed.value.name, 160);
+        if (!name) {
+            return respond(400, { error: "VALIDATION_ERROR" }, event);
+        }
+        assign("name", name);
     }
     if (parsed.value.billingEmail !== undefined) {
         const email = cleanText(parsed.value.billingEmail, 254).toLowerCase();
         if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
             return respond(400, { error: "INVALID_BILLING_EMAIL" }, event);
         }
-        next.billingEmail = email || null;
+        assign("billingEmail", email || null);
     }
     if (parsed.value.timezone !== undefined) {
         const timezone = cleanText(parsed.value.timezone, 80);
         if (!validTimezone(timezone)) {
             return respond(400, { error: "INVALID_TIMEZONE" }, event);
         }
-        next.timezone = timezone;
+        assign("timezone", timezone);
     }
     if (parsed.value.locale !== undefined) {
         const locale = cleanText(parsed.value.locale, 35);
         if (!validLocale(locale)) {
             return respond(400, { error: "INVALID_LOCALE" }, event);
         }
-        next.locale = locale;
+        assign("locale", locale);
     }
     if (parsed.value.profileCompleted !== undefined) {
-        next.profileCompleted = parsed.value.profileCompleted === true;
+        assign("profileCompleted", parsed.value.profileCompleted === true);
     }
-    if (!next.name) {
-        return respond(400, { error: "VALIDATION_ERROR" }, event);
-    }
-    next.updatedAt = new Date().toISOString();
-    next.schemaVersion = 2;
-    await transactWithAudit(
-        docClient,
-        [
+
+    const now = new Date().toISOString();
+    const newRevision = nextRevision(precondition.revision);
+    next.updatedAt = now;
+    next.schemaVersion = 3;
+    next.revision = newRevision;
+    assignments.push(
+        "#updatedAt = :updatedAt",
+        "#schemaVersion = :schemaVersion",
+        "#revision = :nextRevision",
+    );
+    values[":updatedAt"] = now;
+    values[":schemaVersion"] = 3;
+    values[":nextRevision"] = newRevision;
+    const revision = revisionCondition({ expected: precondition.revision });
+    Object.assign(names, revision.names);
+    Object.assign(values, revision.values);
+
+    try {
+        await transactWithAudit(
+            docClient,
+            [
+                {
+                    Update: {
+                        TableName: ORGANIZATIONS_TABLE,
+                        Key: { organizationId },
+                        UpdateExpression: `SET ${assignments.join(", ")}`,
+                        ConditionExpression: `attribute_exists(organizationId) AND ${revision.expression}`,
+                        ExpressionAttributeNames: names,
+                        ExpressionAttributeValues: values,
+                    },
+                },
+            ],
+            AUDIT_TABLE,
             {
-                Put: {
-                    TableName: ORGANIZATIONS_TABLE,
-                    Item: next,
-                    ConditionExpression: "attribute_exists(organizationId)",
+                organizationId,
+                actorUserId: auth.actor.userId,
+                action: "organization.updated",
+                resourceType: "organization",
+                resourceId: organizationId,
+                requestId: event.requestId,
+                metadata: {
+                    expectedRevision: precondition.revision,
+                    revision: newRevision,
+                    fields: Object.keys(parsed.value),
                 },
             },
-        ],
-        AUDIT_TABLE,
-        {
-            organizationId,
-            actorUserId: auth.actor.userId,
-            action: "organization.updated",
-            resourceType: "organization",
-            resourceId: organizationId,
-            requestId: event.requestId,
-        },
+        );
+    } catch (error) {
+        if (isConditionalConflict(error)) {
+            return respond(
+                409,
+                {
+                    error: "CONCURRENT_UPDATE",
+                    expectedRevision: precondition.revision,
+                    reloadRequired: true,
+                },
+                event,
+            );
+        }
+        throw error;
+    }
+    return respond(
+        200,
+        { organization: privateOrganization(next) },
+        event,
+        revisionHeaders(newRevision),
     );
-    return respond(200, { organization: privateOrganization(next) }, event);
 }
 
 async function addOrganizationMember(event, organizationId) {
@@ -430,6 +514,7 @@ async function addOrganizationMember(event, organizationId) {
         joinedAt: now,
         updatedAt: now,
         schemaVersion: 2,
+        revision: 1,
     };
     try {
         await transactWithAudit(
@@ -480,27 +565,87 @@ async function changeOrganizationMember(
     if (!auth.ok) {
         return respond(auth.statusCode, { error: auth.code }, event);
     }
+    const precondition = expectedRevision(event);
+    if (!precondition.ok) {
+        return respond(
+            precondition.missing ? 428 : 400,
+            { error: precondition.code },
+            event,
+        );
+    }
     const membership = await getMembership(
         docClient,
         MEMBERSHIPS_TABLE,
         userId,
         organizationId,
     );
-    if (!membership) {
+    if (!membership || membership.status === "removed") {
         return respond(404, { error: "MEMBERSHIP_NOT_FOUND" }, event);
     }
     if (membership.role === "owner" || userId === auth.actor.userId) {
         return respond(409, { error: "OWNER_MEMBERSHIP_PROTECTED" }, event);
     }
+    const now = new Date().toISOString();
+    const newRevision = nextRevision(precondition.revision);
+    const revision = revisionCondition({ expected: precondition.revision });
+    let role = membership.role;
+    let status = membership.status;
+    let action = "membership.updated";
+    let updateExpression;
+    const names = {
+        ...revision.names,
+        "#role": "role",
+        "#status": "status",
+        "#revision": "revision",
+    };
+    const values = {
+        ...revision.values,
+        ":now": now,
+        ":schemaVersion": 3,
+        ":nextRevision": newRevision,
+    };
     if (remove) {
+        status = "removed";
+        action = "membership.removed";
+        values[":removed"] = "removed";
+        values[":removedKey"] = `removed#${userId}`;
+        updateExpression =
+            "SET #status = :removed, membershipKey = :removedKey, removedAt = :now, updatedAt = :now, schemaVersion = :schemaVersion, #revision = :nextRevision";
+    } else {
+        const parsed = parseJsonBody(event);
+        if (
+            parsed.error ||
+            !hasExactShape(parsed.value, ["role", "status"]) ||
+            Object.keys(parsed.value || {}).length === 0
+        ) {
+            return respond(400, { error: "VALIDATION_ERROR" }, event);
+        }
+        role = parsed.value.role || membership.role;
+        status = parsed.value.status || membership.status;
+        if (
+            !["organizer", "exhibitor"].includes(role) ||
+            !["active", "suspended"].includes(status)
+        ) {
+            return respond(400, { error: "VALIDATION_ERROR" }, event);
+        }
+        values[":role"] = role;
+        values[":status"] = status;
+        values[":membershipKey"] = `${role}#${userId}`;
+        updateExpression =
+            "SET #role = :role, #status = :status, membershipKey = :membershipKey, updatedAt = :now, schemaVersion = :schemaVersion, #revision = :nextRevision REMOVE removedAt";
+    }
+    try {
         await transactWithAudit(
             docClient,
             [
                 {
-                    Delete: {
+                    Update: {
                         TableName: MEMBERSHIPS_TABLE,
                         Key: { userId, organizationId },
-                        ConditionExpression: "attribute_exists(userId)",
+                        UpdateExpression: updateExpression,
+                        ConditionExpression: `attribute_exists(userId) AND ${revision.expression}`,
+                        ExpressionAttributeNames: names,
+                        ExpressionAttributeValues: values,
                     },
                 },
             ],
@@ -508,63 +653,41 @@ async function changeOrganizationMember(
             {
                 organizationId,
                 actorUserId: auth.actor.userId,
-                action: "membership.removed",
+                action,
                 resourceType: "membership",
                 resourceId: userId,
                 requestId: event.requestId,
-                metadata: { previousRole: membership.role },
-            },
-        );
-        return respond(200, { removed: true }, event);
-    }
-    const parsed = parseJsonBody(event);
-    if (parsed.error || !hasExactShape(parsed.value, ["role", "status"])) {
-        return respond(400, { error: "VALIDATION_ERROR" }, event);
-    }
-    const role = parsed.value.role || membership.role;
-    const status = parsed.value.status || membership.status;
-    if (
-        !["organizer", "exhibitor"].includes(role) ||
-        !["active", "suspended"].includes(status)
-    ) {
-        return respond(400, { error: "VALIDATION_ERROR" }, event);
-    }
-    const now = new Date().toISOString();
-    await transactWithAudit(
-        docClient,
-        [
-            {
-                Update: {
-                    TableName: MEMBERSHIPS_TABLE,
-                    Key: { userId, organizationId },
-                    UpdateExpression:
-                        "SET #role = :role, #status = :status, membershipKey = :membershipKey, updatedAt = :now, schemaVersion = :schemaVersion",
-                    ConditionExpression: "attribute_exists(userId)",
-                    ExpressionAttributeNames: {
-                        "#role": "role",
-                        "#status": "status",
-                    },
-                    ExpressionAttributeValues: {
-                        ":role": role,
-                        ":status": status,
-                        ":membershipKey": `${role}#${userId}`,
-                        ":now": now,
-                        ":schemaVersion": 2,
-                    },
+                metadata: {
+                    previousRole: membership.role,
+                    role,
+                    status,
+                    expectedRevision: precondition.revision,
+                    revision: newRevision,
                 },
             },
-        ],
-        AUDIT_TABLE,
-        {
-            organizationId,
-            actorUserId: auth.actor.userId,
-            action: "membership.updated",
-            resourceType: "membership",
-            resourceId: userId,
-            requestId: event.requestId,
-            metadata: { role, status },
-        },
-    );
+        );
+    } catch (error) {
+        if (isConditionalConflict(error)) {
+            return respond(
+                409,
+                {
+                    error: "CONCURRENT_UPDATE",
+                    expectedRevision: precondition.revision,
+                    reloadRequired: true,
+                },
+                event,
+            );
+        }
+        throw error;
+    }
+    if (remove) {
+        return respond(
+            200,
+            { removed: true, revision: newRevision },
+            event,
+            revisionHeaders(newRevision),
+        );
+    }
     return respond(
         200,
         {
@@ -574,10 +697,12 @@ async function changeOrganizationMember(
                 status,
                 membershipKey: `${role}#${userId}`,
                 updatedAt: now,
-                schemaVersion: 2,
+                schemaVersion: 3,
+                revision: newRevision,
             },
         },
         event,
+        revisionHeaders(newRevision),
     );
 }
 
@@ -621,11 +746,7 @@ async function transferOrganizationOwnership(event, organizationId) {
         targetMembership.status !== "active" ||
         targetMembership.role !== "organizer"
     ) {
-        return respond(
-            409,
-            { error: "ACTIVE_ORGANIZER_REQUIRED" },
-            event,
-        );
+        return respond(409, { error: "ACTIVE_ORGANIZER_REQUIRED" }, event);
     }
     if (!targetUser.Item?.email) {
         return respond(409, { error: "OWNER_PROFILE_REQUIRED" }, event);
@@ -723,7 +844,8 @@ async function transferOrganizationOwnership(event, organizationId) {
                         Put: {
                             TableName: AUDIT_TABLE,
                             Item: audit,
-                            ConditionExpression: "attribute_not_exists(auditId)",
+                            ConditionExpression:
+                                "attribute_not_exists(auditId)",
                         },
                     },
                 ],
@@ -784,8 +906,12 @@ async function listOrganizationMembers(event, organizationId) {
     return respond(
         200,
         {
-            memberships: result.Items || [],
-            count: (result.Items || []).length,
+            memberships: (result.Items || [])
+                .filter((item) => item.status !== "removed")
+                .map((item) => ({ ...item, revision: revisionOf(item) })),
+            count: (result.Items || []).filter(
+                (item) => item.status !== "removed",
+            ).length,
             nextCursor: encodeCursor(result.LastEvaluatedKey),
         },
         event,

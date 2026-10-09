@@ -8,11 +8,13 @@
       "description": "A curated pavilion for modern board games, previews and designer interviews.",
       "image_url": "https://placehold.co/800x500?text=Boardgames+Atlas",
       "is_sponsored": true,
-      "ar_enabled": false,
-      "tour_enabled": false,
       "rating": 4.8,
-      "status": "approved",
-      "tags": ["board games", "strategy", "designers"],
+      "status": "published",
+      "tags": [
+        "board games",
+        "strategy",
+        "designers"
+      ],
       "products": [
         {
           "id": "product_atlas_pass",
@@ -32,7 +34,26 @@
         }
       ],
       "created_at": "2026-07-01T09:00:00.000Z",
-      "updated_at": "2026-07-01T09:00:00.000Z"
+      "updated_at": "2026-07-01T09:00:00.000Z",
+      "visibility": "public",
+      "schemaVersion": 4,
+      "organizationId": "org_atlas",
+      "eventId": "evt_atlas_2026",
+      "ownerUserId": "pending-dev-exhibitor",
+      "exhibitorUserId": "pending-dev-exhibitor",
+      "eventStatus": "published",
+      "updatedAt": "2026-07-01T09:00:00.000Z",
+      "createdAt": "2026-07-01T09:00:00.000Z",
+      "publicationKey": "published#2026-07-01T09:00:00.000Z",
+      "publicStatus": "published",
+      "moderationStatus": "approved",
+      "publicContact": {
+        "showEmail": false,
+        "showPhone": false,
+        "showWebsite": false
+      },
+      "revision": 1,
+      "images": []
     },
     {
       "stand_id": "stand_indie_foundry",
@@ -42,11 +63,13 @@
       "description": "Independent tabletop creators presenting playable prototypes and short demos.",
       "image_url": "https://placehold.co/800x500?text=Indie+Foundry",
       "is_sponsored": false,
-      "ar_enabled": false,
-      "tour_enabled": false,
       "rating": 4.6,
-      "status": "approved",
-      "tags": ["indie", "prototypes", "tabletop"],
+      "status": "published",
+      "tags": [
+        "indie",
+        "prototypes",
+        "tabletop"
+      ],
       "products": [
         {
           "id": "product_indie_sampler",
@@ -58,7 +81,26 @@
         }
       ],
       "created_at": "2026-07-01T09:05:00.000Z",
-      "updated_at": "2026-07-01T09:05:00.000Z"
+      "updated_at": "2026-07-01T09:05:00.000Z",
+      "visibility": "public",
+      "schemaVersion": 4,
+      "organizationId": "org_atlas",
+      "eventId": "evt_atlas_2026",
+      "ownerUserId": "pending-dev-exhibitor",
+      "exhibitorUserId": "pending-dev-exhibitor",
+      "eventStatus": "published",
+      "updatedAt": "2026-07-01T09:05:00.000Z",
+      "createdAt": "2026-07-01T09:05:00.000Z",
+      "publicationKey": "published#2026-07-01T09:05:00.000Z",
+      "publicStatus": "published",
+      "moderationStatus": "approved",
+      "publicContact": {
+        "showEmail": false,
+        "showPhone": false,
+        "showWebsite": false
+      },
+      "revision": 1,
+      "images": []
     },
     {
       "stand_id": "stand_rpg_workshop",
@@ -68,11 +110,13 @@
       "description": "Role-playing game workshops, quickstarts and live design sessions.",
       "image_url": "https://placehold.co/800x500?text=RPG+Workshop",
       "is_sponsored": false,
-      "ar_enabled": false,
-      "tour_enabled": false,
       "rating": 4.7,
-      "status": "approved",
-      "tags": ["rpg", "quickstart", "workshop"],
+      "status": "published",
+      "tags": [
+        "rpg",
+        "quickstart",
+        "workshop"
+      ],
       "products": [
         {
           "id": "product_rpg_quickstart",
@@ -84,7 +128,26 @@
         }
       ],
       "created_at": "2026-07-01T09:10:00.000Z",
-      "updated_at": "2026-07-01T09:10:00.000Z"
+      "updated_at": "2026-07-01T09:10:00.000Z",
+      "visibility": "public",
+      "schemaVersion": 4,
+      "organizationId": "org_atlas",
+      "eventId": "evt_atlas_2026",
+      "ownerUserId": "pending-dev-exhibitor",
+      "exhibitorUserId": "pending-dev-exhibitor",
+      "eventStatus": "published",
+      "updatedAt": "2026-07-01T09:10:00.000Z",
+      "createdAt": "2026-07-01T09:10:00.000Z",
+      "publicationKey": "published#2026-07-01T09:10:00.000Z",
+      "publicStatus": "published",
+      "moderationStatus": "approved",
+      "publicContact": {
+        "showEmail": false,
+        "showPhone": false,
+        "showWebsite": false
+      },
+      "revision": 1,
+      "images": []
     }
   ]
 }

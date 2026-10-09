@@ -19,10 +19,7 @@ const { withObservability } = require("../common/observability");
 const { parseJsonBody, hasExactShape } = require("../common/validation");
 const { cleanText, validId } = require("../common/domain");
 const { authorizeOrganization } = require("../common/tenant");
-const {
-    writeAuditEvent,
-    buildAuditTransactPut,
-} = require("../common/audit");
+const { writeAuditEvent, buildAuditTransactPut } = require("../common/audit");
 
 const client = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const secrets = new SecretsManagerClient({});

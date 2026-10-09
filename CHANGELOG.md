@@ -1,5 +1,65 @@
 # Changelog
 
+## 0.9.0-internal-pilot.1 — exact-evidence promotion gate
+
+- Added a machine-readable internal-pilot plan with mandatory machine proofs and manual approvals.
+- Added a protected preflight that refuses production-like targets and non-test Stripe credentials.
+- Added exact commit, environment and evidence-age matching.
+- Added command-wrapped proof records, status matrix and fail-closed promotion receipt.
+- Added approval expiry, named approver and signed-report hash requirements.
+- Added a protected GitHub Actions workflow and internal-pilot runbook.
+- Added dependency-free regression tests proving that PENDING, stale and mismatched evidence cannot promote a release.
+
+### Verification boundary
+
+The promotion tooling can be validated locally. Actual promotion remains blocked until all distributed and manual evidence is produced in the controlled target environment.
+
+## 0.8.8-4.5g.2 — 4.5F runtime consolidation and 4.5G evidence baseline
+
+- Connected the uniform API error envelope and safe unhandled-exception response to active Lambda handlers.
+- Connected session lifecycle signals to the active SPA API client.
+- Enforced Turnstile hostname/action/age checks and disabled IP-derived storage by default, with explicit HMAC-only opt-in.
+- Replaced publication propagation with a checkpointed, retryable, fail-closed saga.
+- Added consistent owner-event barriers to global stand list, search and detail.
+- Added migration 004 for conservative historical publication-state normalization.
+- Returned edited published events to hidden draft state and blocked mutations/duplication during transitional states.
+- Preserved the 4.5G evidence harness while retaining every external proof as PENDING until executed.
+- Updated source gates, OpenAPI and persistent pilot infrastructure.
+
+### Verification boundary
+
+Dependency-free source and contract gates pass. Full dependency-driven CI, SAM/AWS deployment, tenant isolation, Stripe, SES, WAF, load, restore, WCAG, privacy/legal and penetration evidence remain mandatory external gates.
+
+## 0.8.6-legacy.1 — Sprint 4.5E.1 canonical writer consolidation
+
+- Added a machine-readable inventory and CI gate for every mutation-capable runtime, synthetic, migration and repair source.
+- Removed the legacy global platform-admin stand writer and made the admin stand surface read-only in code, IAM, SAM and OpenAPI.
+- Added canonical stand construction, publication derivation and fixture validation.
+- Guarded synthetic writers with explicit opt-in and production-like destination rejection.
+- Kept migrations and repair tools plan-only unless apply mode is selected explicitly.
+- Canonicalized development and sample stand fixtures and removed retired AR/tour fields and the legacy `approved` state.
+- Repaired inherited event and exhibitor-stand revision regressions before declaring the writer boundary complete.
+- Regenerated the persistent pilot backend and synchronized release documentation.
+
+### Verification boundary
+
+Static source, writer inventory, SAM/OpenAPI and infrastructure contracts are verifiable in the repository. The preparation environment could not complete the public npm dependency installation, and live AWS/SAM evidence is not claimed. Exact gate results and pending proofs are preserved in the release evidence bundle.
+
+## 0.8.6-auth.1 — Sprint 4.5E.1 AUTH-01 scoped Cognito access tokens
+
+- Added the `aipavilion` Cognito resource server with coarse user, tenant and platform-admin scopes.
+- Added a Cognito Pre Token Generation V2.0 Lambda and explicitly selected the Essentials user-pool tier.
+- Retained the complete staging authentication plane as one unit: pool, client, resource server, groups and trigger functions/permissions.
+- Added the matching authorization scope to all 46 protected SAM events and OpenAPI operations.
+- Retained fine-grained membership, role, ownership, assignment and entitlement checks in the backend.
+- Changed invitation acceptance to resolve the recipient email from the server-side user profile keyed by `sub`.
+- Added dependency-free authentication contract checks, unit regressions and a dedicated deployed AWS proof.
+- Added the deployed authentication proof to disposable CI and staging evidence collection.
+
+### Verification boundary
+
+Static authentication, SAM/OpenAPI, infrastructure, syntax and phase gates pass. The preparation environment could not resolve the public npm registry and did not provide AWS/SAM tooling, so Jest, lint, build, audit and live Cognito/API Gateway evidence remain external release gates.
+
 ## 0.8.5 — Sprint 4.5E public catalogue and product-scope hardening
 
 - Made public event and stand eligibility fail closed.
@@ -222,3 +282,10 @@ The source, tests, bundles and frontend build were verified locally. The prepara
 ## Historical claims
 
 Earlier release notes and promotional plans were not supported by the active source tree. They are retained under `docs/archive/` and are not treated as shipped versions.
+
+## 0.8.8-4.5g.1 — Sprint 4.5G evidence harness
+
+- Added reproducible tenant-escape, failure-injection, load, Stripe, SES, WAF, restore and security evidence tools.
+- Added redacted evidence records bound to release, commit and environment.
+- Reconstructed and inspected the 4.5F prerequisite contracts rather than inheriting an unverified artifact.
+- Production and customer-data authorization remain false until distributed evidence passes.

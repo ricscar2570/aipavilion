@@ -1,0 +1,49 @@
+name: QUOTA-01 and INVITE-01 proof
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: Disposable-stack API URL
+        required: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  static-proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run test:quota-invite:static
+      - run: npm test -- --runInBand
+      - run: npm run lint
+      - run: npm run build
+      - run: sam validate --lint
+      - run: PATH="$PWD/node_modules/.bin:$PATH" sam build
+
+  deployed-proof:
+    if: ${{ inputs.api_url != '' }}
+    needs: static-proof
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - name: Invitation idempotency proof
+        env:
+          API_URL: ${{ inputs.api_url }}
+          ACCESS_TOKEN: ${{ secrets.QUOTA_INVITE_ACCESS_TOKEN }}
+          ORGANIZATION_ID: ${{ secrets.QUOTA_INVITE_ORGANIZATION_ID }}
+          EVENT_ID: ${{ secrets.QUOTA_INVITE_EVENT_ID }}
+          INVITE_TEST_EMAIL: ${{ secrets.QUOTA_INVITE_TEST_EMAIL }}
+        run: npm run test:invite:deployed

@@ -1,0 +1,142 @@
+name: Internal pilot evidence
+
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Evidence suite to execute
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - source-ci
+          - sam-build
+          - deploy
+          - auth
+          - core-aws-contracts
+          - browser-csp
+          - security-assessment
+          - tenant-escape
+          - failure-injection
+          - stripe-test-mode
+          - ses-delivery
+          - waf-rate-limit
+          - load-profile
+          - restore-rpo-rto
+          - status
+      environment_name:
+        description: Protected non-production GitHub environment
+        required: true
+        default: internal-pilot
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: internal-pilot-${{ github.ref }}-${{ inputs.environment_name }}
+  cancel-in-progress: false
+
+jobs:
+  evidence:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment_name }}
+    timeout-minutes: 90
+    env:
+      ALLOW_INTERNAL_PILOT: "true"
+      EVIDENCE_ENVIRONMENT: internal-pilot
+      ENVIRONMENT: internal-pilot
+      AWS_REGION: ${{ vars.AWS_REGION || 'eu-west-1' }}
+      API_URL: ${{ secrets.STAGING_API_URL }}
+      APP_URL: ${{ secrets.STAGING_APP_URL }}
+      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_TEST_SECRET_KEY }}
+      TENANT_ACCESS_TOKEN: ${{ secrets.TENANT_ACCESS_TOKEN }}
+      STRIPE_PROOF_ORGANIZATION_ID: ${{ vars.STRIPE_PROOF_ORGANIZATION_ID }}
+      SES_PROOF_FROM: ${{ vars.SES_PROOF_FROM }}
+      SES_PROOF_TO: ${{ vars.SES_PROOF_TO }}
+      WAF_PROOF_URL: ${{ secrets.WAF_PROOF_URL }}
+      ALLOW_EXTERNAL_EMAIL_PROOF: "true"
+      ALLOW_WAF_PROOF: "true"
+      ALLOW_LOAD_TEST: "true"
+      ALLOW_RESTORE_DRILL: "true"
+      INTERNAL_PILOT_EVIDENCE_DIR: evidence/internal-pilot/runtime
+      PHASE45G_EVIDENCE_DIR: evidence/phase4.5g/runtime
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install exact dependencies
+        run: npm ci
+
+      - name: Preflight
+        run: npm run internal-pilot:preflight
+
+      - name: Source CI proof
+        if: inputs.suite == 'all' || inputs.suite == 'source-ci'
+        run: >-
+          node scripts/internal-pilot/command-proof.js --kind dependency-ci --
+          bash -lc "npm run verify && npm audit --audit-level=high"
+
+      - name: SAM proof
+        if: inputs.suite == 'all' || inputs.suite == 'sam-build'
+        run: >-
+          node scripts/internal-pilot/command-proof.js --kind sam-build --
+          bash -lc 'export PATH="$PWD/node_modules/.bin:$PATH"; sam validate && sam build'
+
+      - name: Deployment proof
+        if: inputs.suite == 'all' || inputs.suite == 'deploy'
+        run: >-
+          node scripts/internal-pilot/command-proof.js --kind aws-deployment --
+          bash -lc "npm run pilot:preflight && npm run pilot:deploy"
+
+      - name: Authentication proof
+        if: inputs.suite == 'all' || inputs.suite == 'auth'
+        run: >-
+          node scripts/internal-pilot/command-proof.js --kind auth-aws --
+          bash -lc "npm run test:auth:deployed"
+
+      - name: Core AWS contract proof
+        if: inputs.suite == 'all' || inputs.suite == 'core-aws-contracts'
+        run: >-
+          node scripts/internal-pilot/command-proof.js --kind core-aws-contracts --
+          bash -lc "npm run test:invite:deployed && npm run test:integration && npm run test:smoke:deployed"
+
+      - name: Browser and strict-CSP proof
+        if: inputs.suite == 'all' || inputs.suite == 'browser-csp'
+        run: >-
+          node scripts/internal-pilot/command-proof.js --kind browser-csp --
+          bash -lc "npm run test:e2e:deployed"
+
+      - name: Execute 4.5G operational suites
+        if: >-
+          inputs.suite == 'all' ||
+          contains(fromJSON('["security-assessment","tenant-escape","failure-injection","stripe-test-mode","ses-delivery","waf-rate-limit","load-profile","restore-rpo-rto"]'), inputs.suite)
+        run: node scripts/internal-pilot/run.js --suite "${{ inputs.suite }}" --continue-on-failure
+
+      - name: Promotion status
+        if: always()
+        run: npm run internal-pilot:status || true
+
+      - name: Upload immutable evidence bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: internal-pilot-${{ github.sha }}-${{ github.run_id }}
+          path: |
+            evidence/phase4.5g/runtime
+            evidence/internal-pilot/runtime
+          if-no-files-found: error
+          retention-days: 90

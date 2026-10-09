@@ -6,6 +6,8 @@
 - [`api/openapi.json`](api/openapi.json): active OpenAPI 3.1 contract.
 - [`architecture/ADR-001-CANONICAL-REPOSITORY.md`](architecture/ADR-001-CANONICAL-REPOSITORY.md): source consolidation decision.
 - [`architecture/ADR-002-MULTI-TENANCY.md`](architecture/ADR-002-MULTI-TENANCY.md): organization-scoped tenant model.
+- [`architecture/ADR-003-SCOPED-COGNITO-ACCESS-TOKENS.md`](architecture/ADR-003-SCOPED-COGNITO-ACCESS-TOKENS.md): scoped access-token boundary decision.
+- [`development/SPRINT-4.5E.1-AUTH-01-REPORT.md`](development/SPRINT-4.5E.1-AUTH-01-REPORT.md): AUTH-01 implementation and evidence boundary.
 - [`architecture/API-SURFACE.md`](architecture/API-SURFACE.md): routes and authorization boundaries.
 - [`development/PHASE-1-REPORT.md`](development/PHASE-1-REPORT.md): source consolidation.
 - [`development/PHASE-2-REPORT.md`](development/PHASE-2-REPORT.md): disposable integration baseline.

@@ -77,6 +77,32 @@ Parameters:
     NoEcho: true
     Default: turnstile_not_configured
 
+  BotChallengeExpectedHostname:
+    Type: String
+    Default: ""
+    Description: Exact Turnstile hostname expected for public lead submissions.
+
+  BotChallengeExpectedAction:
+    Type: String
+    Default: lead-submit
+
+  BotChallengeMaxAgeSeconds:
+    Type: Number
+    Default: 300
+    MinValue: 30
+    MaxValue: 900
+
+  LeadIpPseudonymizationMode:
+    Type: String
+    Default: disabled
+    AllowedValues: [disabled, hmac]
+    Description: Disabled by default. HMAC remains pseudonymous personal data.
+
+  LeadIpHmacSecret:
+    Type: String
+    NoEcho: true
+    Default: lead_ip_hmac_not_configured
+
   AuditRetentionDays:
     Type: Number
     Default: 365
@@ -85,7 +111,7 @@ Parameters:
 
 Globals:
   Function:
-    Runtime: nodejs20.x
+    Runtime: nodejs24.x
     Architectures: [arm64]
     Timeout: 30
     MemorySize: 256
@@ -100,7 +126,7 @@ Globals:
   Api:
     Cors:
       AllowOrigin: !Sub "'${AllowedOrigin}'"
-      AllowHeaders: "'Content-Type,Authorization,X-Stripe-Signature,X-Request-Id,Idempotency-Key,X-Interaction-Id'"
+      AllowHeaders: "'Content-Type,Authorization,If-Match,X-Stripe-Signature,X-Request-Id,Idempotency-Key,X-Interaction-Id'"
       AllowMethods: "'GET,POST,PUT,PATCH,DELETE,OPTIONS'"
 
 Resources:
@@ -120,15 +146,29 @@ Resources:
       Description: !Sub Anonymous-form bot challenge credential for ${AWS::StackName}
       SecretString: !Sub '{"turnstileSecret":"${BotChallengeSecret}"}'
 
+  LeadPrivacyCredentials:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      Description: !Sub Optional lead IP HMAC credential for ${AWS::StackName}
+      SecretString: !Sub '{"leadIpHmacSecret":"${LeadIpHmacSecret}"}'
+
   UserPool:
     Type: AWS::Cognito::UserPool
-    DependsOn: ProfileSyncPermission
+    DependsOn:
+      - ProfileSyncPermission
+      - PreTokenGenerationPermission
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     Properties:
       UserPoolName: !Sub ${AWS::StackName}-users
+      UserPoolTier: ESSENTIALS
       LambdaConfig:
         PostConfirmation: !GetAtt ProfileSyncFunction.Arn
+        PreTokenGenerationConfig:
+          LambdaArn: !GetAtt PreTokenGenerationFunction.Arn
+          LambdaVersion: V2_0
       UsernameAttributes: [email]
       AutoVerifiedAttributes: [email]
       MfaConfiguration: OPTIONAL
@@ -171,8 +211,26 @@ Resources:
         application: ai-pavilion
         environment: !Ref Environment
 
+  ApiResourceServer:
+    Type: AWS::Cognito::UserPoolResourceServer
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      Identifier: aipavilion
+      Name: AI Pavilion application API
+      UserPoolId: !Ref UserPool
+      Scopes:
+        - ScopeName: user
+          ScopeDescription: Access the signed-in user API surface.
+        - ScopeName: tenant
+          ScopeDescription: Access tenant API surfaces subject to server-side membership and ownership checks.
+        - ScopeName: platform-admin
+          ScopeDescription: Access platform administration APIs subject to the admin group check.
+
   UserPoolClient:
     Type: AWS::Cognito::UserPoolClient
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
       ClientName: !Sub ${AWS::StackName}-web
       UserPoolId: !Ref UserPool
@@ -204,6 +262,8 @@ Resources:
 
   AdminGroup:
     Type: AWS::Cognito::UserPoolGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
       GroupName: admin
       Description: AI Pavilion platform administrators
@@ -212,6 +272,8 @@ Resources:
 
   OrganizerGroup:
     Type: AWS::Cognito::UserPoolGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
       GroupName: organizer
       Description: Event organizers
@@ -220,6 +282,8 @@ Resources:
 
   ExhibitorGroup:
     Type: AWS::Cognito::UserPoolGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
       GroupName: exhibitor
       Description: Stand owners and editors
@@ -725,11 +789,14 @@ Resources:
       Environment:
         Variables:
           STANDS_TABLE: !Ref StandsTable
+          EVENTS_TABLE: !Ref EventsTable
           PUBLIC_STANDS_INDEX: public-stands-index
           EVENT_STANDS_INDEX: event-stands-index
       Policies:
         - DynamoDBReadPolicy:
             TableName: !Ref StandsTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref EventsTable
       Events:
         Api:
           Type: Api
@@ -755,9 +822,12 @@ Resources:
       Environment:
         Variables:
           STANDS_TABLE: !Ref StandsTable
+          EVENTS_TABLE: !Ref EventsTable
       Policies:
         - DynamoDBReadPolicy:
             TableName: !Ref StandsTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref EventsTable
       Events:
         Api:
           Type: Api
@@ -783,11 +853,14 @@ Resources:
       Environment:
         Variables:
           STANDS_TABLE: !Ref StandsTable
+          EVENTS_TABLE: !Ref EventsTable
           PUBLIC_STANDS_INDEX: public-stands-index
           EVENT_STANDS_INDEX: event-stands-index
       Policies:
         - DynamoDBReadPolicy:
             TableName: !Ref StandsTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref EventsTable
       Events:
         Api:
           Type: Api
@@ -814,6 +887,7 @@ Resources:
         Variables:
           ORDERS_TABLE: !Ref OrdersTable
           STANDS_TABLE: !Ref StandsTable
+          EVENTS_TABLE: !Ref EventsTable
           STRIPE_SECRET_KEY_ARN: !Ref StripeSecret
           PAYMENT_MODE: !Ref PaymentMode
           PAYMENT_EVENTS_TABLE: !Ref PaymentEventsTable
@@ -824,6 +898,8 @@ Resources:
             TableName: !Ref PaymentEventsTable
         - DynamoDBReadPolicy:
             TableName: !Ref StandsTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref EventsTable
         - Statement:
             Effect: Allow
             Action: secretsmanager:GetSecretValue
@@ -837,6 +913,8 @@ Resources:
             Method: POST
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/user
         ConfirmOrder:
           Type: Api
           Properties:
@@ -845,6 +923,8 @@ Resources:
             Method: POST
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/user
         GetOrder:
           Type: Api
           Properties:
@@ -853,14 +933,14 @@ Resources:
             Method: GET
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/user
         Webhook:
           Type: Api
           Properties:
             RestApiId: !Ref ApiGateway
             Path: /checkout/webhook
             Method: POST
-            Auth:
-              Authorizer: NONE
 
   AdminFunction:
     Type: AWS::Serverless::Function
@@ -885,9 +965,9 @@ Resources:
           COGNITO_USER_POOL_ID: !Ref UserPool
           COGNITO_CLIENT_ID: !Ref UserPoolClient
       Policies:
-        - DynamoDBCrudPolicy:
+        - DynamoDBReadPolicy:
             TableName: !Ref StandsTable
-        - DynamoDBCrudPolicy:
+        - DynamoDBReadPolicy:
             TableName: !Ref OrdersTable
         - DynamoDBReadPolicy:
             TableName: !Ref UsersTable
@@ -906,22 +986,28 @@ Resources:
             Method: GET
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/platform-admin
         Stands:
           Type: Api
           Properties:
             RestApiId: !Ref ApiGateway
             Path: /admin/stands
-            Method: ANY
+            Method: GET
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/platform-admin
         StandById:
           Type: Api
           Properties:
             RestApiId: !Ref ApiGateway
             Path: /admin/stands/{standId}
-            Method: ANY
+            Method: GET
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/platform-admin
         Users:
           Type: Api
           Properties:
@@ -930,6 +1016,8 @@ Resources:
             Method: GET
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/platform-admin
         Orders:
           Type: Api
           Properties:
@@ -938,6 +1026,8 @@ Resources:
             Method: GET
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/platform-admin
         Analytics:
           Type: Api
           Properties:
@@ -946,6 +1036,8 @@ Resources:
             Method: GET
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/platform-admin
 
   UserSavedStandsFunction:
     Type: AWS::Serverless::Function
@@ -965,12 +1057,15 @@ Resources:
         Variables:
           SAVED_STANDS_TABLE: !Ref SavedStandsTable
           STANDS_TABLE: !Ref StandsTable
+          EVENTS_TABLE: !Ref EventsTable
           SAVED_AT_INDEX: user-saved-at-index
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref SavedStandsTable
         - DynamoDBReadPolicy:
             TableName: !Ref StandsTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref EventsTable
       Events:
         List:
           Type: Api
@@ -980,6 +1075,8 @@ Resources:
             Method: GET
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/user
         Save:
           Type: Api
           Properties:
@@ -988,6 +1085,8 @@ Resources:
             Method: POST
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/user
         Delete:
           Type: Api
           Properties:
@@ -996,6 +1095,8 @@ Resources:
             Method: DELETE
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/user
 
   UserAccountFunction:
     Type: AWS::Serverless::Function
@@ -1045,6 +1146,8 @@ Resources:
             Method: GET
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/user
         DeleteAccount:
           Type: Api
           Properties:
@@ -1053,6 +1156,8 @@ Resources:
             Method: DELETE
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/user
 
   UserOrdersFunction:
     Type: AWS::Serverless::Function
@@ -1084,6 +1189,8 @@ Resources:
             Method: GET
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/user
 
   UserStatsFunction:
     Type: AWS::Serverless::Function
@@ -1117,6 +1224,8 @@ Resources:
             Method: GET
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/user
 
   ContactStandFunction:
     Type: AWS::Serverless::Function
@@ -1135,18 +1244,28 @@ Resources:
       Environment:
         Variables:
           STANDS_TABLE: !Ref StandsTable
+          EVENTS_TABLE: !Ref EventsTable
           LEADS_TABLE: !Ref LeadsTable
           BOT_CHALLENGE_MODE: !Ref BotChallengeMode
           BOT_CHALLENGE_SECRET_ARN: !Ref BotChallengeCredentials
+          BOT_CHALLENGE_EXPECTED_HOSTNAME: !Ref BotChallengeExpectedHostname
+          BOT_CHALLENGE_EXPECTED_ACTION: !Ref BotChallengeExpectedAction
+          BOT_CHALLENGE_MAX_AGE_SECONDS: !Ref BotChallengeMaxAgeSeconds
+          LEAD_IP_PSEUDONYMIZATION_MODE: !Ref LeadIpPseudonymizationMode
+          LEAD_IP_HMAC_SECRET_ARN: !Ref LeadPrivacyCredentials
       Policies:
         - DynamoDBReadPolicy:
             TableName: !Ref StandsTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref EventsTable
         - DynamoDBWritePolicy:
             TableName: !Ref LeadsTable
         - Statement:
             Effect: Allow
             Action: secretsmanager:GetSecretValue
-            Resource: !Ref BotChallengeCredentials
+            Resource:
+              - !Ref BotChallengeCredentials
+              - !Ref LeadPrivacyCredentials
       Events:
         Api:
           Type: Api
@@ -1174,11 +1293,14 @@ Resources:
         Variables:
           TABLE_INTERACTIONS: !Ref InteractionsTable
           STANDS_TABLE: !Ref StandsTable
+          EVENTS_TABLE: !Ref EventsTable
       Policies:
         - DynamoDBWritePolicy:
             TableName: !Ref InteractionsTable
         - DynamoDBReadPolicy:
             TableName: !Ref StandsTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref EventsTable
       Events:
         Api:
           Type: Api
@@ -1235,6 +1357,8 @@ Resources:
 
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/user
         CreateOrganization:
           Type: Api
           Properties:
@@ -1246,6 +1370,8 @@ Resources:
 
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/platform-admin
         Organization:
           Type: Api
           Properties:
@@ -1257,6 +1383,8 @@ Resources:
 
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/tenant
         TransferOrganizationOwnership:
           Type: Api
           Properties:
@@ -1265,6 +1393,8 @@ Resources:
             Method: POST
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/tenant
         OrganizationMembers:
           Type: Api
           Properties:
@@ -1276,6 +1406,8 @@ Resources:
 
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/tenant
         OrganizationMember:
           Type: Api
           Properties:
@@ -1284,6 +1416,8 @@ Resources:
             Method: ANY
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/tenant
         OrganizationEntitlement:
           Type: Api
           Properties:
@@ -1295,6 +1429,8 @@ Resources:
 
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/tenant
 
   EventsFunction:
     Type: AWS::Serverless::Function
@@ -1310,8 +1446,13 @@ Resources:
       FunctionName: !Sub ${AWS::StackName}-events
       CodeUri: backend/lambda/
       Handler: events/index.handler
+      Timeout: 60
       Environment:
         Variables:
+          QUOTA_COUNTERS_TABLE: !Ref QuotaCountersTable
+          QUOTA_RESERVATIONS_TABLE: !Ref QuotaReservationsTable
+          QUOTA_METRIC_NAMESPACE: AI-Pavilion/Quota
+          INVITATION_RESERVATION_TTL_SECONDS: 604800
           EVENTS_TABLE: !Ref EventsTable
           STANDS_TABLE: !Ref StandsTable
           MEMBERSHIPS_TABLE: !Ref MembershipsTable
@@ -1319,7 +1460,12 @@ Resources:
           AUDIT_TABLE: !Ref AuditEventsTable
           ORGANIZATION_EVENTS_INDEX: organization-events-index
           EVENT_STANDS_INDEX: event-stands-index
+          PUBLISH_PAGE_SIZE: 25
       Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref QuotaCountersTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref QuotaReservationsTable
         - DynamoDBCrudPolicy: { TableName: !Ref EventsTable }
         - DynamoDBCrudPolicy: { TableName: !Ref StandsTable }
         - DynamoDBReadPolicy: { TableName: !Ref MembershipsTable }
@@ -1344,6 +1490,8 @@ Resources:
 
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/tenant
         OrgEvent:
           Type: Api
           Properties:
@@ -1355,6 +1503,8 @@ Resources:
 
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/tenant
         DuplicateEvent:
           Type: Api
           Properties:
@@ -1363,6 +1513,8 @@ Resources:
             Method: POST
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/tenant
         ArchiveEvent:
           Type: Api
           Properties:
@@ -1371,6 +1523,8 @@ Resources:
             Method: POST
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/tenant
         PublishEvent:
           Type: Api
           Properties:
@@ -1382,6 +1536,8 @@ Resources:
 
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/tenant
         EventStands:
           Type: Api
           Properties:
@@ -1393,6 +1549,8 @@ Resources:
 
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/tenant
         ReassignStand:
           Type: Api
           Properties:
@@ -1401,6 +1559,8 @@ Resources:
             Method: PATCH
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/tenant
         ModerateStand:
           Type: Api
           Properties:
@@ -1412,6 +1572,8 @@ Resources:
 
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/tenant
 
   InvitationEventTopic:
     Type: AWS::SNS::Topic
@@ -1467,12 +1629,17 @@ Resources:
       Handler: invitations/index.handler
       Environment:
         Variables:
+          QUOTA_COUNTERS_TABLE: !Ref QuotaCountersTable
+          QUOTA_RESERVATIONS_TABLE: !Ref QuotaReservationsTable
+          QUOTA_METRIC_NAMESPACE: AI-Pavilion/Quota
+          INVITATION_RESERVATION_TTL_SECONDS: 604800
           ORGANIZATIONS_TABLE: !Ref OrganizationsTable
           EVENTS_TABLE: !Ref EventsTable
           MEMBERSHIPS_TABLE: !Ref MembershipsTable
           INVITATIONS_TABLE: !Ref InvitationsTable
           ENTITLEMENTS_TABLE: !Ref EntitlementsTable
           STANDS_TABLE: !Ref StandsTable
+          USERS_TABLE: !Ref UsersTable
           AUDIT_TABLE: !Ref AuditEventsTable
           EVENT_STANDS_INDEX: event-stands-index
           EVENT_INVITATIONS_INDEX: event-invitations-index
@@ -1481,12 +1648,17 @@ Resources:
           EMAIL_CONFIGURATION_SET: !Ref InvitationConfigurationSet
           APP_URL: !Ref AppUrl
       Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref QuotaCountersTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref QuotaReservationsTable
         - DynamoDBReadPolicy: { TableName: !Ref OrganizationsTable }
         - DynamoDBReadPolicy: { TableName: !Ref EventsTable }
         - DynamoDBCrudPolicy: { TableName: !Ref MembershipsTable }
         - DynamoDBCrudPolicy: { TableName: !Ref InvitationsTable }
         - DynamoDBReadPolicy: { TableName: !Ref EntitlementsTable }
         - DynamoDBCrudPolicy: { TableName: !Ref StandsTable }
+        - DynamoDBReadPolicy: { TableName: !Ref UsersTable }
         - DynamoDBWritePolicy: { TableName: !Ref AuditEventsTable }
         - Statement:
             Effect: Allow
@@ -1512,6 +1684,8 @@ Resources:
 
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/tenant
         ManageInvitation:
           Type: Api
           Properties:
@@ -1520,6 +1694,8 @@ Resources:
             Method: ANY
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/tenant
         ResendInvitation:
           Type: Api
           Properties:
@@ -1528,6 +1704,8 @@ Resources:
             Method: POST
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/tenant
         AcceptInvitation:
           Type: Api
           Properties:
@@ -1539,6 +1717,8 @@ Resources:
 
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/user
 
   ExhibitorStandsFunction:
     Type: AWS::Serverless::Function
@@ -1582,6 +1762,8 @@ Resources:
 
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/tenant
         ExhibitorStand:
           Type: Api
           Properties:
@@ -1593,6 +1775,8 @@ Resources:
 
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/tenant
         SubmitStand:
           Type: Api
           Properties:
@@ -1604,6 +1788,8 @@ Resources:
 
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/tenant
 
   ExhibitorLeadsFunction:
     Type: AWS::Serverless::Function
@@ -1649,6 +1835,8 @@ Resources:
 
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/tenant
         ExportLeads:
           Type: Api
           Properties:
@@ -1660,6 +1848,8 @@ Resources:
 
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/tenant
         ExhibitorLead:
           Type: Api
           Properties:
@@ -1671,6 +1861,8 @@ Resources:
 
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/tenant
 
   PublicEventsFunction:
     Type: AWS::Serverless::Function
@@ -1772,6 +1964,8 @@ Resources:
             Method: GET
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/tenant
         BillingCheckout:
           Type: Api
           Properties:
@@ -1780,6 +1974,8 @@ Resources:
             Method: POST
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/tenant
         BillingPortal:
           Type: Api
           Properties:
@@ -1788,14 +1984,14 @@ Resources:
             Method: POST
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/tenant
         BillingWebhook:
           Type: Api
           Properties:
             RestApiId: !Ref ApiGateway
             Path: /billing/webhook
             Method: POST
-            Auth:
-              Authorizer: NONE
 
   EmailEventsFunction:
     Type: AWS::Serverless::Function
@@ -1861,6 +2057,8 @@ Resources:
             Method: GET
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/tenant
 
   DataExportFunction:
     Type: AWS::Serverless::Function
@@ -1898,6 +2096,8 @@ Resources:
             Method: GET
             Auth:
               Authorizer: CognitoAuthorizer
+              AuthorizationScopes:
+                - aipavilion/user
 
   PaymentReconciliationFunction:
     Type: AWS::Serverless::Function
@@ -1941,8 +2141,40 @@ Resources:
             Schedule: rate(15 minutes)
             Enabled: true
 
+  PreTokenGenerationFunction:
+    Type: AWS::Serverless::Function
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints: [pre-token-generation/index.js]
+        Format: cjs
+        Minify: true
+        Sourcemap: true
+        Target: es2022
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-pre-token-generation
+      CodeUri: backend/lambda/
+      Handler: pre-token-generation/index.handler
+      Timeout: 5
+      MemorySize: 128
+
+  PreTokenGenerationPermission:
+    Type: AWS::Lambda::Permission
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref PreTokenGenerationFunction
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !Sub arn:${AWS::Partition}:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/*
+      SourceAccount: !Ref AWS::AccountId
+
   ProfileSyncFunction:
     Type: AWS::Serverless::Function
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -1963,11 +2195,14 @@ Resources:
 
   ProfileSyncPermission:
     Type: AWS::Lambda::Permission
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
       Action: lambda:InvokeFunction
       FunctionName: !Ref ProfileSyncFunction
       Principal: cognito-idp.amazonaws.com
       SourceArn: !Sub arn:${AWS::Partition}:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/*
+      SourceAccount: !Ref AWS::AccountId
 
   GetStandsLogGroup:
     Type: AWS::Logs::LogGroup
@@ -2113,6 +2348,14 @@ Resources:
       LogGroupName: !Sub /aws/lambda/${PaymentReconciliationFunction}
       RetentionInDays: 14
 
+  PreTokenGenerationLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${PreTokenGenerationFunction}
+      RetentionInDays: 14
+
   ProfileSyncLogGroup:
     Type: AWS::Logs::LogGroup
     DeletionPolicy: Delete
@@ -2153,6 +2396,86 @@ Resources:
       LogGroupName: !Sub /aws/lambda/${DataExportFunction}
       RetentionInDays: 14
 
+  QuotaCountersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${AWS::StackName}-quota-counters
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: counterKey
+          AttributeType: S
+      KeySchema:
+        - AttributeName: counterKey
+          KeyType: HASH
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+
+  QuotaReservationsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${AWS::StackName}-quota-reservations
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: reservationId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: reservationId
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: ttlExpiresAt
+        Enabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+
+  QuotaReconciliationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/lambda/
+      Handler: quota-reconciliation/index.handler
+      Timeout: 300
+      MemorySize: 512
+      Environment:
+        Variables:
+          QUOTA_COUNTERS_TABLE: !Ref QuotaCountersTable
+          QUOTA_RESERVATIONS_TABLE: !Ref QuotaReservationsTable
+          ENTITLEMENTS_TABLE: !Ref EntitlementsTable
+          EVENTS_TABLE: !Ref EventsTable
+          STANDS_TABLE: !Ref StandsTable
+          INVITATIONS_TABLE: !Ref InvitationsTable
+          ORGANIZATION_EVENTS_INDEX: organization-events-index
+          EVENT_STANDS_INDEX: event-stands-index
+          EVENT_INVITATIONS_INDEX: event-invitations-index
+          QUOTA_METRIC_NAMESPACE: AI-Pavilion/Quota
+          QUOTA_RECONCILIATION_APPLY: true
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref QuotaCountersTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref QuotaReservationsTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref EntitlementsTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref EventsTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref StandsTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref InvitationsTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - cloudwatch:PutMetricData
+              Resource: "*"
+      Events:
+        Schedule:
+          Type: Schedule
+          Properties:
+            Schedule: rate(15 minutes)
+            Enabled: true
+
 Outputs:
   ApiEndpoint:
     Description: API Gateway base URL
@@ -2166,12 +2489,27 @@ Outputs:
     Description: Cognito public web client ID
     Value: !Ref UserPoolClient
 
+  CognitoUserScope:
+    Description: Required scope for signed-in user APIs
+    Value: aipavilion/user
+
+  CognitoTenantScope:
+    Description: Required scope for tenant APIs
+    Value: aipavilion/tenant
+
+  CognitoPlatformAdminScope:
+    Description: Required scope for platform administration APIs
+    Value: aipavilion/platform-admin
+
   StripeSecretArn:
     Description: ARN of the stack-managed Stripe test secret
     Value: !Ref StripeSecret
 
   BotChallengeSecretArn:
     Value: !Ref BotChallengeCredentials
+
+  LeadPrivacySecretArn:
+    Value: !Ref LeadPrivacyCredentials
 
   InvitationEventTopicArn:
     Value: !Ref InvitationEventTopic
@@ -2223,3 +2561,10 @@ Outputs:
 
   ApiGatewayName:
     Value: !Sub ${AWS::StackName}-api
+
+  QuotaCountersTableName:
+    Description: Atomic quota counters table
+    Value: !Ref QuotaCountersTable
+  QuotaReservationsTableName:
+    Description: Quota reservations and occupancy table
+    Value: !Ref QuotaReservationsTable

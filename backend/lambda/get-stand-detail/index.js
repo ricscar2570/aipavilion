@@ -13,11 +13,13 @@ const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
 const { DynamoDBDocumentClient, GetCommand } = require("@aws-sdk/lib-dynamodb");
 const { corsHeaders, preflight } = require("../common/cors");
 const { isPublicStand, toPublicStand } = require("../common/catalog");
+const { standEventIsPublic } = require("../common/public-event-barrier");
 
 const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
 
 const STANDS_TABLE = process.env.STANDS_TABLE || "ai-pavilion-stands";
+const EVENTS_TABLE = process.env.EVENTS_TABLE || "ai-pavilion-events";
 
 const handler = async (event) => {
     if (event.httpMethod === "OPTIONS") {
@@ -42,7 +44,11 @@ const handler = async (event) => {
             }),
         );
 
-        if (!result.Item || !isPublicStand(result.Item)) {
+        if (
+            !result.Item ||
+            !isPublicStand(result.Item) ||
+            !(await standEventIsPublic(docClient, EVENTS_TABLE, result.Item))
+        ) {
             return {
                 statusCode: 404,
                 headers: corsHeaders(event),

@@ -309,7 +309,9 @@ class UserDashboard {
                         const check = validatePassword(next);
                         if (!check.ok || next !== confirm) {
                             uiManager.error(
-                                !check.ok ? check.error : "Passwords do not match.",
+                                !check.ok
+                                    ? check.error
+                                    : "Passwords do not match.",
                             );
                             return;
                         }
@@ -342,22 +344,32 @@ class UserDashboard {
                     <details class="mt-3"><summary>Manual authenticator URI</summary><code class="break-all text-xs">${escapeHtml(uri)}</code></details>
                     <label class="block mt-4">Verification code<input id="mfa-setup-code" inputmode="numeric" autocomplete="one-time-code" class="w-full px-3 py-2 border rounded" /></label>`,
                 buttons: [
-                    { label: "Cancel", className: "btn-secondary", action: "cancel" },
+                    {
+                        label: "Cancel",
+                        className: "btn-secondary",
+                        action: "cancel",
+                    },
                     {
                         label: "Enable MFA",
                         className: "btn-primary",
                         action: "enable",
                         onClick: async () => {
-                            const code = document.getElementById("mfa-setup-code")?.value.trim();
+                            const code = document
+                                .getElementById("mfa-setup-code")
+                                ?.value.trim();
                             if (!code) {
-                                uiManager.error("Enter the authenticator code.");
+                                uiManager.error(
+                                    "Enter the authenticator code.",
+                                );
                                 return;
                             }
                             try {
                                 await authService.completeTotpSetup(code);
                                 uiManager.success("Authenticator MFA enabled.");
                             } catch {
-                                uiManager.error("The authenticator code could not be verified.");
+                                uiManager.error(
+                                    "The authenticator code could not be verified.",
+                                );
                             }
                         },
                     },

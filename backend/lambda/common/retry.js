@@ -46,7 +46,9 @@ async function retryUnprocessedBatchGet(
         }
     }
 
-    const error = new Error("DynamoDB batch get remained partially unprocessed");
+    const error = new Error(
+        "DynamoDB batch get remained partially unprocessed",
+    );
     error.code = "DYNAMODB_UNPROCESSED_KEYS";
     throw error;
 }

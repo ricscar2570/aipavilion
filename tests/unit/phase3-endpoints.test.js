@@ -67,6 +67,7 @@ function membership(role = "owner", organizationId = "org-a") {
         membershipKey: `${role}#user-a`,
         role,
         status: "active",
+        revision: 1,
     };
 }
 
@@ -199,6 +200,7 @@ describe("Phase 3 tenant authorization", () => {
                     status: "published",
                     visibility: "public",
                     publicStatus: "published",
+                    revision: 1,
                 },
             })
             .mockResolvedValueOnce({
@@ -208,6 +210,7 @@ describe("Phase 3 tenant authorization", () => {
                     eventId: "event-a",
                     status: "pending_review",
                     visibility: "public",
+                    revision: 1,
                 },
             })
             .mockResolvedValueOnce({
@@ -229,8 +232,7 @@ describe("Phase 3 tenant authorization", () => {
             }),
         );
         expect(response.statusCode).toBe(200);
-        const update =
-            mockSend.mock.calls[3][0].input.TransactItems[0].Update;
+        const update = mockSend.mock.calls[3][0].input.TransactItems[0].Update;
         expect(update.ExpressionAttributeValues).toMatchObject({
             ":publicStatus": "published",
             ":moderationStatus": "approved",
@@ -268,7 +270,7 @@ describe("Phase 3 tenant authorization", () => {
             }),
         );
         expect(response.statusCode).toBe(409);
-        expect(JSON.parse(response.body).error).toBe(
+        expect(JSON.parse(response.body).error.code).toBe(
             "STAND_NOT_PENDING_REVIEW",
         );
         expect(mockSend).toHaveBeenCalledTimes(3);
@@ -293,16 +295,24 @@ describe("Phase 3 tenant authorization", () => {
 
 describe("Phase 3 invitation and resource ownership", () => {
     test("rejects invitation acceptance by a different email address", async () => {
-        mockSend.mockResolvedValueOnce({
-            Item: {
-                invitationId: "inv-1",
-                organizationId: "org-a",
-                eventId: "event-a",
-                email: "expected@example.com",
-                status: "pending",
-                expiresAt: "2099-01-01T00:00:00.000Z",
-            },
-        });
+        mockSend
+            .mockResolvedValueOnce({
+                Item: {
+                    invitationId: "inv-1",
+                    organizationId: "org-a",
+                    eventId: "event-a",
+                    email: "expected@example.com",
+                    status: "pending",
+                    expiresAt: "2099-01-01T00:00:00.000Z",
+                },
+            })
+            .mockResolvedValueOnce({
+                Item: {
+                    userId: "user-a",
+                    email: "user-a@example.com",
+                    status: "active",
+                },
+            });
         const response = await invitations(
             apiEvent({
                 path: "/invitations/inv-1/accept",
@@ -310,9 +320,68 @@ describe("Phase 3 invitation and resource ownership", () => {
             }),
         );
         expect(response.statusCode).toBe(403);
-        expect(JSON.parse(response.body).error).toBe(
+        expect(JSON.parse(response.body).error.code).toBe(
             "INVITATION_EMAIL_MISMATCH",
         );
+    });
+
+    test("binds invitation acceptance to the server-side profile, not an access-token email claim", async () => {
+        mockSend
+            .mockResolvedValueOnce({
+                Item: {
+                    invitationId: "inv-2",
+                    organizationId: "org-a",
+                    eventId: "event-a",
+                    email: "user-a@example.com",
+                    status: "pending",
+                    expiresAt: "2099-01-01T00:00:00.000Z",
+                    standName: "Profile-bound stand",
+                    standSlug: "profile-bound-stand",
+                    invitedBy: "owner-a",
+                },
+            })
+            .mockResolvedValueOnce({
+                Item: {
+                    userId: "user-a",
+                    email: "user-a@example.com",
+                    status: "active",
+                },
+            })
+            .mockResolvedValueOnce({
+                Item: { organizationId: "org-a", status: "active" },
+            })
+            .mockResolvedValueOnce({
+                Item: {
+                    eventId: "event-a",
+                    organizationId: "org-a",
+                    status: "draft",
+                },
+            })
+            .mockResolvedValueOnce({ Item: membership("exhibitor") })
+            .mockResolvedValueOnce({});
+
+        const response = await invitations(
+            apiEvent({
+                path: "/invitations/inv-2/accept",
+                httpMethod: "POST",
+                requestContext: {
+                    authorizer: {
+                        claims: {
+                            sub: "user-a",
+                            token_use: "access",
+                            scope: "aipavilion/user aipavilion/tenant",
+                        },
+                    },
+                },
+            }),
+        );
+        expect(response.statusCode).toBe(200);
+        expect(mockSend.mock.calls[1][0].input).toMatchObject({
+            TableName: "users",
+            Key: { userId: "user-a" },
+            ConsistentRead: true,
+        });
+        expect(mockSend.mock.calls[5][0].type).toBe("TransactWrite");
     });
 
     test("an exhibitor cannot read or update another user's stand", async () => {
@@ -331,6 +400,10 @@ describe("Phase 3 invitation and resource ownership", () => {
             apiEvent({
                 path: "/exhibitor/stands/stand-b",
                 httpMethod: "PUT",
+                headers: {
+                    origin: "http://localhost:3000",
+                    "If-Match": '"1"',
+                },
                 body: JSON.stringify({ name: "Forged" }),
             }),
         );
@@ -370,6 +443,7 @@ describe("Phase 3 public event boundaries", () => {
                     status: "published",
                     visibility: "public",
                     publicStatus: "published",
+                    publicationState: "published",
                     publishedAt: "2026-08-01T00:00:00.000Z",
                     startsAt: "2026-09-01T00:00:00.000Z",
                 },
@@ -516,6 +590,7 @@ describe("Phase 3 organization and event operations", () => {
                     timezone: "Europe/Rome",
                     visibility: "public",
                     status: "draft",
+                    revision: 1,
                 },
             })
             .mockResolvedValueOnce({})
@@ -524,6 +599,10 @@ describe("Phase 3 organization and event operations", () => {
             apiEvent({
                 path: "/organizations/org-a/events/event-a",
                 httpMethod: "PUT",
+                headers: {
+                    origin: "http://localhost:3000",
+                    "If-Match": '"1"',
+                },
                 body: JSON.stringify({ name: "Updated Name" }),
             }),
         );
@@ -540,6 +619,7 @@ describe("Phase 3 organization and event operations", () => {
                     organizationId: "org-a",
                     status: "draft",
                     visibility: "public",
+                    revision: 1,
                 },
             })
             .mockResolvedValueOnce({
@@ -731,6 +811,7 @@ describe("Phase 3 exhibitor stand workflow", () => {
         visibility: "public",
         products: [],
         tags: [],
+        revision: 1,
     };
 
     test("lists and reads only stands owned by the current exhibitor", async () => {
@@ -762,6 +843,10 @@ describe("Phase 3 exhibitor stand workflow", () => {
             apiEvent({
                 path: "/exhibitor/stands/stand-a",
                 httpMethod: "PUT",
+                headers: {
+                    origin: "http://localhost:3000",
+                    "If-Match": '"1"',
+                },
                 body: JSON.stringify({
                     name: "Updated Stand",
                     category: "role-playing-games",
@@ -807,6 +892,10 @@ describe("Phase 3 exhibitor stand workflow", () => {
             apiEvent({
                 path: "/exhibitor/stands/stand-a/submit",
                 httpMethod: "POST",
+                headers: {
+                    origin: "http://localhost:3000",
+                    "If-Match": '"1"',
+                },
                 body: "{}",
             }),
         );
@@ -896,6 +985,7 @@ describe("Phase 3 public event detail", () => {
         status: "published",
         visibility: "public",
         publicStatus: "published",
+        publicationState: "published",
         publishedAt: "2026-08-01T08:00:00.000Z",
         startsAt: "2026-09-01T08:00:00.000Z",
         endsAt: "2026-09-01T18:00:00.000Z",
@@ -953,7 +1043,6 @@ describe("Phase 3 public event detail", () => {
 });
 
 describe("Phase 4 tenant operations", () => {
-
     test("reassigns a stand atomically to an active tenant member", async () => {
         mockSend
             .mockResolvedValueOnce({ Item: membership("owner") })
@@ -970,6 +1059,7 @@ describe("Phase 4 tenant operations", () => {
                     organizationId: "org-a",
                     eventId: "event-a",
                     ownerUserId: "old-owner",
+                    revision: 1,
                 },
             })
             .mockResolvedValueOnce({
@@ -1053,7 +1143,9 @@ describe("Phase 4 tenant operations", () => {
             }),
         );
         expect(response.statusCode).toBe(409);
-        expect(JSON.parse(response.body).error).toBe("ACTIVE_ORGANIZER_REQUIRED");
+        expect(JSON.parse(response.body).error.code).toBe(
+            "ACTIVE_ORGANIZER_REQUIRED",
+        );
     });
 
     test("updates an organization onboarding profile", async () => {

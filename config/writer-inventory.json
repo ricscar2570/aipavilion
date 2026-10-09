@@ -1,0 +1,269 @@
+{
+  "schemaVersion": 1,
+  "release": "0.9.0-internal-pilot.1",
+  "policy": {
+    "canonicalDataRule": "Every runtime surface that mutates canonical data must be declared here and must use tenant-scoped domain invariants, conditional writes, transactions, or an approved reconciliation protocol.",
+    "adminRule": "The platform-admin stand surface is read-only. Stand creation, editing, assignment, moderation and publication use tenant-scoped event or exhibitor workflows.",
+    "syntheticRule": "Synthetic writers require ALLOW_SYNTHETIC_FIXTURES=true and must reject production-like environments.",
+    "migrationRule": "Migration and repair tools are plan-only by default and require an explicit apply mode."
+  },
+  "writers": [
+    {
+      "path": "backend/lambda/billing/index.js",
+      "mode": "canonical-runtime",
+      "domain": "billing",
+      "tables": ["organizations", "entitlements", "payment-events", "audit"],
+      "controls": [
+        "signed-webhook",
+        "idempotency",
+        "transactions",
+        "reconciliation"
+      ]
+    },
+    {
+      "path": "backend/lambda/checkout/index.js",
+      "mode": "canonical-runtime-disabled-by-default",
+      "domain": "product-checkout",
+      "tables": ["orders", "payment-events"],
+      "controls": [
+        "server-side-price-resolution",
+        "idempotency",
+        "signed-webhook",
+        "feature-mode"
+      ]
+    },
+    {
+      "path": "backend/lambda/common/audit.js",
+      "mode": "shared-domain-library",
+      "domain": "audit",
+      "tables": ["audit"],
+      "controls": ["conditional-put", "transaction-composition"]
+    },
+    {
+      "path": "backend/lambda/common/quota-store.js",
+      "mode": "shared-domain-library",
+      "domain": "quota",
+      "tables": [
+        "quota-counters",
+        "quota-reservations",
+        "entitlements",
+        "events",
+        "stands",
+        "invitations"
+      ],
+      "controls": [
+        "conditional-write",
+        "transactions",
+        "idempotency",
+        "reconciliation"
+      ]
+    },
+    {
+      "path": "backend/lambda/contact-stand/index.js",
+      "mode": "canonical-runtime",
+      "domain": "lead-capture",
+      "tables": ["leads"],
+      "controls": ["public-stand-validation", "idempotency", "anti-bot", "ttl"]
+    },
+    {
+      "path": "backend/lambda/email-events/index.js",
+      "mode": "canonical-runtime",
+      "domain": "invitation-delivery",
+      "tables": ["invitations", "audit"],
+      "controls": ["conditional-transition", "audit"]
+    },
+    {
+      "path": "backend/lambda/events/index.js",
+      "mode": "canonical-runtime",
+      "domain": "events-and-stand-governance",
+      "tables": ["events", "stands", "audit"],
+      "controls": [
+        "tenant-authorization",
+        "transactions",
+        "revision",
+        "audit",
+        "fail-closed-publication"
+      ]
+    },
+    {
+      "path": "backend/lambda/events/quota-wrapper.js",
+      "mode": "canonical-runtime-adapter",
+      "domain": "event-quota",
+      "tables": ["quota-counters", "quota-reservations"],
+      "controls": ["idempotency", "reservation", "reconciliation"]
+    },
+    {
+      "path": "backend/lambda/exhibitor-leads/index.js",
+      "mode": "canonical-runtime",
+      "domain": "lead-workflow",
+      "tables": ["leads", "audit"],
+      "controls": ["ownership", "revision", "audit"]
+    },
+    {
+      "path": "backend/lambda/exhibitor-stands/index.js",
+      "mode": "canonical-runtime",
+      "domain": "exhibitor-stand-editorial",
+      "tables": ["stands", "audit"],
+      "controls": ["ownership", "state-machine", "revision", "audit"]
+    },
+    {
+      "path": "backend/lambda/invitations/index.js",
+      "mode": "canonical-runtime",
+      "domain": "invitations",
+      "tables": ["invitations", "memberships", "stands", "audit"],
+      "controls": [
+        "identity-binding",
+        "membership-policy",
+        "transactions",
+        "audit"
+      ]
+    },
+    {
+      "path": "backend/lambda/invitations/invite-wrapper.js",
+      "mode": "canonical-runtime-adapter",
+      "domain": "invitation-quota",
+      "tables": ["quota-counters", "quota-reservations"],
+      "controls": [
+        "idempotency",
+        "reservation",
+        "identity-policy",
+        "reconciliation"
+      ]
+    },
+    {
+      "path": "backend/lambda/organizations/index.js",
+      "mode": "canonical-runtime",
+      "domain": "organizations-and-memberships",
+      "tables": ["organizations", "memberships", "entitlements", "audit"],
+      "controls": [
+        "tenant-authorization",
+        "transactions",
+        "revision",
+        "tombstone",
+        "audit"
+      ]
+    },
+    {
+      "path": "backend/lambda/payment-reconciliation/index.js",
+      "mode": "canonical-runtime-reconciler",
+      "domain": "payment-reconciliation",
+      "tables": ["orders", "entitlements", "payment-events"],
+      "controls": ["bounded-scan", "conditional-transition", "retry"]
+    },
+    {
+      "path": "backend/lambda/profile-sync/index.js",
+      "mode": "canonical-runtime",
+      "domain": "identity-profile",
+      "tables": ["users"],
+      "controls": ["cognito-trigger", "canonical-sub"]
+    },
+    {
+      "path": "backend/lambda/quota-reconciliation/index.js",
+      "mode": "canonical-runtime-reconciler",
+      "domain": "quota-reconciliation",
+      "tables": [
+        "quota-counters",
+        "quota-reservations",
+        "events",
+        "stands",
+        "invitations",
+        "entitlements"
+      ],
+      "controls": ["conditional-repair", "metrics", "scheduled-reconciliation"]
+    },
+    {
+      "path": "backend/lambda/track-interaction/index.js",
+      "mode": "canonical-runtime",
+      "domain": "interaction-tracking",
+      "tables": ["interactions"],
+      "controls": ["public-stand-validation", "idempotency", "ttl"]
+    },
+    {
+      "path": "backend/lambda/user-account/index.js",
+      "mode": "canonical-runtime-privacy",
+      "domain": "account-deletion",
+      "tables": ["users", "orders", "saved-stands", "memberships", "stands"],
+      "controls": [
+        "readiness-check",
+        "ownership-blockers",
+        "anonymization",
+        "bounded-batch-write"
+      ]
+    },
+    {
+      "path": "backend/lambda/user-saved-stands/index.js",
+      "mode": "canonical-runtime",
+      "domain": "saved-stands",
+      "tables": ["saved-stands"],
+      "controls": ["authenticated-owner", "canonical-public-projection"]
+    },
+    {
+      "path": "scripts/dev/seed-dev.js",
+      "mode": "synthetic-only",
+      "domain": "development-fixtures",
+      "tables": ["organizations", "events", "entitlements", "stands"],
+      "controls": ["synthetic-write-guard", "conditional-put"]
+    },
+    {
+      "path": "scripts/dev/create-test-users.js",
+      "mode": "synthetic-only",
+      "domain": "development-identities",
+      "tables": ["users", "memberships", "organizations", "stands"],
+      "controls": ["synthetic-write-guard", "isolated-stack-only"]
+    },
+    {
+      "path": "scripts/dev/smoke-deployed.js",
+      "mode": "synthetic-only",
+      "domain": "deployed-smoke-fixtures",
+      "tables": ["users"],
+      "controls": ["synthetic-write-guard", "disposable-user"]
+    },
+    {
+      "path": "scripts/pilot/migrate.js",
+      "mode": "migration-only",
+      "domain": "schema-migrations",
+      "tables": ["schema-migrations", "application-tables"],
+      "controls": ["explicit-action", "versioned-migration", "verification"]
+    },
+    {
+      "path": "scripts/quotas/migrate.js",
+      "mode": "migration-only",
+      "domain": "quota-migration",
+      "tables": ["quota-counters"],
+      "controls": [
+        "plan-default",
+        "explicit-apply",
+        "idempotent-initialization"
+      ]
+    },
+    {
+      "path": "scripts/quotas/reconcile.js",
+      "mode": "repair-tool",
+      "domain": "quota-repair",
+      "tables": ["quota-counters", "quota-reservations"],
+      "controls": ["plan-default", "explicit-apply", "conditional-repair"]
+    }
+  ],
+  "readOnlySurfaces": [
+    {
+      "path": "backend/lambda/admin/index.js",
+      "domain": "platform-administration",
+      "routes": [
+        "GET /admin/dashboard",
+        "GET /admin/stands",
+        "GET /admin/stands/{standId}",
+        "GET /admin/users",
+        "GET /admin/orders",
+        "GET /admin/analytics"
+      ],
+      "reason": "The former global stand writer used a legacy schema and bypassed tenant, event, quota, moderation, publication, audit and revision invariants."
+    }
+  ],
+  "migrationTransforms": [
+    "data/migrations/001-phase4-defaults.js",
+    "data/migrations/002-fail-closed-public-catalog.js",
+    "migrations/003-atomic-entitlement-quotas.json",
+    "data/migrations/004-publishing-saga-state.js",
+    "migrations/004-publishing-saga-state.json"
+  ]
+}

@@ -25,7 +25,8 @@ const SAVED_STANDS_TABLE =
 const MEMBERSHIPS_TABLE =
     process.env.MEMBERSHIPS_TABLE || "ai-pavilion-memberships";
 const STANDS_TABLE = process.env.STANDS_TABLE || "ai-pavilion-stands";
-const OWNER_STANDS_INDEX = process.env.OWNER_STANDS_INDEX || "owner-stands-index";
+const OWNER_STANDS_INDEX =
+    process.env.OWNER_STANDS_INDEX || "owner-stands-index";
 
 function authIdentity(event) {
     const claims = event.requestContext?.authorizer?.claims || {};
@@ -54,8 +55,7 @@ async function deletionReadiness(userId) {
             TableName: MEMBERSHIPS_TABLE,
             KeyConditionExpression: "userId = :userId",
             ExpressionAttributeValues: { ":userId": userId },
-            ProjectionExpression:
-                "userId, organizationId, #role, #status",
+            ProjectionExpression: "userId, organizationId, #role, #status",
             ExpressionAttributeNames: { "#role": "role", "#status": "status" },
         }),
         queryAll({
@@ -168,7 +168,9 @@ async function anonymizeOrders(userId) {
 }
 
 const handler = async (event) => {
-    if (event.httpMethod === "OPTIONS") return preflight(event);
+    if (event.httpMethod === "OPTIONS") {
+        return preflight(event);
+    }
     if (!["GET", "DELETE"].includes(event.httpMethod)) {
         return respond(405, { error: "METHOD_NOT_ALLOWED" }, event);
     }
@@ -215,7 +217,9 @@ const handler = async (event) => {
                 }),
             );
         } catch (error) {
-            if (error?.name !== "UserNotFoundException") throw error;
+            if (error?.name !== "UserNotFoundException") {
+                throw error;
+            }
         }
         return {
             statusCode: 204,

@@ -9,7 +9,9 @@ function scalar(value) {
 
 function sectionRange(lines, sectionName) {
     const start = lines.findIndex((line) => line === `${sectionName}:`);
-    if (start < 0) return null;
+    if (start < 0) {
+        return null;
+    }
     let end = lines.length;
     for (let index = start + 1; index < lines.length; index += 1) {
         if (/^[A-Za-z][A-Za-z0-9_-]*:\s*$/.test(lines[index])) {
@@ -22,20 +24,19 @@ function sectionRange(lines, sectionName) {
 
 function parseBlocks(lines, range) {
     const blocks = new Map();
-    if (!range) return blocks;
+    if (!range) {
+        return blocks;
+    }
     let index = range.start;
     while (index < range.end) {
-        const match = lines[index].match(/^  ([A-Za-z0-9]+):\s*$/);
+        const match = lines[index].match(/^ {2}([A-Za-z0-9]+):\s*$/);
         if (!match) {
             index += 1;
             continue;
         }
         const name = match[1];
         let end = index + 1;
-        while (
-            end < range.end &&
-            !/^  [A-Za-z0-9]+:\s*$/.test(lines[end])
-        ) {
+        while (end < range.end && !/^ {2}[A-Za-z0-9]+:\s*$/.test(lines[end])) {
             end += 1;
         }
         blocks.set(name, lines.slice(index, end));
@@ -49,22 +50,28 @@ function matchValue(block, key, indentation = null) {
     const expression = new RegExp(`^${prefix}${key}:\\s*(.+?)\\s*$`);
     for (const line of block) {
         const match = line.match(expression);
-        if (match) return scalar(match[1]);
+        if (match) {
+            return scalar(match[1]);
+        }
     }
     return null;
 }
 
 function parseEnvironment(block) {
     const variables = new Map();
-    const start = block.findIndex((line) =>
-        /^        Variables:\s*$/.test(line),
-    );
-    if (start < 0) return variables;
+    const start = block.findIndex((line) => /^ {8}Variables:\s*$/.test(line));
+    if (start < 0) {
+        return variables;
+    }
     for (let index = start + 1; index < block.length; index += 1) {
         const line = block[index];
-        if (line.trim() && !line.startsWith("          ")) break;
-        const match = line.match(/^          ([A-Z][A-Z0-9_]*):\s*(.*?)\s*$/);
-        if (match) variables.set(match[1], scalar(match[2]));
+        if (line.trim() && !line.startsWith("          ")) {
+            break;
+        }
+        const match = line.match(/^ {10}([A-Z][A-Z0-9_]*):\s*(.*?)\s*$/);
+        if (match) {
+            variables.set(match[1], scalar(match[2]));
+        }
     }
     return variables;
 }
@@ -75,10 +82,7 @@ function parseTemplate(text) {
         lines,
         sectionRange(lines, "Parameters"),
     );
-    const resourceBlocks = parseBlocks(
-        lines,
-        sectionRange(lines, "Resources"),
-    );
+    const resourceBlocks = parseBlocks(lines, sectionRange(lines, "Resources"));
     const outputBlocks = parseBlocks(lines, sectionRange(lines, "Outputs"));
     const resources = new Map();
 
@@ -106,9 +110,7 @@ function parseTemplate(text) {
                 [
                     ...block
                         .join("\n")
-                        .matchAll(
-                            /TableName:\s*!Ref\s+([A-Za-z0-9]+)/g,
-                        ),
+                        .matchAll(/TableName:\s*!Ref\s+([A-Za-z0-9]+)/g),
                 ].map((match) => match[1]),
             );
         }
@@ -143,7 +145,9 @@ function validateTemplate(text, { root, label }) {
     const indexOwners = new Map();
 
     for (const resource of model.resources.values()) {
-        if (resource.type !== "AWS::DynamoDB::Table") continue;
+        if (resource.type !== "AWS::DynamoDB::Table") {
+            continue;
+        }
         tables.set(resource.name, resource);
         for (const indexName of resource.indexes || []) {
             if (indexOwners.has(indexName)) {
@@ -157,7 +161,9 @@ function validateTemplate(text, { root, label }) {
     }
 
     for (const resource of model.resources.values()) {
-        if (resource.type !== "AWS::Serverless::Function") continue;
+        if (resource.type !== "AWS::Serverless::Function") {
+            continue;
+        }
         if (!resource.codeUri || resource.codeUri.startsWith("!")) {
             errors.push(
                 `${label}: ${resource.name} has no statically verifiable CodeUri`,
@@ -216,7 +222,9 @@ function validateTemplate(text, { root, label }) {
             }
         }
         for (const [key, value] of resource.environment || []) {
-            if (!key.includes("INDEX")) continue;
+            if (!key.includes("INDEX")) {
+                continue;
+            }
             const indexName = scalar(value);
             const owner = indexOwners.get(indexName);
             if (!owner) {
@@ -235,7 +243,9 @@ function validateTemplate(text, { root, label }) {
     }
 
     for (const output of model.outputs.values()) {
-        if (!output.name.endsWith("TableName")) continue;
+        if (!output.name.endsWith("TableName")) {
+            continue;
+        }
         const target = refTarget(output.value);
         if (!target || !tables.has(target)) {
             errors.push(

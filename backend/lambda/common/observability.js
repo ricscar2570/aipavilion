@@ -1,6 +1,7 @@
 "use strict";
 
 const { randomUUID } = require("crypto");
+const { normalizeApiResponse, unhandledResponse } = require("./api-error");
 
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]{8,128}$/;
 
@@ -59,7 +60,8 @@ function withObservability(handlerName, handler) {
         });
 
         try {
-            const response = await handler(event, context);
+            const rawResponse = await handler(event, context);
+            const response = normalizeApiResponse(rawResponse, event, context);
             const statusCode = Number(response?.statusCode || 200);
             response.headers = {
                 ...(response.headers || {}),
@@ -82,7 +84,7 @@ function withObservability(handlerName, handler) {
                 errorName: error?.name || "Error",
                 errorCode: error?.code || null,
             });
-            throw error;
+            return unhandledResponse(error, event, context);
         }
     };
 }

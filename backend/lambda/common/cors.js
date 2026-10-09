@@ -23,9 +23,10 @@ function corsHeaders(event = {}) {
     return {
         "Access-Control-Allow-Origin": allowedOrigin,
         "Access-Control-Allow-Headers":
-            "Content-Type,Authorization,X-Stripe-Signature,X-Request-Id,Idempotency-Key,X-Interaction-Id",
+            "Content-Type,Authorization,If-Match,X-Stripe-Signature,X-Request-Id,Idempotency-Key,X-Interaction-Id",
         "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-        "Access-Control-Expose-Headers": "X-Request-Id",
+        "Access-Control-Expose-Headers":
+            "X-Request-Id,ETag,Content-Disposition,X-Export-Row-Count",
         Vary: "Origin",
         "Content-Type": "application/json",
         "X-Request-Id": event.requestId || "",
@@ -33,10 +34,10 @@ function corsHeaders(event = {}) {
 }
 
 /** Standard JSON response with proper CORS headers. */
-function respond(statusCode, body, event = {}) {
+function respond(statusCode, body, event = {}, extraHeaders = {}) {
     return {
         statusCode,
-        headers: corsHeaders(event),
+        headers: { ...corsHeaders(event), ...extraHeaders },
         body: JSON.stringify(body),
     };
 }

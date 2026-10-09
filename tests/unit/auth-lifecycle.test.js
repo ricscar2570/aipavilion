@@ -86,8 +86,8 @@ describe("Cognito authentication lifecycle", () => {
             mfaType: "SOFTWARE_TOKEN_MFA",
         });
 
-        mockUser.sendMFACode.mockImplementation(
-            (_code, callbacks) => callbacks.onSuccess(session),
+        mockUser.sendMFACode.mockImplementation((_code, callbacks) =>
+            callbacks.onSuccess(session),
         );
         await expect(authService.completeMfa("123456")).resolves.toMatchObject({
             session,
@@ -123,9 +123,9 @@ describe("Cognito authentication lifecycle", () => {
         mockUser.setUserMfaPreference.mockImplementation(
             (_sms, _software, callback) => callback(null, "SUCCESS"),
         );
-        await expect(
-            authService.completeTotpSetup("123456"),
-        ).resolves.toBe("SUCCESS");
+        await expect(authService.completeTotpSetup("123456")).resolves.toBe(
+            "SUCCESS",
+        );
         await expect(authService.disableTotp()).resolves.toBe("SUCCESS");
     });
 });

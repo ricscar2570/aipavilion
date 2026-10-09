@@ -1,0 +1,16 @@
+{
+  "description": "Safe client-side abort and replay cases. Populate only in a disposable or staging environment.",
+  "cases": [
+    {
+      "name": "event-create-abort-and-replay",
+      "tokenEnv": "TENANT_A_OWNER_TOKEN",
+      "method": "POST",
+      "path": "/organizations/REPLACE_ME_ORG_A/events",
+      "abortFirstAfterMs": 25,
+      "body": {
+        "name": "4.5G idempotency proof"
+      },
+      "expectedReplayStatuses": [200, 201, 202, 409]
+    }
+  ]
+}

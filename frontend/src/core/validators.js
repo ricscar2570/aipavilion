@@ -29,7 +29,10 @@ export function validatePassword(password) {
         return { ok: false, error: "Password must include a lowercase letter" };
     }
     if (!/[A-Z]/.test(password)) {
-        return { ok: false, error: "Password must include an uppercase letter" };
+        return {
+            ok: false,
+            error: "Password must include an uppercase letter",
+        };
     }
     if (!/\d/.test(password)) {
         return { ok: false, error: "Password must include a number" };

@@ -2,8 +2,7 @@
 
 AI Pavilion is a serverless B2B SaaS foundation for virtual and hybrid events. Organizers operate isolated organizations, create events, invite exhibitors, moderate stands, collect leads and manage a subscription. Exhibitors edit only assigned stands and manage only their own leads. Visitors browse published events and stands without entering a tenant administration boundary.
 
-Version `0.8.5` is the **Sprint 4.5E public-catalogue and product-scope hardening baseline**. It retains the transactional and payment-recovery controls from 0.8.4 and adds fail-closed publication, opt-in public contacts, complete pilot-scale paginated search and a frontend limited to implemented capabilities.
-
+Version `0.9.0-internal-pilot.1` is the **internal-pilot promotion prerelease** built on the cumulative `0.8.8-4.5g.2` source baseline. It includes AUTH-01, QUOTA-01, INVITE-01, CONCURRENCY-01, EXPORT-01 and LEGACY-01, connects the Sprint 4.5F error/session/privacy/publication controls to the active runtime, and retains the Sprint 4.5G adversarial and operational evidence harness. Distributed evidence, manual approvals and production authorization remain pending.
 
 > **Snapshot documentale completo:** la descrizione italiana consolidata dell’intero progetto è disponibile in [`DOCUMENTAZIONE-COMPLETA-IT.md`](DOCUMENTAZIONE-COMPLETA-IT.md) e nell’indice [`docs/it/00-INDICE-GENERALE.md`](docs/it/00-INDICE-GENERALE.md).
 
@@ -42,6 +41,26 @@ The repository is still pre-production. It is suitable for a controlled AWS stag
 - CloudWatch alarms, operations dashboard, synthetic checks and budget alerts.
 - Daily AWS Backup plan and a documented DynamoDB restore drill.
 - GitHub OIDC staging workflow without permanent AWS credentials.
+
+### Sprint 4.5E.1 Core Correctness completion
+
+- Atomic event and stand capacity reservations with idempotency, reconciliation and explicit over-limit state.
+- Invitation acceptance bound to the authenticated `sub`, server-side profile, membership policy and a valid reserved stand slot.
+- Strong numeric `If-Match`/`ETag` revisions for editorial/configuration updates; internal writers increment revisions and conditional writes prevent lost updates.
+- Complete paginated lead and personal-data exports, spreadsheet-formula neutralization and explicit synchronous thresholds rather than silent truncation.
+- Machine-readable writer inventory plus `npm run check:legacy`, which fails on undeclared mutation-capable sources.
+- Platform-admin stand APIs are read-only; canonical stand mutations use tenant event/exhibitor workflows.
+- Synthetic writers require explicit permission and reject production-like stacks; migration/repair tools remain plan-only by default.
+
+### Sprint 4.5E.1 AUTH-01 scoped access-token contract
+
+- Cognito resource server scopes separate signed-in user, tenant and platform-admin API surfaces.
+- A Pre Token Generation V2.0 trigger adds coarse scopes to Cognito access tokens without replacing tenant membership or ownership checks.
+- All 46 protected SAM events and their OpenAPI operations declare a matching scope.
+- Invitation acceptance binds `sub` to the server-side user profile instead of depending on an access-token email claim.
+- `npm run check:auth` verifies source/SAM/OpenAPI invariants; `npm run test:auth:deployed` is the mandatory AWS proof and also verifies scopes after token refresh.
+- Cognito Essentials is an explicit infrastructure dependency for access-token customization.
+- Persistent staging retains the pool, app client, resource server, groups and authentication trigger functions as one coherent plane.
 
 ### Frontend and accessibility foundation
 
@@ -100,15 +119,16 @@ The precise relationship between the original immersive vision, the current prod
 
 ## Security boundary
 
-The browser never grants itself a tenant role. Protected handlers derive the actor from a verified Cognito access token, load an active membership and verify organization, event, stand, invitation or lead ownership server-side.
+The browser never grants itself a tenant role. API Gateway requires a coarse Cognito access-token scope for every protected route. Protected handlers then derive the actor from `sub`, load current application state and verify membership, role, organization, event, stand, invitation or lead ownership and entitlement server-side. Scopes select an API surface; they do not confer tenant membership.
 
 Public catalogue responses are projections and do not expose ownership, moderation, subscription or payment internals. Billing, invitation and payment webhook signatures are verified before state changes. Critical mutations use strict request schemas and idempotency controls.
 
 ## What is not yet claimed
 
-Version 0.8.5 does **not** claim that the following have been completed:
+Version 0.8.8-4.5g.2 does **not** claim that the following have been completed:
 
 - a successful public CI and AWS staging evidence run in the preparation environment;
+- live Pre Token Generation V2.0 invocation and API Gateway scope enforcement;
 - real SES recipient delivery and production-access approval;
 - real Stripe test-mode subscription reconciliation;
 - WAF and alarm behavior under measured traffic;
@@ -164,7 +184,7 @@ npm run verify
 npm audit --audit-level=high
 ```
 
-The gate first rejects private registry references, then performs formatting, linting, syntax validation, SAM/OpenAPI parity, semantic Lambda/table/index/policy checks, Lambda bundling, Phase 3/4/4.5C/4.5D asset checks, coverage tests and a production frontend build.
+The gate first rejects private registry references, then performs formatting, linting, syntax validation, the scoped-access-token and canonical-writer contracts, SAM/OpenAPI parity, semantic Lambda/table/index/policy checks, Lambda bundling, Phase 3/4/4.5C/4.5D/4.5E asset checks, coverage tests and a production frontend build.
 
 ## Disposable development stack
 

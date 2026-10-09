@@ -15,7 +15,7 @@ The first repository described AI Pavilion as an immersive enterprise virtual-ex
 
 The original material treated these capabilities as one product and sometimes presented them as already complete. The source code did not support that level of maturity. In particular, AR, 360-degree presentation, marketplace settlement and advanced analytics were demonstrations or disconnected modules rather than a deployable commercial system. The name “AI Pavilion” also did not correspond to a production AI capability.
 
-## What version 0.8.5 actually does
+## What version 0.8.6-auth.1 actually does
 
 AI Pavilion is now a serverless B2B SaaS foundation for virtual and hybrid events.
 
@@ -28,6 +28,8 @@ A visitor can browse explicitly published events and approved public stands, sea
 The code includes infrastructure for Cognito, API Gateway, Lambda, DynamoDB, S3, CloudFront, WAF, SES, Stripe subscription billing, CloudWatch, AWS Backup and budgets. These integrations are prepared for staging but are not considered proven until the public CI and AWS evidence workflow completes successfully.
 
 Direct visitor product checkout remains in the code for controlled development verification, but it is disabled by default in persistent staging. The pilot product is lead-generation software, not a multi-vendor marketplace.
+
+Version `0.8.6-auth.1` also establishes an explicit scoped Cognito access-token boundary. API Gateway requires a coarse user, tenant or platform-admin scope, while current membership, role, ownership, assignment and entitlement remain server-side decisions. This is an authentication hardening prerelease, not completion of the wider Core Correctness sprint.
 
 The current product does not yet provide a commercial AR experience, a complete 360-degree showroom, an AI recommendation system, streaming, matchmaking or marketplace payouts.
 

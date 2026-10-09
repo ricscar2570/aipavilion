@@ -13,7 +13,9 @@ const requireFile = (relative) => {
     }
 };
 const requireText = (text, needle, label = needle) => {
-    if (!text.includes(needle)) errors.push(`Missing 4.5D contract: ${label}`);
+    if (!text.includes(needle)) {
+        errors.push(`Missing 4.5D contract: ${label}`);
+    }
 };
 
 for (const file of [
@@ -76,7 +78,9 @@ for (const file of [
 }
 
 if (checkout.includes("releaseWebhookEvent")) {
-    errors.push("Checkout still deletes failed webhook claims instead of retaining retry state.");
+    errors.push(
+        "Checkout still deletes failed webhook claims instead of retaining retry state.",
+    );
 }
 if (checkout.includes("DeleteItemCommand")) {
     errors.push("Checkout still imports destructive webhook claim deletion.");
@@ -84,7 +88,9 @@ if (checkout.includes("DeleteItemCommand")) {
 
 if (errors.length) {
     console.error("Sprint 4.5D asset check failed:\n");
-    for (const error of errors) console.error(`- ${error}`);
+    for (const error of errors) {
+        console.error(`- ${error}`);
+    }
     process.exit(1);
 }
 

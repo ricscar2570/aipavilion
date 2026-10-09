@@ -8,6 +8,7 @@ const {
 } = require("@aws-sdk/lib-dynamodb");
 const { respond, preflight } = require("../common/cors");
 const { isPublicStand, toPublicStand } = require("../common/catalog");
+const { filterStandsByPublicEvent } = require("../common/public-event-barrier");
 const {
     parseLimit,
     decodeCursor,
@@ -16,6 +17,7 @@ const {
 
 const docClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const STANDS_TABLE = process.env.STANDS_TABLE || "ai-pavilion-stands";
+const EVENTS_TABLE = process.env.EVENTS_TABLE || "ai-pavilion-events";
 const PUBLIC_STANDS_INDEX =
     process.env.PUBLIC_STANDS_INDEX || "public-stands-index";
 const EVENT_STANDS_INDEX =
@@ -60,9 +62,14 @@ const handler = async (event) => {
                 ExclusiveStartKey: cursor,
             }),
         );
-        let items = (result.Items || [])
-            .filter(isPublicStand)
-            .map(toPublicStand);
+        const standCandidates = (result.Items || []).filter(isPublicStand);
+        let items = (
+            await filterStandsByPublicEvent(
+                docClient,
+                EVENTS_TABLE,
+                standCandidates,
+            )
+        ).map(toPublicStand);
         if ((event.path || "").includes("/sponsored")) {
             items = items.filter((stand) => stand.is_sponsored === true);
         }

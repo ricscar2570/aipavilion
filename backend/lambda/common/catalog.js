@@ -70,7 +70,11 @@ function pick(source, fields) {
 }
 
 function toPublicProduct(product) {
-    if (!product || typeof product !== "object" || product.status === "hidden") {
+    if (
+        !product ||
+        typeof product !== "object" ||
+        product.status === "hidden"
+    ) {
         return null;
     }
     return pick(product, PUBLIC_PRODUCT_FIELDS);
@@ -113,7 +117,11 @@ function searchableText(stand) {
     const productText = Array.isArray(stand.products)
         ? stand.products
               .filter((product) => product?.status !== "hidden")
-              .flatMap((product) => [product?.name, product?.description, product?.category])
+              .flatMap((product) => [
+                  product?.name,
+                  product?.description,
+                  product?.category,
+              ])
         : [];
     const tags = Array.isArray(stand.tags) ? stand.tags : [];
     return [

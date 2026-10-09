@@ -415,12 +415,10 @@ describe("Phase 4 invitation delivery telemetry", () => {
         });
         expect(mockSend.mock.calls[0][0].type).toBe("TransactWrite");
         const transaction = mockSend.mock.calls[0][0].input.TransactItems;
-        expect(
-            transaction[0].Update.ExpressionAttributeValues[":status"],
-        ).toBe("bounced");
-        expect(transaction[1].Put.Item.action).toBe(
-            "invitation.email_bounced",
+        expect(transaction[0].Update.ExpressionAttributeValues[":status"]).toBe(
+            "bounced",
         );
+        expect(transaction[1].Put.Item.action).toBe("invitation.email_bounced");
     });
 
     test("ignores delivery records without an invitation tag", async () => {

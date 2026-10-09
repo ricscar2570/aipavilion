@@ -1,0 +1,76 @@
+name: Sprint 4.5G evidence
+
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Evidence suite to execute
+        required: true
+        type: choice
+        options:
+          [
+            local,
+            tenant-escape,
+            failure-injection,
+            load,
+            stripe,
+            ses,
+            waf,
+            restore,
+            evidence-check,
+          ]
+      environment:
+        description: Protected GitHub environment
+        required: true
+        default: staging
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: phase-4-5g-${{ inputs.environment }}-${{ inputs.suite }}
+  cancel-in-progress: false
+
+jobs:
+  evidence:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Configure AWS credentials
+        if: contains(fromJSON('["ses","waf","restore"]'), inputs.suite)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_EVIDENCE_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Execute selected suite
+        env:
+          EVIDENCE_DIR: evidence/phase4.5g/runtime
+          EVIDENCE_ENVIRONMENT: ${{ inputs.environment }}
+          API_URL: ${{ secrets.API_URL }}
+          TENANT_A_OWNER_TOKEN: ${{ secrets.TENANT_A_OWNER_TOKEN }}
+          TENANT_A_EXHIBITOR_TOKEN: ${{ secrets.TENANT_A_EXHIBITOR_TOKEN }}
+          USER_A_TOKEN: ${{ secrets.USER_A_TOKEN }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_TEST_SECRET_KEY }}
+          ALLOW_LOAD_TEST: ${{ inputs.suite == 'load' }}
+          ALLOW_WAF_PROOF: ${{ inputs.suite == 'waf' }}
+          ALLOW_EXTERNAL_EMAIL_PROOF: ${{ inputs.suite == 'ses' }}
+          ALLOW_RESTORE_DRILL: ${{ inputs.suite == 'restore' }}
+          SES_PROOF_FROM: ${{ vars.SES_PROOF_FROM }}
+          SES_PROOF_TO: ${{ secrets.SES_PROOF_TO }}
+          WAF_PROOF_URL: ${{ secrets.WAF_PROOF_URL }}
+          RESTORE_BACKUP_TIMESTAMP: ${{ vars.RESTORE_BACKUP_TIMESTAMP }}
+        run: npm run phase4.5g:${{ inputs.suite }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase-4.5g-${{ inputs.environment }}-${{ inputs.suite }}-${{ github.sha }}
+          path: evidence/phase4.5g/runtime
+          if-no-files-found: error

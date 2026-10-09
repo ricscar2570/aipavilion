@@ -291,7 +291,7 @@ describe("Checkout Lambda", () => {
             });
         const result = await handler(makeEvent({ body: createBody() }));
         expect(result.statusCode).toBe(409);
-        expect(JSON.parse(result.body).error).toBe("IDEMPOTENCY_CONFLICT");
+        expect(JSON.parse(result.body).error.code).toBe("IDEMPOTENCY_CONFLICT");
     });
 
     test("confirms a succeeded payment with a conditional state transition", async () => {
@@ -464,7 +464,8 @@ describe("Checkout Lambda", () => {
     });
 
     test("reclaims an expired webhook lease", async () => {
-        const privateApi = require("../../backend/lambda/checkout/index").__private;
+        const privateApi =
+            require("../../backend/lambda/checkout/index").__private;
         mockDynamoSend
             .mockRejectedValueOnce(conditionalError())
             .mockResolvedValueOnce({
@@ -487,7 +488,8 @@ describe("Checkout Lambda", () => {
     });
 
     test("ignores an older payment event before writing", async () => {
-        const privateApi = require("../../backend/lambda/checkout/index").__private;
+        const privateApi =
+            require("../../backend/lambda/checkout/index").__private;
         mockDynamoSend.mockResolvedValueOnce({
             Item: orderRecord({
                 lastPaymentEventCreatedAt: 200,

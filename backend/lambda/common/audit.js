@@ -31,7 +31,9 @@ function buildAuditEvent(entry, now = new Date()) {
 }
 
 function buildAuditTransactPut(tableName, entry, now = new Date()) {
-    if (!tableName) return null;
+    if (!tableName) {
+        return null;
+    }
     return {
         Put: {
             TableName: tableName,
@@ -53,7 +55,9 @@ async function transactWithAudit(client, transactItems, tableName, entry) {
 }
 
 async function writeAuditEvent(client, tableName, entry) {
-    if (!tableName) return null;
+    if (!tableName) {
+        return null;
+    }
     const item = buildAuditEvent(entry);
     await client.send(
         new PutCommand({

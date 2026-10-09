@@ -13,6 +13,13 @@ const { cleanText, validId } = require("../common/domain");
 const { identity } = require("../common/tenant");
 const { transactWithAudit } = require("../common/audit");
 const {
+    expectedRevision,
+    revisionHeaders,
+    revisionCondition,
+    nextRevision,
+    isConditionalConflict,
+} = require("../common/concurrency");
+const {
     parseLimit,
     decodeCursor,
     encodeCursor,
@@ -126,6 +133,14 @@ async function updateStand(event, actor, standId) {
     if (!validId(standId)) {
         return respond(400, { error: "VALIDATION_ERROR" }, event);
     }
+    const precondition = expectedRevision(event);
+    if (!precondition.ok) {
+        return respond(
+            precondition.missing ? 428 : 400,
+            { error: precondition.code },
+            event,
+        );
+    }
     const existing = await loadOwnedStand(actor.userId, standId);
     if (!existing) {
         return respond(404, { error: "STAND_NOT_FOUND" }, event);
@@ -207,7 +222,8 @@ async function updateStand(event, actor, standId) {
                 ? {
                       showEmail: parsed.value.publicContact?.showEmail === true,
                       showPhone: parsed.value.publicContact?.showPhone === true,
-                      showWebsite: parsed.value.publicContact?.showWebsite === true,
+                      showWebsite:
+                          parsed.value.publicContact?.showWebsite === true,
                   }
                 : existing.publicContact || {
                       showEmail: false,
@@ -237,44 +253,85 @@ async function updateStand(event, actor, standId) {
         );
     }
     const now = new Date().toISOString();
+    const newRevision = nextRevision(precondition.revision);
+    const revision = revisionCondition({ expected: precondition.revision });
     next.updatedAt = now;
     next.updated_at = now;
     next.moderationStatus = "draft";
     next.publicStatus = "draft";
     next.publicationKey = `${next.status}#${now}`;
-    await transactWithAudit(
-        client,
-        [
-            {
-                Put: {
-                    TableName: STANDS_TABLE,
-                    Item: next,
-                    ConditionExpression:
-                        "ownerUserId = :userId AND #status IN (:draft, :rejected)",
-                    ExpressionAttributeNames: { "#status": "status" },
-                    ExpressionAttributeValues: {
-                        ":userId": actor.userId,
-                        ":draft": "draft",
-                        ":rejected": "rejected",
+    next.revision = newRevision;
+    try {
+        await transactWithAudit(
+            client,
+            [
+                {
+                    Put: {
+                        TableName: STANDS_TABLE,
+                        Item: next,
+                        ConditionExpression: `ownerUserId = :userId AND #status IN (:draft, :rejected) AND ${revision.expression}`,
+                        ExpressionAttributeNames: {
+                            "#status": "status",
+                            ...revision.names,
+                        },
+                        ExpressionAttributeValues: {
+                            ":userId": actor.userId,
+                            ":draft": "draft",
+                            ":rejected": "rejected",
+                            ...revision.values,
+                        },
                     },
                 },
+            ],
+            AUDIT_TABLE,
+            {
+                organizationId: next.organizationId,
+                actorUserId: actor.userId,
+                action: "stand.updated",
+                resourceType: "stand",
+                resourceId: standId,
+                requestId: event.requestId,
+                metadata: {
+                    eventId: next.eventId,
+                    expectedRevision: precondition.revision,
+                    revision: newRevision,
+                },
             },
-        ],
-        AUDIT_TABLE,
-        {
-            organizationId: next.organizationId,
-            actorUserId: actor.userId,
-            action: "stand.updated",
-            resourceType: "stand",
-            resourceId: standId,
-            requestId: event.requestId,
-            metadata: { eventId: next.eventId },
-        },
+        );
+    } catch (error) {
+        if (isConditionalConflict(error)) {
+            return respond(
+                409,
+                {
+                    error: "CONCURRENT_UPDATE",
+                    expectedRevision: precondition.revision,
+                    reloadRequired: true,
+                },
+                event,
+            );
+        }
+        throw error;
+    }
+    return respond(
+        200,
+        { stand: privateStand(next) },
+        event,
+        revisionHeaders(newRevision),
     );
-    return respond(200, { stand: privateStand(next) }, event);
 }
 
 async function submitStand(event, actor, standId) {
+    if (!validId(standId)) {
+        return respond(400, { error: "VALIDATION_ERROR" }, event);
+    }
+    const precondition = expectedRevision(event);
+    if (!precondition.ok) {
+        return respond(
+            precondition.missing ? 428 : 400,
+            { error: precondition.code },
+            event,
+        );
+    }
     const existing = await loadOwnedStand(actor.userId, standId);
     if (!existing) {
         return respond(404, { error: "STAND_NOT_FOUND" }, event);
@@ -306,43 +363,68 @@ async function submitStand(event, actor, standId) {
     }
     const now = new Date().toISOString();
     const publicationKey = `pending_review#${now}`;
-    await transactWithAudit(
-        client,
-        [
-            {
-                Update: {
-                    TableName: STANDS_TABLE,
-                    Key: { stand_id: standId },
-                    UpdateExpression:
-                        "SET #status = :pending, moderationStatus = :moderationStatus, publicStatus = :draftPublic, eventStatus = :eventStatus, publicationKey = :publicationKey, submittedAt = :now, updatedAt = :now, updated_at = :now REMOVE moderationNote",
-                    ConditionExpression:
-                        "ownerUserId = :userId AND #status IN (:draft, :rejected)",
-                    ExpressionAttributeNames: { "#status": "status" },
-                    ExpressionAttributeValues: {
-                        ":pending": "pending_review",
-                        ":moderationStatus": "pending",
-                        ":draftPublic": "draft",
-                        ":eventStatus": eventResult.Item.status,
-                        ":publicationKey": publicationKey,
-                        ":now": now,
-                        ":userId": actor.userId,
-                        ":draft": "draft",
-                        ":rejected": "rejected",
+    const newRevision = nextRevision(precondition.revision);
+    const revision = revisionCondition({ expected: precondition.revision });
+    try {
+        await transactWithAudit(
+            client,
+            [
+                {
+                    Update: {
+                        TableName: STANDS_TABLE,
+                        Key: { stand_id: standId },
+                        UpdateExpression:
+                            "SET #status = :pending, moderationStatus = :moderationStatus, publicStatus = :draftPublic, eventStatus = :eventStatus, publicationKey = :publicationKey, submittedAt = :now, updatedAt = :now, updated_at = :now, #revision = :nextRevision REMOVE moderationNote",
+                        ConditionExpression: `ownerUserId = :userId AND #status IN (:draft, :rejected) AND ${revision.expression}`,
+                        ExpressionAttributeNames: {
+                            "#status": "status",
+                            ...revision.names,
+                        },
+                        ExpressionAttributeValues: {
+                            ":pending": "pending_review",
+                            ":moderationStatus": "pending",
+                            ":draftPublic": "draft",
+                            ":eventStatus": eventResult.Item.status,
+                            ":publicationKey": publicationKey,
+                            ":now": now,
+                            ":userId": actor.userId,
+                            ":draft": "draft",
+                            ":rejected": "rejected",
+                            ":nextRevision": newRevision,
+                            ...revision.values,
+                        },
                     },
                 },
+            ],
+            AUDIT_TABLE,
+            {
+                organizationId: existing.organizationId,
+                actorUserId: actor.userId,
+                action: "stand.submitted",
+                resourceType: "stand",
+                resourceId: standId,
+                requestId: event.requestId,
+                metadata: {
+                    eventId: existing.eventId,
+                    expectedRevision: precondition.revision,
+                    revision: newRevision,
+                },
             },
-        ],
-        AUDIT_TABLE,
-        {
-            organizationId: existing.organizationId,
-            actorUserId: actor.userId,
-            action: "stand.submitted",
-            resourceType: "stand",
-            resourceId: standId,
-            requestId: event.requestId,
-            metadata: { eventId: existing.eventId },
-        },
-    );
+        );
+    } catch (error) {
+        if (isConditionalConflict(error)) {
+            return respond(
+                409,
+                {
+                    error: "CONCURRENT_UPDATE",
+                    expectedRevision: precondition.revision,
+                    reloadRequired: true,
+                },
+                event,
+            );
+        }
+        throw error;
+    }
     return respond(
         200,
         {
@@ -356,10 +438,12 @@ async function submitStand(event, actor, standId) {
                 submittedAt: now,
                 updatedAt: now,
                 updated_at: now,
+                revision: newRevision,
                 moderationNote: undefined,
             }),
         },
         event,
+        revisionHeaders(newRevision),
     );
 }
 

@@ -6,13 +6,7 @@
 
 const { withObservability } = require("../common/observability");
 const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
-const {
-    DynamoDBDocumentClient,
-    GetCommand,
-    PutCommand,
-    UpdateCommand,
-    DeleteCommand,
-} = require("@aws-sdk/lib-dynamodb");
+const { DynamoDBDocumentClient, GetCommand } = require("@aws-sdk/lib-dynamodb");
 const dynamoClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
 const STANDS_TABLE = process.env.STANDS_TABLE || "ai-pavilion-stands";
@@ -27,7 +21,6 @@ const {
     CognitoIdentityProviderClient,
     ListUsersCommand,
 } = require("@aws-sdk/client-cognito-identity-provider");
-const { randomUUID } = require("crypto");
 
 const cognito = new CognitoIdentityProviderClient({});
 
@@ -75,14 +68,18 @@ const handler = async (event) => {
         if (path.match(/\/admin\/stands\/[^/]+$/) && method === "GET") {
             return await getStand(event);
         }
-        if (path === "/admin/stands" && method === "POST") {
-            return await createStand(event);
-        }
-        if (path.match(/\/admin\/stands\/[^/]+$/) && method === "PUT") {
-            return await updateStand(event);
-        }
-        if (path.match(/\/admin\/stands\/[^/]+$/) && method === "DELETE") {
-            return await deleteStand(event);
+        if (
+            (path === "/admin/stands" ||
+                path.match(/\/admin\/stands\/[^/]+$/)) &&
+            !["GET", "OPTIONS"].includes(method)
+        ) {
+            return errorResponse(
+                405,
+                "Platform-admin stand mutations are disabled; use tenant-scoped event and exhibitor workflows",
+                event,
+                { Allow: "GET, OPTIONS" },
+                "ADMIN_STAND_MUTATIONS_DISABLED",
+            );
         }
         if (path === "/admin/users" && method === "GET") {
             return await listUsers(event);
@@ -170,16 +167,6 @@ function encodeCursor(value) {
     return value
         ? Buffer.from(JSON.stringify(value), "utf8").toString("base64url")
         : null;
-}
-
-function parseBody(event) {
-    try {
-        return typeof event.body === "string"
-            ? JSON.parse(event.body || "{}")
-            : event.body || {};
-    } catch {
-        return null;
-    }
 }
 
 /**
@@ -300,147 +287,6 @@ async function getStand(event) {
         return successResponse(result.Item, 200, event);
     } catch (error) {
         console.error("Get stand error:", error);
-        throw error;
-    }
-}
-
-/**
- * Create new stand
- */
-async function createStand(event) {
-    const body = parseBody(event);
-    if (!body) {
-        return errorResponse(400, "Invalid JSON body", event);
-    }
-    if (
-        typeof body.name !== "string" ||
-        typeof body.booth_number !== "string" ||
-        !body.name.trim() ||
-        !body.booth_number.trim()
-    ) {
-        return errorResponse(
-            400,
-            "Missing required fields: name, booth_number",
-            event,
-        );
-    }
-
-    const stand = {
-        stand_id: `stand_${randomUUID()}`,
-        name: body.name.trim().slice(0, 160),
-        booth_number: body.booth_number.trim().slice(0, 80),
-        category: body.category || "other",
-        description: body.description || "",
-        image_url: body.image_url || "",
-        is_sponsored: body.is_sponsored || false,
-        ar_enabled: body.ar_enabled || false,
-        tour_enabled: body.tour_enabled || false,
-        status: "approved", // Auto-approve admin-created stands
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-    };
-
-    try {
-        await docClient.send(
-            new PutCommand({
-                TableName: STANDS_TABLE,
-                Item: stand,
-            }),
-        );
-
-        return successResponse(stand, 201, event);
-    } catch (error) {
-        console.error("Create stand error:", error);
-        throw error;
-    }
-}
-
-/**
- * Update existing stand
- */
-async function updateStand(event) {
-    const standId =
-        event.pathParameters?.standId || event.path.split("/").pop();
-    const body = parseBody(event);
-    if (!body) {
-        return errorResponse(400, "Invalid JSON body", event);
-    }
-
-    // Build update expression
-    let updateExpression = "SET updated_at = :updated_at";
-    const expressionAttributeValues = {
-        ":updated_at": new Date().toISOString(),
-    };
-    const expressionAttributeNames = {};
-
-    // Add fields to update
-    const allowedFields = [
-        "name",
-        "description",
-        "image_url",
-        "is_sponsored",
-        "ar_enabled",
-        "tour_enabled",
-        "status",
-        "category",
-    ];
-    allowedFields.forEach((field) => {
-        if (body[field] !== undefined) {
-            updateExpression += `, #${field} = :${field}`;
-            expressionAttributeNames[`#${field}`] = field;
-            expressionAttributeValues[`:${field}`] = body[field];
-        }
-    });
-
-    try {
-        const result = await docClient.send(
-            new UpdateCommand({
-                TableName: STANDS_TABLE,
-                Key: { stand_id: standId },
-                UpdateExpression: updateExpression,
-                ExpressionAttributeNames: expressionAttributeNames,
-                ExpressionAttributeValues: expressionAttributeValues,
-                ReturnValues: "ALL_NEW",
-                ConditionExpression: "attribute_exists(stand_id)",
-            }),
-        );
-
-        return successResponse(result.Attributes, 200, event);
-    } catch (error) {
-        if (error?.name === "ConditionalCheckFailedException") {
-            return errorResponse(404, "Stand not found", event);
-        }
-        console.error("Update stand error:", error);
-        throw error;
-    }
-}
-
-/**
- * Delete stand
- */
-async function deleteStand(event) {
-    const standId =
-        event.pathParameters?.standId || event.path.split("/").pop();
-
-    try {
-        const result = await docClient.send(
-            new DeleteCommand({
-                TableName: STANDS_TABLE,
-                Key: { stand_id: standId },
-                ReturnValues: "ALL_OLD",
-            }),
-        );
-        if (!result.Attributes) {
-            return errorResponse(404, "Stand not found", event);
-        }
-
-        return successResponse(
-            { message: "Stand deleted successfully" },
-            200,
-            event,
-        );
-    } catch (error) {
-        console.error("Delete stand error:", error);
         throw error;
     }
 }
@@ -692,10 +538,20 @@ function successResponse(data, statusCode = 200, event = {}) {
 /**
  * Error response helper — never exposes internal error.message
  */
-function errorResponse(statusCode, message, event = {}) {
+function errorResponse(
+    statusCode,
+    message,
+    event = {},
+    extraHeaders = {},
+    code = null,
+) {
     return {
         statusCode,
-        headers: corsHeaders(event),
-        body: JSON.stringify({ error: message, statusCode }),
+        headers: { ...corsHeaders(event), ...extraHeaders },
+        body: JSON.stringify({
+            error: code || `ADMIN_HTTP_${statusCode}`,
+            message,
+            statusCode,
+        }),
     };
 }

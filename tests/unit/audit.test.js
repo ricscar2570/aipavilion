@@ -79,7 +79,5 @@ test("can construct an audit transaction item without executing it", () => {
         resourceId: "user-a",
     });
     expect(item.Put.TableName).toBe("audit");
-    expect(item.Put.ConditionExpression).toBe(
-        "attribute_not_exists(auditId)",
-    );
+    expect(item.Put.ConditionExpression).toBe("attribute_not_exists(auditId)");
 });

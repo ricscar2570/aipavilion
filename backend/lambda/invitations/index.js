@@ -14,15 +14,13 @@ const { respond, preflight } = require("../common/cors");
 const { withObservability } = require("../common/observability");
 const { parseJsonBody, hasExactShape } = require("../common/validation");
 const { cleanText, slugify } = require("../common/domain");
+const { createDraftStand } = require("../common/stand-domain");
 const {
     identity,
     authorizeOrganization,
     getMembership,
 } = require("../common/tenant");
-const {
-    buildAuditTransactPut,
-    transactWithAudit,
-} = require("../common/audit");
+const { buildAuditTransactPut, transactWithAudit } = require("../common/audit");
 const {
     parseLimit,
     decodeCursor,
@@ -37,6 +35,7 @@ const MEMBERSHIPS_TABLE = process.env.MEMBERSHIPS_TABLE;
 const INVITATIONS_TABLE = process.env.INVITATIONS_TABLE;
 const ENTITLEMENTS_TABLE = process.env.ENTITLEMENTS_TABLE;
 const STANDS_TABLE = process.env.STANDS_TABLE;
+const USERS_TABLE = process.env.USERS_TABLE;
 const AUDIT_TABLE = process.env.AUDIT_TABLE;
 const EVENT_STANDS_INDEX =
     process.env.EVENT_STANDS_INDEX || "event-stands-index";
@@ -68,6 +67,27 @@ async function loadEvent(organizationId, eventId) {
         new GetCommand({ TableName: EVENTS_TABLE, Key: { eventId } }),
     );
     return result.Item?.organizationId === organizationId ? result.Item : null;
+}
+
+async function loadActorProfile(actor) {
+    if (!USERS_TABLE || !actor?.userId) {
+        return null;
+    }
+    const result = await client.send(
+        new GetCommand({
+            TableName: USERS_TABLE,
+            Key: { userId: actor.userId },
+            ConsistentRead: true,
+        }),
+    );
+    const profile = result.Item;
+    const email = String(profile?.email || "")
+        .trim()
+        .toLowerCase();
+    if (!profile || profile.status === "deleted" || !validEmail(email)) {
+        return null;
+    }
+    return { ...profile, email };
 }
 
 async function sendInvitationEmail(invitation, eventItem, organization) {
@@ -478,7 +498,7 @@ async function manageInvitation(
 
 async function acceptInvitation(event, invitationId) {
     const actor = identity(event);
-    if (!actor.userId || !actor.email) {
+    if (!actor.userId) {
         return respond(401, { error: "UNAUTHORIZED" }, event);
     }
     const result = await client.send(
@@ -514,9 +534,14 @@ async function acceptInvitation(event, invitationId) {
     if (new Date(invitation.expiresAt) <= new Date()) {
         return respond(410, { error: "INVITATION_EXPIRED" }, event);
     }
-    if (invitation.email !== actor.email) {
+    const actorProfile = await loadActorProfile(actor);
+    if (!actorProfile) {
+        return respond(409, { error: "IDENTITY_PROFILE_NOT_READY" }, event);
+    }
+    if (String(invitation.email || "").toLowerCase() !== actorProfile.email) {
         return respond(403, { error: "INVITATION_EMAIL_MISMATCH" }, event);
     }
+    const actorEmail = actorProfile.email;
     const [organizationResult, eventItem, existingMembership] =
         await Promise.all([
             client.send(
@@ -544,35 +569,16 @@ async function acceptInvitation(event, invitationId) {
     }
     const now = new Date().toISOString();
     const standId = invitation.standId || `stand_${randomUUID()}`;
-    const stand = {
-        stand_id: standId,
+    const stand = createDraftStand({
+        standId,
         organizationId: invitation.organizationId,
         eventId: invitation.eventId,
         ownerUserId: actor.userId,
-        exhibitorUserId: actor.userId,
         name: invitation.standName,
         slug: invitation.standSlug,
-        description: "",
-        category: "general",
-        status: "draft",
-        moderationStatus: "draft",
         eventStatus: eventItem.status,
-        visibility: "public",
-        publicStatus: "draft",
-        publicationKey: `draft#${now}`,
-        publicContact: {
-            showEmail: false,
-            showPhone: false,
-            showWebsite: false,
-        },
-        products: [],
-        images: [],
-        createdAt: now,
-        updatedAt: now,
-        created_at: now,
-        updated_at: now,
-        schemaVersion: 4,
-    };
+        now,
+    });
     const transactItems = [
         {
             Put: {
@@ -592,7 +598,7 @@ async function acceptInvitation(event, invitationId) {
                 ExpressionAttributeValues: {
                     ":accepted": "accepted",
                     ":pending": "pending",
-                    ":email": actor.email,
+                    ":email": actorEmail,
                     ":userId": actor.userId,
                     ":now": now,
                     ":standId": standId,
@@ -614,6 +620,7 @@ async function acceptInvitation(event, invitationId) {
                     joinedAt: now,
                     updatedAt: now,
                     schemaVersion: 1,
+                    revision: 1,
                 },
                 ConditionExpression:
                     "attribute_not_exists(userId) AND attribute_not_exists(organizationId)",
@@ -629,7 +636,9 @@ async function acceptInvitation(event, invitationId) {
         requestId: event.requestId,
         metadata: { eventId: invitation.eventId, invitationId },
     });
-    if (auditPut) transactItems.push(auditPut);
+    if (auditPut) {
+        transactItems.push(auditPut);
+    }
     try {
         await client.send(
             new TransactWriteCommand({ TransactItems: transactItems }),
@@ -710,3 +719,9 @@ const handler = async (event) => {
 
 exports.handler = withObservability("invitations", handler);
 exports.escapeEmailHtml = escapeEmailHtml;
+
+// AI_PAVILION_INVITE_01_WRAPPER
+const __baseHandler_AI_PAVILION_INVITE_01_WRAPPER = module.exports.handler;
+module.exports.handler = require("./invite-wrapper").wrap(
+    __baseHandler_AI_PAVILION_INVITE_01_WRAPPER,
+);

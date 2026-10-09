@@ -1,4 +1,4 @@
-# AI Pavilion 0.8.5 quick start
+# AI Pavilion 0.8.6-auth.1 quick start
 
 ## 1. Verify the source
 
@@ -9,6 +9,12 @@ node scripts/check-lockfile-portability.js
 npm run ci:install
 npm run verify
 npm audit --audit-level=high
+```
+
+The dependency-free authentication contract can also be checked directly:
+
+```bash
+npm run check:auth
 ```
 
 `package-lock.json` is the reproducibility source. All resolved artifacts must use `https://registry.npmjs.org`; CI checks this before `npm run ci:install`.
@@ -28,7 +34,7 @@ Open `http://127.0.0.1:3000`. Useful routes include:
 - `#/exhibitor`;
 - `#/invitation/<invitation-id>`.
 
-The frontend sends Cognito access tokens to protected APIs. Backend credentials and webhook secrets must never appear in frontend environment files.
+The frontend sends Cognito access tokens to protected APIs. API Gateway requires the route-specific `aipavilion/user`, `aipavilion/tenant` or `aipavilion/platform-admin` scope, while Lambda handlers still enforce membership, role, ownership and entitlement. Backend credentials and webhook secrets must never appear in frontend environment files.
 
 ## 3. Deploy the disposable development stack
 
@@ -118,3 +124,13 @@ npm run pilot:restore-drill
 ```
 
 A green local build is not a substitute for deployed AWS, Stripe, SES, WAF, accessibility or restore evidence.
+
+## Deployed authentication proof
+
+After the canonical fixtures and test identities exist in an AWS stack:
+
+```bash
+npm run test:auth:deployed
+```
+
+This proves the V2.0 pre-token trigger, custom access-token scopes, ID-token rejection, admin-scope enforcement and the continuing server-side membership boundary. The Cognito User Pool must use the `ESSENTIALS` tier configured by the templates.

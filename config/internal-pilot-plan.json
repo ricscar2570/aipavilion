@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "release": "0.9.0-internal-pilot.1",
+  "sourceBaseline": "v0.8.8-4.5g.2",
+  "allowedEnvironments": ["staging", "disposable", "internal-pilot"],
+  "maxEvidenceAgeHours": 168,
+  "machineEvidence": [
+    {
+      "kind": "internal-pilot-preflight",
+      "required": true,
+      "nonDerogable": true
+    },
+    { "kind": "dependency-ci", "required": true, "nonDerogable": true },
+    { "kind": "sam-build", "required": true, "nonDerogable": true },
+    { "kind": "aws-deployment", "required": true, "nonDerogable": true },
+    { "kind": "auth-aws", "required": true, "nonDerogable": true },
+    { "kind": "core-aws-contracts", "required": true, "nonDerogable": true },
+    { "kind": "browser-csp", "required": true, "nonDerogable": true },
+    { "kind": "security-assessment", "required": true, "nonDerogable": true },
+    { "kind": "tenant-escape", "required": true, "nonDerogable": true },
+    { "kind": "failure-injection", "required": true, "nonDerogable": true },
+    { "kind": "stripe-test-mode", "required": true, "nonDerogable": true },
+    { "kind": "ses-delivery", "required": true, "nonDerogable": false },
+    { "kind": "waf-rate-limit", "required": true, "nonDerogable": true },
+    { "kind": "load-profile", "required": true, "nonDerogable": false },
+    { "kind": "restore-rpo-rto", "required": true, "nonDerogable": true }
+  ],
+  "manualApprovals": [
+    { "kind": "wcag-22-aa-approval", "required": true, "nonDerogable": true },
+    {
+      "kind": "privacy-legal-approval",
+      "required": true,
+      "nonDerogable": true
+    },
+    {
+      "kind": "penetration-assessment-approval",
+      "required": true,
+      "nonDerogable": true
+    },
+    {
+      "kind": "incident-rehearsal-approval",
+      "required": true,
+      "nonDerogable": false
+    },
+    {
+      "kind": "rollback-rehearsal-approval",
+      "required": true,
+      "nonDerogable": true
+    },
+    {
+      "kind": "support-rehearsal-approval",
+      "required": true,
+      "nonDerogable": false
+    }
+  ],
+  "orderedExternalSuites": [
+    "security-assessment",
+    "tenant-escape",
+    "failure-injection",
+    "stripe-test-mode",
+    "ses-delivery",
+    "waf-rate-limit",
+    "load-profile",
+    "restore-rpo-rto"
+  ]
+}

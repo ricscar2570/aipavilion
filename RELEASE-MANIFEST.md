@@ -1,9 +1,15 @@
-# Release manifest — AI Pavilion 0.8.5 complete snapshot
+# AI Pavilion release manifest
 
-- Snapshot date: 6 August 2026
-- Files hashed: 213
-- Total bytes excluding manifest files: 1963066
-- Hash algorithm: SHA-256
-- Machine-readable manifest: `RELEASE-MANIFEST.json`
+- Version: `0.9.0-internal-pilot.1`
+- Snapshot date: `2026-08-24`
+- State: promotion harness complete; distributed evidence and approvals pending.
+- Files covered: **313**
+- Bytes covered: **2565332**
 
-The manifest intentionally excludes `RELEASE-MANIFEST.json` and `RELEASE-MANIFEST.md` to avoid recursive hashes.
+The five manifest files are excluded to avoid recursive hashes. Generated dependencies, build output, Git metadata and runtime evidence are not part of the source package.
+
+## Verification
+
+```bash
+sha256sum -c RELEASE-MANIFEST.sha256
+```

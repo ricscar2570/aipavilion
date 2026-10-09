@@ -9,6 +9,7 @@ jest.mock("@aws-sdk/client-dynamodb", () => ({
 
 jest.mock("@aws-sdk/lib-dynamodb", () => ({
     DynamoDBDocumentClient: { from: jest.fn(() => ({ send: mockSend })) },
+    BatchGetCommand: jest.fn((input) => ({ type: "BatchGet", input })),
     GetCommand: jest.fn((input) => ({ type: "Get", input })),
     PutCommand: jest.fn((input) => ({ type: "Put", input })),
     QueryCommand: jest.fn((input) => ({ type: "Query", input })),
@@ -44,6 +45,18 @@ function publicStand(overrides = {}) {
     };
 }
 
+function publicEvent(overrides = {}) {
+    return {
+        eventId: "event-1",
+        status: "published",
+        visibility: "public",
+        publicStatus: "published",
+        publicationState: "published",
+        publishedAt: "2026-01-01T00:00:00.000Z",
+        ...overrides,
+    };
+}
+
 function event(overrides = {}) {
     return {
         httpMethod: "GET",
@@ -64,26 +77,32 @@ beforeEach(() => {
 
 describe("public stand endpoints", () => {
     test("lists only public approved/published stands", async () => {
-        mockSend.mockResolvedValue({
-            Items: [
-                publicStand({
-                    is_sponsored: true,
-                    ownerId: "private-owner",
-                    internalNotes: "private-note",
-                    products: [
-                        {
-                            id: "p1",
-                            name: "Game",
-                            priceInCents: 1000,
-                            wholesaleCost: 100,
-                        },
-                    ],
-                }),
-                publicStand({ stand_id: "s2", status: "published" }),
-                publicStand({ stand_id: "draft", status: "draft" }),
-                publicStand({ stand_id: "private", visibility: "private" }),
-            ],
-        });
+        mockSend
+            .mockResolvedValueOnce({
+                Items: [
+                    publicStand({
+                        is_sponsored: true,
+                        ownerId: "private-owner",
+                        internalNotes: "private-note",
+                        products: [
+                            {
+                                id: "p1",
+                                name: "Game",
+                                priceInCents: 1000,
+                                wholesaleCost: 100,
+                            },
+                        ],
+                    }),
+                    publicStand({ stand_id: "s2", status: "published" }),
+                    publicStand({ stand_id: "draft", status: "draft" }),
+                    publicStand({ stand_id: "private", visibility: "private" }),
+                ],
+            })
+            .mockResolvedValueOnce({
+                Responses: {
+                    "ai-pavilion-events": [publicEvent()],
+                },
+            });
         const response = await getStands(event());
         const body = JSON.parse(response.body);
         expect(body.count).toBe(2);
@@ -97,22 +116,30 @@ describe("public stand endpoints", () => {
     });
 
     test("filters sponsored only after visibility filtering", async () => {
-        mockSend.mockResolvedValue({
-            Items: [
-                publicStand({ is_sponsored: true }),
-                publicStand({
-                    stand_id: "draft",
-                    status: "draft",
-                    is_sponsored: true,
-                }),
-            ],
-        });
+        mockSend
+            .mockResolvedValueOnce({
+                Items: [
+                    publicStand({ is_sponsored: true }),
+                    publicStand({
+                        stand_id: "draft",
+                        status: "draft",
+                        is_sponsored: true,
+                    }),
+                ],
+            })
+            .mockResolvedValueOnce({
+                Responses: {
+                    "ai-pavilion-events": [publicEvent()],
+                },
+            });
         const response = await getStands(event({ path: "/stands/sponsored" }));
         expect(JSON.parse(response.body).count).toBe(1);
     });
 
     test("returns public detail and hides non-public detail as 404", async () => {
-        mockSend.mockResolvedValueOnce({ Item: publicStand() });
+        mockSend
+            .mockResolvedValueOnce({ Item: publicStand() })
+            .mockResolvedValueOnce({ Item: publicEvent() });
         const found = await getStandDetail(
             event({ path: "/stands/s1", pathParameters: { standId: "s1" } }),
         );
@@ -128,16 +155,22 @@ describe("public stand endpoints", () => {
     });
 
     test("search excludes hidden stands", async () => {
-        mockSend.mockResolvedValue({
-            Items: [
-                publicStand({ name: "Strategy Games", tags: ["strategy"] }),
-                publicStand({
-                    stand_id: "draft",
-                    name: "Strategy Draft",
-                    status: "draft",
-                }),
-            ],
-        });
+        mockSend
+            .mockResolvedValueOnce({
+                Items: [
+                    publicStand({ name: "Strategy Games", tags: ["strategy"] }),
+                    publicStand({
+                        stand_id: "draft",
+                        name: "Strategy Draft",
+                        status: "draft",
+                    }),
+                ],
+            })
+            .mockResolvedValueOnce({
+                Responses: {
+                    "ai-pavilion-events": [publicEvent()],
+                },
+            });
         const response = await searchStands(
             event({
                 path: "/stands/search",
@@ -159,6 +192,7 @@ describe("public stand endpoints", () => {
                     publicationKey: "published#2026-01-01T00:00:00.000Z",
                 },
             })
+            .mockResolvedValueOnce({ Responses: { "ai-pavilion-events": [] } })
             .mockResolvedValueOnce({
                 Items: [
                     publicStand({
@@ -174,6 +208,11 @@ describe("public stand endpoints", () => {
                         ],
                     }),
                 ],
+            })
+            .mockResolvedValueOnce({
+                Responses: {
+                    "ai-pavilion-events": [publicEvent()],
+                },
             });
         const response = await searchStands(
             event({
@@ -184,7 +223,7 @@ describe("public stand endpoints", () => {
         const body = JSON.parse(response.body);
         expect(body.stands.map((stand) => stand.stand_id)).toEqual(["s2"]);
         expect(body.scannedCount).toBe(2);
-        expect(mockSend).toHaveBeenCalledTimes(2);
+        expect(mockSend).toHaveBeenCalledTimes(4);
     });
 
     test("handles validation and backend errors safely", async () => {
@@ -258,6 +297,7 @@ describe("interaction tracking", () => {
     test("derives user identity from claims and validates the stand", async () => {
         mockSend
             .mockResolvedValueOnce({ Item: publicStand() })
+            .mockResolvedValueOnce({ Item: publicEvent() })
             .mockResolvedValueOnce({});
         const response = await trackInteraction(
             event({
@@ -267,7 +307,7 @@ describe("interaction tracking", () => {
             }),
         );
         expect(response.statusCode).toBe(201);
-        const stored = mockSend.mock.calls[1][0].input.Item;
+        const stored = mockSend.mock.calls[2][0].input.Item;
         expect(stored.userId).toBe("user-1");
 
         const forged = await trackInteraction(
@@ -285,6 +325,7 @@ describe("interaction tracking", () => {
         duplicate.name = "ConditionalCheckFailedException";
         mockSend
             .mockResolvedValueOnce({ Item: publicStand() })
+            .mockResolvedValueOnce({ Item: publicEvent() })
             .mockRejectedValueOnce(duplicate);
         const response = await trackInteraction(
             event({
@@ -325,6 +366,7 @@ describe("stand contact leads", () => {
     test("creates a canonical lead only for public stands", async () => {
         mockSend
             .mockResolvedValueOnce({ Item: publicStand() })
+            .mockResolvedValueOnce({ Item: publicEvent() })
             .mockResolvedValueOnce({});
         const response = await contactStand(
             event({
@@ -335,7 +377,10 @@ describe("stand contact leads", () => {
             }),
         );
         expect(response.statusCode).toBe(201);
-        expect(mockSend.mock.calls[1][0].input.Item.schemaVersion).toBe(3);
+        expect(mockSend.mock.calls[2][0].input.Item.schemaVersion).toBe(4);
+        expect(
+            mockSend.mock.calls[2][0].input.Item.sourcePseudonym,
+        ).toBeUndefined();
     });
 
     test("requires matching lead idempotency identifiers and an exact schema", async () => {
@@ -385,6 +430,7 @@ describe("stand contact leads", () => {
         duplicate.name = "ConditionalCheckFailedException";
         mockSend
             .mockResolvedValueOnce({ Item: publicStand() })
+            .mockResolvedValueOnce({ Item: publicEvent() })
             .mockRejectedValueOnce(duplicate);
         const response = await contactStand(
             event({

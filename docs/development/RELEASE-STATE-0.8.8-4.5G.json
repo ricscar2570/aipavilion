@@ -1,0 +1,32 @@
+{
+  "release": "0.8.8-4.5g.1",
+  "milestone": "0.8.8 / Sprint 4.5G",
+  "generatedAt": "2026-08-24T17:51:34.466629+00:00",
+  "sourceState": "EVIDENCE_HARNESS_COMPLETE",
+  "localEvidence": {
+    "securityAssessment": "TO_BE_EXECUTED_DURING_FINALIZATION"
+  },
+  "distributedEvidence": {
+    "tenantEscape": "PENDING",
+    "failureInjection": "PENDING",
+    "stripeTestMode": "PENDING",
+    "sesDelivery": "PENDING",
+    "waf": "PENDING",
+    "load": "PENDING",
+    "restoreRpoRto": "PENDING",
+    "penetrationAssessment": "PENDING"
+  },
+  "prerequisite45FMarkers": {
+    "api_error_module": true,
+    "api_error_runtime_hook": true,
+    "session_lifecycle_installed": true,
+    "turnstile_hardening_marker": false,
+    "hmac_ip_marker": false,
+    "publishing_saga_marker": false,
+    "public_event_barrier_marker": true
+  },
+  "authorizations": {
+    "production": false,
+    "customerData": false
+  }
+}

@@ -34,22 +34,29 @@ const accountHandler = read("backend/lambda/user-account/index.js");
 const organizations = read("backend/lambda/organizations/index.js");
 const events = read("backend/lambda/events/index.js");
 
-const versionParts = String(packageJson.version || "").split(".").map(Number);
-if (
-    versionParts.length !== 3 ||
-    versionParts[0] !== 0 ||
-    versionParts[1] !== 8 ||
-    versionParts[2] < 3
-) {
+const versionParts = String(packageJson.version || "")
+    .split("-", 1)[0]
+    .split(".")
+    .map(Number);
+const versionNumber =
+    versionParts.length === 3
+        ? versionParts[0] * 1_000_000 +
+          versionParts[1] * 1_000 +
+          versionParts[2]
+        : -1;
+if (versionNumber < 8_003) {
     errors.push(
-        `Expected package version 0.8.3 or later in the 0.8 line, found ${packageJson.version || "missing"}.`,
+        `Expected package version 0.8.3 or later, found ${packageJson.version || "missing"}.`,
     );
 }
 
 for (const content of [template, pilot]) {
     requireText(content, "MfaConfiguration: OPTIONAL");
     requireText(content, "- SOFTWARE_TOKEN_MFA");
-    requireText(content, "Path: /organizations/{organizationId}/ownership-transfer");
+    requireText(
+        content,
+        "Path: /organizations/{organizationId}/ownership-transfer",
+    );
     requireText(
         content,
         "Path: /organizations/{organizationId}/events/{eventId}/stands/{standId}/assignment",

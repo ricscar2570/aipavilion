@@ -1,5 +1,7 @@
 "use strict";
 
+const { isEventPublic } = require("./publication-state");
+
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{2,119}$/;
 
@@ -35,10 +37,7 @@ function validIsoDate(value) {
 
 function publicEvent(event) {
     if (
-        !event ||
-        event.status !== "published" ||
-        event.visibility !== "public" ||
-        event.publicStatus !== "published" ||
+        !isEventPublic(event) ||
         typeof event.eventId !== "string" ||
         !event.eventId ||
         typeof event.organizationId !== "string" ||

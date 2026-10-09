@@ -75,23 +75,18 @@ async function processRecord(record, requestId) {
         },
     };
     if (event.organizationId) {
-        await transactWithAudit(
-            client,
-            [invitationUpdate],
-            AUDIT_TABLE,
-            {
-                organizationId: event.organizationId,
-                actorUserId: "ses",
-                action: `invitation.email_${status}`,
-                resourceType: "invitation",
-                resourceId: event.invitationId,
-                requestId,
-                metadata: {
-                    messageId: event.messageId,
-                    destination: event.destination,
-                },
+        await transactWithAudit(client, [invitationUpdate], AUDIT_TABLE, {
+            organizationId: event.organizationId,
+            actorUserId: "ses",
+            action: `invitation.email_${status}`,
+            resourceType: "invitation",
+            resourceId: event.invitationId,
+            requestId,
+            metadata: {
+                messageId: event.messageId,
+                destination: event.destination,
             },
-        );
+        });
     } else {
         await client.send(new UpdateCommand(invitationUpdate.Update));
     }

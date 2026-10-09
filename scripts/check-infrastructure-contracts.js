@@ -24,10 +24,7 @@ const sourceResources = new Map(
     ]),
 );
 const pilotResources = new Map(
-    [...pilot.model.resources].map(([name, resource]) => [
-        name,
-        resource.type,
-    ]),
+    [...pilot.model.resources].map(([name, resource]) => [name, resource.type]),
 );
 for (const [name, type] of sourceResources) {
     if (pilotResources.get(name) !== type) {
@@ -64,7 +61,9 @@ if (
 
 if (errors.length) {
     console.error("Infrastructure contract check failed:\n");
-    for (const error of [...new Set(errors)]) console.error(`- ${error}`);
+    for (const error of [...new Set(errors)]) {
+        console.error(`- ${error}`);
+    }
     process.exit(1);
 }
 

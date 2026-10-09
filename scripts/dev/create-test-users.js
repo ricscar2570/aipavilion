@@ -1,5 +1,7 @@
 "use strict";
 
+const { assertSyntheticWriteAllowed } = require("./write-guard");
+
 const crypto = require("crypto");
 const fs = require("fs");
 const {
@@ -18,7 +20,8 @@ const {
 const { readStackOutputs } = require("./stack-outputs");
 
 const outputs = readStackOutputs();
-const usersFile = process.env.TEST_USERS_FILE || ".artifacts/dev-test-users.json";
+const usersFile =
+    process.env.TEST_USERS_FILE || ".artifacts/dev-test-users.json";
 const userEnvironment = process.env.TEST_USER_ENVIRONMENT || "dev";
 const region =
     process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || "eu-west-1";
@@ -96,9 +99,12 @@ async function provision({ email, name, group, password }) {
                 email,
                 displayName: name,
                 role: group || "visitor",
+                status: "active",
                 createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
                 environment: userEnvironment,
-                schemaVersion: 2,
+                schemaVersion: 3,
+                revision: 1,
             },
         }),
     );
@@ -119,6 +125,7 @@ async function addMembership(user, organizationId, role) {
                 joinedAt: now,
                 updatedAt: now,
                 schemaVersion: 1,
+                revision: 1,
             },
         }),
     );
@@ -130,11 +137,13 @@ async function setOrganizationOwner(organizationId, owner) {
             TableName: outputs.OrganizationsTableName,
             Key: { organizationId },
             UpdateExpression:
-                "SET ownerUserId = :owner, ownerEmail = :email, updatedAt = :now",
+                "SET ownerUserId = :owner, ownerEmail = :email, updatedAt = :now, revision = if_not_exists(revision, :zero) + :one",
             ExpressionAttributeValues: {
                 ":owner": owner.userId,
                 ":email": owner.email,
                 ":now": new Date().toISOString(),
+                ":zero": 0,
+                ":one": 1,
             },
         }),
     );
@@ -147,10 +156,12 @@ async function assignStands(standIds, exhibitor) {
                 TableName: outputs.StandsTableName,
                 Key: { stand_id: standId },
                 UpdateExpression:
-                    "SET ownerUserId = :userId, exhibitorUserId = :userId, updatedAt = :now, updated_at = :now",
+                    "SET ownerUserId = :userId, exhibitorUserId = :userId, updatedAt = :now, updated_at = :now, revision = if_not_exists(revision, :zero) + :one",
                 ExpressionAttributeValues: {
                     ":userId": exhibitor.userId,
                     ":now": new Date().toISOString(),
+                    ":zero": 0,
+                    ":one": 1,
                 },
             }),
         );
@@ -158,6 +169,7 @@ async function assignStands(standIds, exhibitor) {
 }
 
 async function main() {
+    assertSyntheticWriteAllowed("create-test-users");
     const sharedPassword = process.env.DEV_TEST_PASSWORD || generatedPassword();
     const users = [];
     const visitor = await provision({
@@ -172,25 +184,33 @@ async function main() {
         password: sharedPassword,
     });
     const atlasOrganizer = await provision({
-        email: process.env.DEV_ATLAS_ORGANIZER_EMAIL || "organizer.atlas.dev@example.com",
+        email:
+            process.env.DEV_ATLAS_ORGANIZER_EMAIL ||
+            "organizer.atlas.dev@example.com",
         name: "Atlas Organizer",
         group: "organizer",
         password: sharedPassword,
     });
     const atlasExhibitor = await provision({
-        email: process.env.DEV_ATLAS_EXHIBITOR_EMAIL || "exhibitor.atlas.dev@example.com",
+        email:
+            process.env.DEV_ATLAS_EXHIBITOR_EMAIL ||
+            "exhibitor.atlas.dev@example.com",
         name: "Atlas Exhibitor",
         group: "exhibitor",
         password: sharedPassword,
     });
     const rivalOrganizer = await provision({
-        email: process.env.DEV_RIVAL_ORGANIZER_EMAIL || "organizer.rival.dev@example.com",
+        email:
+            process.env.DEV_RIVAL_ORGANIZER_EMAIL ||
+            "organizer.rival.dev@example.com",
         name: "Rival Organizer",
         group: "organizer",
         password: sharedPassword,
     });
     const rivalExhibitor = await provision({
-        email: process.env.DEV_RIVAL_EXHIBITOR_EMAIL || "exhibitor.rival.dev@example.com",
+        email:
+            process.env.DEV_RIVAL_EXHIBITOR_EMAIL ||
+            "exhibitor.rival.dev@example.com",
         name: "Rival Exhibitor",
         group: "exhibitor",
         password: sharedPassword,
@@ -224,11 +244,9 @@ async function main() {
     await assignStands(["stand_rival_showcase"], rivalExhibitor);
 
     fs.mkdirSync(require("path").dirname(usersFile), { recursive: true });
-    fs.writeFileSync(
-        usersFile,
-        `${JSON.stringify({ users }, null, 2)}\n`,
-        { mode: 0o600 },
-    );
+    fs.writeFileSync(usersFile, `${JSON.stringify({ users }, null, 2)}\n`, {
+        mode: 0o600,
+    });
     console.log(
         `Created ${userEnvironment} visitor, admin, organizer and exhibitor users for two isolated tenants.`,
     );

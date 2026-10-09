@@ -17,6 +17,7 @@ const Stripe = require("stripe");
 const { createHash, randomUUID } = require("crypto");
 const { respond, preflight } = require("../common/cors");
 const { isPublicStand } = require("../common/catalog");
+const { isEventPublic } = require("../common/publication-state");
 const { retryUnprocessedBatchGet } = require("../common/retry");
 const {
     parseJsonBody,
@@ -28,6 +29,7 @@ const dynamo = new DynamoDBClient({});
 const secretsManager = new SecretsManagerClient({});
 const ORDERS_TABLE = process.env.ORDERS_TABLE || "ai-pavilion-orders";
 const STANDS_TABLE = process.env.STANDS_TABLE || "ai-pavilion-stands";
+const EVENTS_TABLE = process.env.EVENTS_TABLE || "ai-pavilion-events";
 const PAYMENT_EVENTS_TABLE =
     process.env.PAYMENT_EVENTS_TABLE || "ai-pavilion-payment-events";
 const CURRENCY = "eur";
@@ -183,11 +185,28 @@ async function resolveCatalogueItems(requestedItems) {
     const stands = (responses[STANDS_TABLE] || []).map((item) =>
         unmarshall(item),
     );
+    const eventIds = [
+        ...new Set(stands.map((stand) => stand.eventId).filter(Boolean)),
+    ];
+    const eventResponses = eventIds.length
+        ? await retryUnprocessedBatchGet(dynamo, BatchGetItemCommand, {
+              [EVENTS_TABLE]: {
+                  Keys: eventIds.map((eventId) => marshall({ eventId })),
+                  ConsistentRead: true,
+              },
+          })
+        : {};
+    const publicEventIds = new Set(
+        (eventResponses[EVENTS_TABLE] || [])
+            .map((item) => unmarshall(item))
+            .filter(isEventPublic)
+            .map((item) => item.eventId),
+    );
     const standsById = new Map(stands.map((stand) => [stand.stand_id, stand]));
 
     return requestedItems.map((requested) => {
         const stand = standsById.get(requested.standId);
-        if (!isPublicStand(stand)) {
+        if (!isPublicStand(stand) || !publicEventIds.has(stand.eventId)) {
             throw Object.assign(new Error("Stand not found"), {
                 code: "CATALOGUE_ITEM_NOT_FOUND",
             });
@@ -198,7 +217,7 @@ async function resolveCatalogueItems(requestedItems) {
                     candidate.product_id ||
                     candidate.id) === requested.productId,
         );
-        if (!product || product.status === "disabled") {
+        if (!product || product.status !== "active") {
             throw Object.assign(new Error("Product not found"), {
                 code: "CATALOGUE_ITEM_NOT_FOUND",
             });
@@ -777,11 +796,9 @@ async function handleWebhook(event) {
         );
         return respond(200, { received: true }, event);
     } catch (error) {
-        await failWebhookEvent(
-            stripeEvent.id,
-            claim.leaseToken,
-            error,
-        ).catch(() => undefined);
+        await failWebhookEvent(stripeEvent.id, claim.leaseToken, error).catch(
+            () => undefined,
+        );
         throw error;
     }
 }

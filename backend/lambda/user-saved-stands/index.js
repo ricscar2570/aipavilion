@@ -4,6 +4,7 @@ const { withObservability } = require("../common/observability");
 const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
 const {
     DynamoDBDocumentClient,
+    BatchGetCommand,
     QueryCommand,
     GetCommand,
     PutCommand,
@@ -11,6 +12,10 @@ const {
 } = require("@aws-sdk/lib-dynamodb");
 const { respond, preflight } = require("../common/cors");
 const { isPublicStand } = require("../common/catalog");
+const {
+    filterStandsByPublicEvent,
+    standEventIsPublic,
+} = require("../common/public-event-barrier");
 const { parseJsonBody, hasExactShape } = require("../common/validation");
 const {
     parseLimit,
@@ -21,6 +26,7 @@ const {
 const docClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const TABLE_NAME = process.env.SAVED_STANDS_TABLE || "ai-pavilion-saved-stands";
 const STANDS_TABLE = process.env.STANDS_TABLE || "ai-pavilion-stands";
+const EVENTS_TABLE = process.env.EVENTS_TABLE || "ai-pavilion-events";
 const SAVED_AT_INDEX = process.env.SAVED_AT_INDEX || "user-saved-at-index";
 
 function getUserId(event) {
@@ -47,14 +53,34 @@ async function listSavedStands(userId, event) {
         }),
     );
 
-    const stands = (result.Items || []).map(
+    const saved = (result.Items || []).map(
         ({ userId: _userId, ...item }) => item,
     );
+    let visible = [];
+    if (saved.length) {
+        const current = await docClient.send(
+            new BatchGetCommand({
+                RequestItems: {
+                    [STANDS_TABLE]: {
+                        Keys: saved.map((item) => ({ stand_id: item.standId })),
+                        ConsistentRead: true,
+                    },
+                },
+            }),
+        );
+        const publicStands = await filterStandsByPublicEvent(
+            docClient,
+            EVENTS_TABLE,
+            (current.Responses?.[STANDS_TABLE] || []).filter(isPublicStand),
+        );
+        const publicIds = new Set(publicStands.map((stand) => stand.stand_id));
+        visible = saved.filter((item) => publicIds.has(item.standId));
+    }
     return respond(
         200,
         {
-            stands,
-            count: stands.length,
+            stands: visible,
+            count: visible.length,
             nextCursor: encodeCursor(result.LastEvaluatedKey),
         },
         event,
@@ -92,7 +118,10 @@ async function saveStand(userId, body, event) {
             Key: { stand_id: standId },
         }),
     );
-    if (!isPublicStand(standResult.Item)) {
+    if (
+        !isPublicStand(standResult.Item) ||
+        !(await standEventIsPublic(docClient, EVENTS_TABLE, standResult.Item))
+    ) {
         return respond(404, { error: "STAND_NOT_FOUND" }, event);
     }
 

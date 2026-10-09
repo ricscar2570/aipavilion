@@ -9,6 +9,7 @@ const {
 } = require("@aws-sdk/lib-dynamodb");
 const { respond, preflight } = require("../common/cors");
 const { isPublicStand } = require("../common/catalog");
+const { standEventIsPublic } = require("../common/public-event-barrier");
 const { createHash } = require("crypto");
 const {
     parseJsonBody,
@@ -20,6 +21,7 @@ const docClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const TABLE_INTERACTIONS =
     process.env.TABLE_INTERACTIONS || "ai-pavilion-interactions";
 const STANDS_TABLE = process.env.STANDS_TABLE || "ai-pavilion-stands";
+const EVENTS_TABLE = process.env.EVENTS_TABLE || "ai-pavilion-events";
 const ALLOWED_INTERACTION_TYPES = new Set([
     "view",
     "click",
@@ -120,7 +122,10 @@ const handler = async (event) => {
                 Key: { stand_id: standId },
             }),
         );
-        if (!isPublicStand(stand.Item)) {
+        if (
+            !isPublicStand(stand.Item) ||
+            !(await standEventIsPublic(docClient, EVENTS_TABLE, stand.Item))
+        ) {
             return respond(404, { error: "STAND_NOT_FOUND" }, event);
         }
 

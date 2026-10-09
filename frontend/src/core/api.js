@@ -87,12 +87,30 @@ class ApiService {
                 } catch {
                     // Non-JSON error responses are represented by status only.
                 }
+                const errorObject =
+                    details?.error && typeof details.error === "object"
+                        ? details.error
+                        : null;
+                const errorCode =
+                    errorObject?.code ||
+                    (typeof details?.error === "string"
+                        ? details.error
+                        : details?.code || null);
                 throw new ApiError(
-                    details?.message || `HTTP ${response.status}`,
+                    errorObject?.message ||
+                        details?.message ||
+                        `HTTP ${response.status}`,
                     response.status,
                     endpoint,
-                    details?.error,
+                    errorCode,
                     details,
+                    {
+                        requestId:
+                            errorObject?.requestId ||
+                            details?.requestId ||
+                            null,
+                        retryable: errorObject?.retryable === true,
+                    },
                 );
             }
             if (response.status === 204) {
@@ -234,13 +252,22 @@ class ApiService {
 }
 
 export class ApiError extends Error {
-    constructor(message, status, endpoint, code = null, details = null) {
+    constructor(
+        message,
+        status,
+        endpoint,
+        code = null,
+        details = null,
+        metadata = {},
+    ) {
         super(message);
         this.name = "ApiError";
         this.status = status;
         this.endpoint = endpoint;
         this.code = code;
         this.details = details;
+        this.requestId = metadata.requestId || null;
+        this.retryable = metadata.retryable === true;
     }
 
     isAuthError() {

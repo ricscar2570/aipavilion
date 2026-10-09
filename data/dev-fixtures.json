@@ -8,7 +8,8 @@
       "ownerUserId": "pending-dev-owner",
       "createdAt": "2026-07-01T08:00:00.000Z",
       "updatedAt": "2026-07-01T08:00:00.000Z",
-      "schemaVersion": 1
+      "schemaVersion": 1,
+      "revision": 1
     },
     {
       "organizationId": "org_rival",
@@ -18,7 +19,8 @@
       "ownerUserId": "pending-rival-owner",
       "createdAt": "2026-07-01T08:10:00.000Z",
       "updatedAt": "2026-07-01T08:10:00.000Z",
-      "schemaVersion": 1
+      "schemaVersion": 1,
+      "revision": 1
     }
   ],
   "events": [
@@ -37,7 +39,8 @@
       "publishedAt": "2026-07-01T08:30:00.000Z",
       "createdAt": "2026-07-01T08:00:00.000Z",
       "updatedAt": "2026-07-01T08:30:00.000Z",
-      "schemaVersion": 1
+      "schemaVersion": 1,
+      "revision": 1
     },
     {
       "eventId": "evt_rival_2026",
@@ -54,7 +57,8 @@
       "publishedAt": "2026-07-01T08:40:00.000Z",
       "createdAt": "2026-07-01T08:10:00.000Z",
       "updatedAt": "2026-07-01T08:40:00.000Z",
-      "schemaVersion": 1
+      "schemaVersion": 1,
+      "revision": 1
     }
   ],
   "entitlements": [
@@ -72,7 +76,8 @@
       "validFrom": "2026-07-01T08:00:00.000Z",
       "validUntil": "2027-01-01T00:00:00.000Z",
       "updatedAt": "2026-07-01T08:00:00.000Z",
-      "schemaVersion": 1
+      "schemaVersion": 1,
+      "revision": 1
     },
     {
       "organizationId": "org_rival",
@@ -88,7 +93,8 @@
       "validFrom": "2026-07-01T08:00:00.000Z",
       "validUntil": "2027-01-01T00:00:00.000Z",
       "updatedAt": "2026-07-01T08:00:00.000Z",
-      "schemaVersion": 1
+      "schemaVersion": 1,
+      "revision": 1
     }
   ],
   "stands": [
@@ -100,8 +106,6 @@
       "description": "A curated pavilion for modern board games, previews and designer interviews.",
       "image_url": "https://placehold.co/800x500?text=Boardgames+Atlas",
       "is_sponsored": true,
-      "ar_enabled": false,
-      "tour_enabled": false,
       "rating": 4.8,
       "status": "published",
       "tags": [
@@ -145,7 +149,9 @@
         "showEmail": false,
         "showPhone": false,
         "showWebsite": false
-      }
+      },
+      "revision": 1,
+      "images": []
     },
     {
       "stand_id": "stand_indie_foundry",
@@ -155,8 +161,6 @@
       "description": "Independent tabletop creators presenting playable prototypes and short demos.",
       "image_url": "https://placehold.co/800x500?text=Indie+Foundry",
       "is_sponsored": false,
-      "ar_enabled": false,
-      "tour_enabled": false,
       "rating": 4.6,
       "status": "published",
       "tags": [
@@ -192,7 +196,9 @@
         "showEmail": false,
         "showPhone": false,
         "showWebsite": false
-      }
+      },
+      "revision": 1,
+      "images": []
     },
     {
       "stand_id": "stand_rpg_workshop",
@@ -202,8 +208,6 @@
       "description": "Role-playing game workshops, quickstarts and live design sessions.",
       "image_url": "https://placehold.co/800x500?text=RPG+Workshop",
       "is_sponsored": false,
-      "ar_enabled": false,
-      "tour_enabled": false,
       "rating": 4.7,
       "status": "published",
       "tags": [
@@ -239,7 +243,9 @@
         "showEmail": false,
         "showPhone": false,
         "showWebsite": false
-      }
+      },
+      "revision": 1,
+      "images": []
     },
     {
       "stand_id": "stand_unpublished_preview",
@@ -249,8 +255,6 @@
       "description": "A draft fixture that must never appear in public APIs.",
       "image_url": "https://placehold.co/800x500?text=Hidden+Draft",
       "is_sponsored": false,
-      "ar_enabled": false,
-      "tour_enabled": false,
       "rating": 0,
       "status": "draft",
       "visibility": "public",
@@ -279,7 +283,14 @@
       "createdAt": "2026-07-01T09:15:00.000Z",
       "publicationKey": "draft#2026-07-01T09:15:00.000Z",
       "publicStatus": "draft",
-      "moderationStatus": "draft"
+      "moderationStatus": "draft",
+      "revision": 1,
+      "images": [],
+      "publicContact": {
+        "showEmail": false,
+        "showPhone": false,
+        "showWebsite": false
+      }
     },
     {
       "stand_id": "stand_rival_showcase",
@@ -289,8 +300,6 @@
       "description": "A public stand owned by the second tenant for isolation tests.",
       "image_url": "https://placehold.co/800x500?text=Rival+Showcase",
       "is_sponsored": false,
-      "ar_enabled": false,
-      "tour_enabled": false,
       "rating": 4.4,
       "status": "published",
       "visibility": "public",
@@ -326,7 +335,9 @@
         "showEmail": false,
         "showPhone": false,
         "showWebsite": false
-      }
+      },
+      "revision": 1,
+      "images": []
     }
   ]
 }

@@ -43,7 +43,9 @@ describe("fail-closed public catalog", () => {
     });
 
     test("requires the exact published state", () => {
-        expect(isPublicStand(publishedStand({ status: "approved" }))).toBe(false);
+        expect(isPublicStand(publishedStand({ status: "approved" }))).toBe(
+            false,
+        );
         expect(isPublicStand(publishedStand())).toBe(true);
     });
 
@@ -62,7 +64,9 @@ describe("fail-closed public catalog", () => {
                 },
             }),
         );
-        expect(publicWebsite.contact).toEqual({ website: "https://example.com" });
+        expect(publicWebsite.contact).toEqual({
+            website: "https://example.com",
+        });
     });
 
     test("does not publish hidden products and searches visible product text", () => {
@@ -81,6 +85,7 @@ describe("fail-closed public events", () => {
         status: "published",
         visibility: "public",
         publicStatus: "published",
+        publicationState: "published",
         publishedAt: "2026-08-01T00:00:00.000Z",
     };
 

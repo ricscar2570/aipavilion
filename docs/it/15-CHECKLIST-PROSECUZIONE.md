@@ -6,6 +6,8 @@
 - verificare Node e npm;
 - eseguire `npm run ci:install`;
 - eseguire `npm run verify`;
+- verificare `npm run check:auth`;
+- verificare `npm run check:legacy`;
 - eseguire `npm audit --audit-level=high`;
 - non modificare manualmente i template pilot generati;
 - aggiornare OpenAPI e SAM insieme;
@@ -14,6 +16,7 @@
 ## Prima di distribuire dev
 
 - account AWS isolato;
+- chiudere il gate `npm run test:auth:deployed` sulla build esatta;
 - ruolo OIDC o credenziali temporanee;
 - nome stack valido;
 - dati sintetici;
@@ -32,6 +35,8 @@
 
 ## Prima del pilot
 
+- AUTH-01 dimostrato su AWS;
+- Core Correctness source-complete e relative prove AWS approvate;
 - prove staging ripetute;
 - zero P0/P1;
 - accessibility review;

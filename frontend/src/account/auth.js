@@ -75,18 +75,29 @@ class AuthService {
         for (const [key, name] of Object.entries(mapping)) {
             if (attributes[key]) {
                 attrList.push(
-                    new CognitoUserAttribute({ Name: name, Value: attributes[key] }),
+                    new CognitoUserAttribute({
+                        Name: name,
+                        Value: attributes[key],
+                    }),
                 );
             }
         }
         return new Promise((resolve, reject) => {
-            this._pool.signUp(email, password, attrList, null, (err, result) => {
-                if (err) return reject(err);
-                resolve({
-                    userSub: result.userSub,
-                    userConfirmed: result.userConfirmed,
-                });
-            });
+            this._pool.signUp(
+                email,
+                password,
+                attrList,
+                null,
+                (err, result) => {
+                    if (err) {
+                        return reject(err);
+                    }
+                    resolve({
+                        userSub: result.userSub,
+                        userConfirmed: result.userConfirmed,
+                    });
+                },
+            );
         });
     }
 
@@ -115,7 +126,13 @@ class AuthService {
         return new Promise((resolve, reject) => {
             const callbacks = {
                 onSuccess: (session) =>
-                    resolve(this._completeAuthentication(cognitoUser, session, email)),
+                    resolve(
+                        this._completeAuthentication(
+                            cognitoUser,
+                            session,
+                            email,
+                        ),
+                    ),
                 onFailure: reject,
                 newPasswordRequired: (userAttributes, requiredAttributes) => {
                     this._pendingChallenge = {
@@ -167,7 +184,9 @@ class AuthService {
     completeNewPassword(newPassword, attributes = {}) {
         const pending = this._pendingChallenge;
         if (pending?.type !== "NEW_PASSWORD_REQUIRED") {
-            return Promise.reject(new Error("No new-password challenge is active"));
+            return Promise.reject(
+                new Error("No new-password challenge is active"),
+            );
         }
         const cleanAttributes = { ...attributes };
         delete cleanAttributes.email_verified;
@@ -248,14 +267,22 @@ class AuthService {
     }
 
     getCurrentUser() {
-        if (!this._pool) return Promise.resolve(null);
+        if (!this._pool) {
+            return Promise.resolve(null);
+        }
         const cognitoUser = this._pool.getCurrentUser();
-        if (!cognitoUser) return Promise.resolve(null);
+        if (!cognitoUser) {
+            return Promise.resolve(null);
+        }
         return new Promise((resolve) => {
             cognitoUser.getSession((err, session) => {
-                if (err || !session?.isValid()) return resolve(null);
+                if (err || !session?.isValid()) {
+                    return resolve(null);
+                }
                 cognitoUser.getUserAttributes((attrErr, attrs) => {
-                    if (attrErr) return resolve(null);
+                    if (attrErr) {
+                        return resolve(null);
+                    }
                     const attributes = {};
                     (attrs || []).forEach((item) => {
                         attributes[item.getName()] = item.getValue();
@@ -273,7 +300,9 @@ class AuthService {
     }
 
     signOut({ global = false } = {}) {
-        if (!this._pool) return Promise.resolve();
+        if (!this._pool) {
+            return Promise.resolve();
+        }
         const cognitoUser = this._pool.getCurrentUser();
         return new Promise((resolve) => {
             const cleanup = () => {
@@ -284,9 +313,14 @@ class AuthService {
                 this._notify(EVENT_TYPES.USER_LOGGED_OUT, null);
                 resolve();
             };
-            if (!cognitoUser) return cleanup();
+            if (!cognitoUser) {
+                return cleanup();
+            }
             if (global && typeof cognitoUser.globalSignOut === "function") {
-                cognitoUser.globalSignOut({ onSuccess: cleanup, onFailure: cleanup });
+                cognitoUser.globalSignOut({
+                    onSuccess: cleanup,
+                    onFailure: cleanup,
+                });
             } else {
                 cognitoUser.signOut(cleanup);
             }
@@ -301,7 +335,9 @@ class AuthService {
             this._cognitoUser.refreshSession(
                 this._session.getRefreshToken(),
                 (err, session) => {
-                    if (err) return reject(err);
+                    if (err) {
+                        return reject(err);
+                    }
                     this._session = session;
                     this._persistSession(
                         session,
@@ -338,8 +374,10 @@ class AuthService {
             return Promise.reject(new Error("Not authenticated"));
         }
         return new Promise((resolve, reject) => {
-            this._cognitoUser.changePassword(oldPassword, newPassword, (err, res) =>
-                err ? reject(err) : resolve(res),
+            this._cognitoUser.changePassword(
+                oldPassword,
+                newPassword,
+                (err, res) => (err ? reject(err) : resolve(res)),
             );
         });
     }
@@ -366,7 +404,8 @@ class AuthService {
                     this._cognitoUser.setUserMfaPreference(
                         null,
                         { Enabled: true, PreferredMfa: true },
-                        (error, result) => (error ? reject(error) : resolve(result)),
+                        (error, result) =>
+                            error ? reject(error) : resolve(result),
                     );
                 },
                 onFailure: reject,
@@ -411,7 +450,9 @@ class AuthService {
 
     async getAccessToken() {
         const user = await this.getCurrentUser();
-        return user ? this._session?.getAccessToken()?.getJwtToken() || null : null;
+        return user
+            ? this._session?.getAccessToken()?.getJwtToken() || null
+            : null;
     }
 
     async isAuthenticated() {
@@ -421,7 +462,9 @@ class AuthService {
     subscribe(callback) {
         this._listeners.push(callback);
         return () => {
-            this._listeners = this._listeners.filter((item) => item !== callback);
+            this._listeners = this._listeners.filter(
+                (item) => item !== callback,
+            );
         };
     }
 
@@ -436,11 +479,15 @@ class AuthService {
     }
 
     _persistSession(_session, email) {
-        if (email) localStorage.setItem(STORAGE_KEYS.USER_EMAIL, email);
+        if (email) {
+            localStorage.setItem(STORAGE_KEYS.USER_EMAIL, email);
+        }
     }
 
     _clearSession() {
-        Object.values(STORAGE_KEYS).forEach((key) => localStorage.removeItem(key));
+        Object.values(STORAGE_KEYS).forEach((key) =>
+            localStorage.removeItem(key),
+        );
     }
 }
 

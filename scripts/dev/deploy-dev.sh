@@ -52,12 +52,13 @@ aws cloudformation describe-stacks \
 
 AWS_REGION="$AWS_REGION" ALLOWED_ORIGIN="$ALLOWED_ORIGIN" node scripts/dev/write-dev-env.js
 node scripts/validate-config.js --env .env.development.local
-AWS_REGION="$AWS_REGION" node scripts/dev/seed-dev.js
-AWS_REGION="$AWS_REGION" node scripts/dev/create-test-users.js
+ALLOW_SYNTHETIC_FIXTURES=true TEST_USER_ENVIRONMENT=dev AWS_REGION="$AWS_REGION" node scripts/dev/seed-dev.js
+ALLOW_SYNTHETIC_FIXTURES=true TEST_USER_ENVIRONMENT=dev AWS_REGION="$AWS_REGION" node scripts/dev/create-test-users.js
 
 RUN_DEPLOYED_INTEGRATION=1 AWS_REGION="$AWS_REGION" \
     npm run test:integration
-AWS_REGION="$AWS_REGION" npm run test:smoke:deployed
+AWS_REGION="$AWS_REGION" npm run test:auth:deployed
+ALLOW_SYNTHETIC_FIXTURES=true TEST_USER_ENVIRONMENT=dev AWS_REGION="$AWS_REGION" npm run test:smoke:deployed
 
 cat <<MESSAGE
 

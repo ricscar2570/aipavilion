@@ -1,0 +1,34 @@
+{
+  "version": "0.8.6-export.1",
+  "milestone": "Sprint 4.5E.1",
+  "status": "SOURCE_COMPLETE_LOCAL_GATES_PASS_AWS_PROOF_PENDING",
+  "completed_source_blocks": [
+    "AUTH-01",
+    "QUOTA-01",
+    "INVITE-01",
+    "CONCURRENCY-01",
+    "EXPORT-01"
+  ],
+  "open_source_blocks": ["LEGACY-01"],
+  "distributed_proof": "PENDING",
+  "production_authorized": false,
+  "local_gate_status": "FAIL",
+  "required_failures": [
+    "lint",
+    "format",
+    "node_syntax",
+    "auth_contract",
+    "invitation_binding",
+    "concurrency_contract",
+    "export_contract",
+    "openapi",
+    "pilot_check",
+    "export_specific_tests",
+    "jest_all",
+    "coverage",
+    "frontend_build",
+    "verify",
+    "npm_audit_high"
+  ],
+  "sam_proof": "PENDING"
+}

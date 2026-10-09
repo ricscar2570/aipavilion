@@ -92,7 +92,9 @@ test("reconciles a stale pending order from Stripe", async () => {
     mockIntentRetrieve.mockResolvedValue({ id: "pi-1", status: "succeeded" });
     const result = await privateApi.reconcileOrders();
     expect(result).toEqual({ checked: 1, updated: 1, failed: 0 });
-    expect(mockSend.mock.calls[1][0].input.ExpressionAttributeValues).toMatchObject({
+    expect(
+        mockSend.mock.calls[1][0].input.ExpressionAttributeValues,
+    ).toMatchObject({
         ":target": "paid",
         ":current": "pending",
     });
@@ -112,7 +114,9 @@ test("marks a stale creating order without an attached intent as failed", async 
         .mockResolvedValueOnce({});
     const result = await privateApi.reconcileOrders();
     expect(result.updated).toBe(1);
-    expect(mockSend.mock.calls[1][0].input.ExpressionAttributeValues).toMatchObject({
+    expect(
+        mockSend.mock.calls[1][0].input.ExpressionAttributeValues,
+    ).toMatchObject({
         ":reason": "PAYMENT_INTENT_NOT_ATTACHED",
     });
     expect(mockIntentRetrieve).not.toHaveBeenCalled();
@@ -137,13 +141,17 @@ test("reconciles entitlement status against the live subscription", async () => 
     });
     const result = await privateApi.reconcileEntitlements();
     expect(result).toEqual({ checked: 1, updated: 1, failed: 0 });
-    expect(mockSend.mock.calls[1][0].input.ExpressionAttributeValues).toMatchObject({
+    expect(
+        mockSend.mock.calls[1][0].input.ExpressionAttributeValues,
+    ).toMatchObject({
         ":status": "past_due",
         ":subscriptionId": "sub-1",
         ":eventId": "reconcile:sub-1",
     });
     expect(
-        mockSend.mock.calls[1][0].input.ExpressionAttributeValues[":eventCreatedAt"],
+        mockSend.mock.calls[1][0].input.ExpressionAttributeValues[
+            ":eventCreatedAt"
+        ],
     ).toEqual(expect.any(Number));
 });
 

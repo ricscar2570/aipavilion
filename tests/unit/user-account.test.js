@@ -50,11 +50,22 @@ function accountEvent(overrides = {}) {
     };
 }
 
-function queryResult(command, { memberships = [], stands = [], saved = [], orders = [] } = {}) {
-    if (command.input.TableName === "memberships") return { Items: memberships };
-    if (command.input.TableName === "stands") return { Items: stands };
-    if (command.input.TableName === "saved-stands") return { Items: saved };
-    if (command.input.TableName === "orders") return { Items: orders };
+function queryResult(
+    command,
+    { memberships = [], stands = [], saved = [], orders = [] } = {},
+) {
+    if (command.input.TableName === "memberships") {
+        return { Items: memberships };
+    }
+    if (command.input.TableName === "stands") {
+        return { Items: stands };
+    }
+    if (command.input.TableName === "saved-stands") {
+        return { Items: saved };
+    }
+    if (command.input.TableName === "orders") {
+        return { Items: orders };
+    }
     return {};
 }
 
@@ -65,8 +76,12 @@ beforeEach(() => {
 
 describe("user account lifecycle", () => {
     test("handles preflight and rejects unsupported methods", async () => {
-        expect((await handler(accountEvent({ httpMethod: "OPTIONS" }))).statusCode).toBe(204);
-        expect((await handler(accountEvent({ httpMethod: "PATCH" }))).statusCode).toBe(405);
+        expect(
+            (await handler(accountEvent({ httpMethod: "OPTIONS" }))).statusCode,
+        ).toBe(204);
+        expect(
+            (await handler(accountEvent({ httpMethod: "PATCH" }))).statusCode,
+        ).toBe(405);
     });
 
     test("requires Cognito identity", async () => {
@@ -160,10 +175,18 @@ describe("user account lifecycle", () => {
 
         const response = await handler(accountEvent());
         expect(response.statusCode).toBe(204);
-        const commandTypes = mockDynamoSend.mock.calls.map((call) => call[0].type);
-        expect(commandTypes.filter((type) => type === "BatchWrite")).toHaveLength(3);
-        expect(commandTypes.filter((type) => type === "Update")).toHaveLength(2);
-        expect(commandTypes.filter((type) => type === "Delete")).toHaveLength(1);
+        const commandTypes = mockDynamoSend.mock.calls.map(
+            (call) => call[0].type,
+        );
+        expect(
+            commandTypes.filter((type) => type === "BatchWrite"),
+        ).toHaveLength(3);
+        expect(commandTypes.filter((type) => type === "Update")).toHaveLength(
+            2,
+        );
+        expect(commandTypes.filter((type) => type === "Delete")).toHaveLength(
+            1,
+        );
         expect(mockCognitoSend).toHaveBeenCalledWith(
             expect.objectContaining({ type: "AdminDeleteUser" }),
         );

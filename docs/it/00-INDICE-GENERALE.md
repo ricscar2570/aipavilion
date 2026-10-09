@@ -17,4 +17,7 @@
 15. [Checklist per proseguire](15-CHECKLIST-PROSECUZIONE.md)
 16. [Verifica dello snapshot](16-VERIFICA-SNAPSHOT.md)
 
+17. [Sprint 4.5E.1 / AUTH-01](17-SPRINT-4.5E.1-AUTH-01.md)
+18. [Core Correctness e LEGACY-01](18-CORE-CORRECTNESS-LEGACY-01.md)
+
 Il documento maestro è disponibile anche nella radice della repository come [`DOCUMENTAZIONE-COMPLETA-IT.md`](../../DOCUMENTAZIONE-COMPLETA-IT.md).

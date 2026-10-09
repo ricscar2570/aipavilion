@@ -53,6 +53,7 @@ trap cleanup_sensitive EXIT
 run_and_log seed node scripts/dev/seed-dev.js
 run_and_log users node scripts/dev/create-test-users.js
 run_and_log dynamodb-integration npm run test:integration -- --silent
+run_and_log auth-contract npm run test:auth:deployed
 run_and_log api-smoke npm run test:smoke:deployed
 run_and_log browser-e2e npm run test:e2e:deployed
 run_and_log synthetic npm run pilot:synthetic

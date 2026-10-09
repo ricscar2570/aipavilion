@@ -1,0 +1,20 @@
+{
+  "name": "pilot-normal",
+  "requests": 100,
+  "concurrency": 5,
+  "endpoints": [
+    {
+      "path": "/events"
+    },
+    {
+      "path": "/stands"
+    },
+    {
+      "path": "/stands/search?q=game"
+    }
+  ],
+  "thresholds": {
+    "maxErrorRate": 0.01,
+    "maxP95Ms": 1500
+  }
+}

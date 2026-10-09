@@ -11,7 +11,9 @@ let changes = 0;
 
 function publicTarballUrl(resolved) {
     const url = new URL(resolved);
-    if (url.hostname === "registry.npmjs.org") return resolved;
+    if (url.hostname === "registry.npmjs.org") {
+        return resolved;
+    }
     const marker = "/api/npm/npm-public/";
     const markerIndex = url.pathname.indexOf(marker);
     if (markerIndex < 0) {

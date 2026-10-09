@@ -1,3 +1,4 @@
+import { installSessionLifecycle } from "./core/session-lifecycle.js";
 import "./styles.css";
 /**
  * AI Pavilion - Application entry point
@@ -303,78 +304,94 @@ class AIPavilion {
             });
     }
 
-
     _showPasswordResetModal(email) {
         document.getElementById("auth-modal-body").innerHTML =
             passwordResetFormHTML(email);
-        document.getElementById("reset-submit").addEventListener("click", async () => {
-            const code = document.getElementById("reset-code").value.trim();
-            const password = document.getElementById("reset-password").value;
-            const confirm = document.getElementById("reset-password-confirm").value;
-            const errorEl = document.getElementById("reset-error");
-            const check = validatePassword(password);
-            if (!code || !check.ok || password !== confirm) {
-                errorEl.textContent = !code
-                    ? "Verification code is required."
-                    : !check.ok
-                      ? check.error
-                      : "Passwords do not match.";
-                errorEl.classList.remove("hidden");
-                return;
-            }
-            try {
-                await authService.confirmPassword(email, code, password);
-                uiManager.success("Password reset. You can now sign in.");
-                this._showLoginModal("login");
-            } catch (error) {
-                errorEl.textContent = this._friendlyAuthError(error);
-                errorEl.classList.remove("hidden");
-            }
-        });
+        document
+            .getElementById("reset-submit")
+            .addEventListener("click", async () => {
+                const code = document.getElementById("reset-code").value.trim();
+                const password =
+                    document.getElementById("reset-password").value;
+                const confirm = document.getElementById(
+                    "reset-password-confirm",
+                ).value;
+                const errorEl = document.getElementById("reset-error");
+                const check = validatePassword(password);
+                if (!code || !check.ok || password !== confirm) {
+                    errorEl.textContent = !code
+                        ? "Verification code is required."
+                        : !check.ok
+                          ? check.error
+                          : "Passwords do not match.";
+                    errorEl.classList.remove("hidden");
+                    return;
+                }
+                try {
+                    await authService.confirmPassword(email, code, password);
+                    uiManager.success("Password reset. You can now sign in.");
+                    this._showLoginModal("login");
+                } catch (error) {
+                    errorEl.textContent = this._friendlyAuthError(error);
+                    errorEl.classList.remove("hidden");
+                }
+            });
     }
 
     _showMfaModal(type) {
-        document.getElementById("auth-modal-body").innerHTML = mfaFormHTML(type);
-        document.getElementById("mfa-submit").addEventListener("click", async () => {
-            const code = document.getElementById("mfa-code").value.trim();
-            const errorEl = document.getElementById("mfa-error");
-            if (!code) {
-                errorEl.textContent = "Verification code is required.";
-                errorEl.classList.remove("hidden");
-                return;
-            }
-            try {
-                await authService.completeMfa(code);
-            } catch (error) {
-                errorEl.textContent = this._friendlyAuthError(error);
-                errorEl.classList.remove("hidden");
-            }
-        });
+        document.getElementById("auth-modal-body").innerHTML =
+            mfaFormHTML(type);
+        document
+            .getElementById("mfa-submit")
+            .addEventListener("click", async () => {
+                const code = document.getElementById("mfa-code").value.trim();
+                const errorEl = document.getElementById("mfa-error");
+                if (!code) {
+                    errorEl.textContent = "Verification code is required.";
+                    errorEl.classList.remove("hidden");
+                    return;
+                }
+                try {
+                    await authService.completeMfa(code);
+                } catch (error) {
+                    errorEl.textContent = this._friendlyAuthError(error);
+                    errorEl.classList.remove("hidden");
+                }
+            });
     }
 
     _showNewPasswordModal() {
-        document.getElementById("auth-modal-body").innerHTML = newPasswordFormHTML();
-        document.getElementById("new-password-submit").addEventListener("click", async () => {
-            const password = document.getElementById("new-required-password").value;
-            const confirm = document.getElementById("new-required-password-confirm").value;
-            const errorEl = document.getElementById("new-password-error");
-            const check = validatePassword(password);
-            if (!check.ok || password !== confirm) {
-                errorEl.textContent = !check.ok ? check.error : "Passwords do not match.";
-                errorEl.classList.remove("hidden");
-                return;
-            }
-            try {
-                await authService.completeNewPassword(password);
-            } catch (error) {
-                if (error.code === "MFA_REQUIRED") {
-                    this._showMfaModal(error.mfaType);
+        document.getElementById("auth-modal-body").innerHTML =
+            newPasswordFormHTML();
+        document
+            .getElementById("new-password-submit")
+            .addEventListener("click", async () => {
+                const password = document.getElementById(
+                    "new-required-password",
+                ).value;
+                const confirm = document.getElementById(
+                    "new-required-password-confirm",
+                ).value;
+                const errorEl = document.getElementById("new-password-error");
+                const check = validatePassword(password);
+                if (!check.ok || password !== confirm) {
+                    errorEl.textContent = !check.ok
+                        ? check.error
+                        : "Passwords do not match.";
+                    errorEl.classList.remove("hidden");
                     return;
                 }
-                errorEl.textContent = this._friendlyAuthError(error);
-                errorEl.classList.remove("hidden");
-            }
-        });
+                try {
+                    await authService.completeNewPassword(password);
+                } catch (error) {
+                    if (error.code === "MFA_REQUIRED") {
+                        this._showMfaModal(error.mfaType);
+                        return;
+                    }
+                    errorEl.textContent = this._friendlyAuthError(error);
+                    errorEl.classList.remove("hidden");
+                }
+            });
     }
 
     _showUserMenu(anchorEl) {
@@ -757,3 +774,5 @@ class AIPavilion {
 }
 
 new AIPavilion();
+
+installSessionLifecycle();

@@ -23,9 +23,7 @@ function resolveOriginContext(environment = process.env) {
     const appUrl = String(environment.APP_URL || "").trim();
     const allowedOrigin = String(environment.ALLOWED_ORIGIN || "").trim();
     const domainName = String(environment.DOMAIN_NAME || "").trim();
-    const certificateArn = String(
-        environment.ACM_CERTIFICATE_ARN || "",
-    ).trim();
+    const certificateArn = String(environment.ACM_CERTIFICATE_ARN || "").trim();
     const backendStack = String(
         environment.BACKEND_STACK || "ai-pavilion-staging-backend",
     ).trim();
@@ -45,7 +43,9 @@ function resolveOriginContext(environment = process.env) {
     }
 
     let configuredOrigin = "";
-    if (appUrl) configuredOrigin = normalizeOrigin(appUrl, "APP_URL");
+    if (appUrl) {
+        configuredOrigin = normalizeOrigin(appUrl, "APP_URL");
+    }
     if (allowedOrigin) {
         const normalizedAllowed = normalizeOrigin(
             allowedOrigin,
@@ -64,17 +64,14 @@ function resolveOriginContext(environment = process.env) {
             "DOMAIN_NAME",
         );
         if (configuredOrigin && configuredOrigin !== domainOrigin) {
-            throw new Error(
-                "APP_URL/ALLOWED_ORIGIN must match DOMAIN_NAME",
-            );
+            throw new Error("APP_URL/ALLOWED_ORIGIN must match DOMAIN_NAME");
         }
         configuredOrigin = domainOrigin;
     }
 
     return {
         configuredOrigin,
-        bootstrapOrigin:
-            configuredOrigin || `https://${backendStack}.invalid`,
+        bootstrapOrigin: configuredOrigin || `https://${backendStack}.invalid`,
     };
 }
 
@@ -87,6 +84,8 @@ function main() {
     }
 }
 
-if (require.main === module) main();
+if (require.main === module) {
+    main();
+}
 
 module.exports = { normalizeOrigin, resolveOriginContext };

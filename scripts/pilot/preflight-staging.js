@@ -15,12 +15,22 @@ const checks = [];
 
 function addCheck(name, ok, detail = "") {
     checks.push({ name, ok, detail });
-    if (!ok) errors.push(`${name}: ${detail}`);
+    if (!ok) {
+        errors.push(`${name}: ${detail}`);
+    }
 }
 
-function requireEnv(name, predicate = (value) => Boolean(value), message = "missing") {
+function requireEnv(
+    name,
+    predicate = (value) => Boolean(value),
+    message = "missing",
+) {
     const value = String(process.env[name] || "").trim();
-    addCheck(`env:${name}`, predicate(value), predicate(value) ? "configured" : message);
+    addCheck(
+        `env:${name}`,
+        predicate(value),
+        predicate(value) ? "configured" : message,
+    );
     return value;
 }
 
@@ -38,7 +48,9 @@ function runJson(command, args) {
         env: process.env,
     });
     if (result.status !== 0) {
-        throw new Error((result.stderr || result.stdout || "command failed").trim());
+        throw new Error(
+            (result.stderr || result.stdout || "command failed").trim(),
+        );
     }
     return JSON.parse(result.stdout);
 }
@@ -50,7 +62,9 @@ function runText(command, args) {
         env: process.env,
     });
     if (result.status !== 0) {
-        throw new Error((result.stderr || result.stdout || "command failed").trim());
+        throw new Error(
+            (result.stderr || result.stdout || "command failed").trim(),
+        );
     }
     return result.stdout.trim();
 }
@@ -83,7 +97,11 @@ function main() {
         (value) => /^[a-z]{2}-[a-z]+-\d$/.test(value),
         "must look like an AWS region",
     );
-    requireEnv("ALERT_EMAIL", (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value), "invalid email");
+    requireEnv(
+        "ALERT_EMAIL",
+        (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value),
+        "invalid email",
+    );
     const sender = requireEnv(
         "INVITATION_EMAIL_FROM",
         (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value),
@@ -99,7 +117,9 @@ function main() {
         (value) => value.startsWith("whsec_"),
         "must start with whsec_",
     );
-    const productPaymentMode = String(process.env.PRODUCT_PAYMENT_MODE || "disabled").trim();
+    const productPaymentMode = String(
+        process.env.PRODUCT_PAYMENT_MODE || "disabled",
+    ).trim();
     addCheck(
         "env:PRODUCT_PAYMENT_MODE",
         ["disabled", "stripe"].includes(productPaymentMode),
@@ -114,9 +134,21 @@ function main() {
             "required when product checkout is enabled",
         );
     }
-    requireEnv("STRIPE_PILOT_PRICE_ID", (value) => value.startsWith("price_"), "must start with price_");
-    requireEnv("STRIPE_STARTER_PRICE_ID", (value) => value.startsWith("price_"), "must start with price_");
-    requireEnv("STRIPE_PROFESSIONAL_PRICE_ID", (value) => value.startsWith("price_"), "must start with price_");
+    requireEnv(
+        "STRIPE_PILOT_PRICE_ID",
+        (value) => value.startsWith("price_"),
+        "must start with price_",
+    );
+    requireEnv(
+        "STRIPE_STARTER_PRICE_ID",
+        (value) => value.startsWith("price_"),
+        "must start with price_",
+    );
+    requireEnv(
+        "STRIPE_PROFESSIONAL_PRICE_ID",
+        (value) => value.startsWith("price_"),
+        "must start with price_",
+    );
     requireEnv(
         "STRIPE_PUBLISHABLE_KEY",
         (value) => environment !== "staging" || value.startsWith("pk_test_"),
@@ -127,7 +159,11 @@ function main() {
 
     try {
         const origins = resolveOriginContext(process.env);
-        addCheck("origin-context", true, origins.configuredOrigin || "CloudFront bootstrap");
+        addCheck(
+            "origin-context",
+            true,
+            origins.configuredOrigin || "CloudFront bootstrap",
+        );
     } catch (error) {
         addCheck("origin-context", false, error.message);
     }
@@ -136,7 +172,11 @@ function main() {
         ? ["node", "npm", "python3"]
         : ["node", "npm", "aws", "sam", "python3"];
     for (const command of requiredCommands) {
-        addCheck(`command:${command}`, commandExists(command), commandExists(command) ? "available" : "missing");
+        addCheck(
+            `command:${command}`,
+            commandExists(command),
+            commandExists(command) ? "available" : "missing",
+        );
     }
 
     let awsIdentity = null;
@@ -150,7 +190,11 @@ function main() {
                 "--output",
                 "json",
             ]);
-            addCheck("aws-identity", Boolean(awsIdentity.Account && awsIdentity.Arn), awsIdentity.Arn || "invalid identity");
+            addCheck(
+                "aws-identity",
+                Boolean(awsIdentity.Account && awsIdentity.Arn),
+                awsIdentity.Arn || "invalid identity",
+            );
         } catch (error) {
             addCheck("aws-identity", false, error.message);
         }
@@ -207,15 +251,23 @@ function main() {
         accountId: awsIdentity?.Account || "",
         callerArn: awsIdentity?.Arn || "",
         productPaymentMode,
-        stripeMode: stripeSecret.startsWith("sk_test_") ? "test" : stripeSecret ? "live" : "",
+        stripeMode: stripeSecret.startsWith("sk_test_")
+            ? "test"
+            : stripeSecret
+              ? "live"
+              : "",
     });
 
     if (!report.passed) {
         console.error("Staging preflight failed:\n");
-        for (const error of errors) console.error(`- ${error}`);
+        for (const error of errors) {
+            console.error(`- ${error}`);
+        }
         process.exit(2);
     }
-    console.log(`Staging preflight passed (${offline ? "offline" : "external"} mode).`);
+    console.log(
+        `Staging preflight passed (${offline ? "offline" : "external"} mode).`,
+    );
 }
 
 main();

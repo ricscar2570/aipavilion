@@ -85,12 +85,13 @@ for (const route of [
 requireText(template, "IndexName: event-invitations-index");
 requireText(template, "USER_SAVED_INDEX: user-saved-at-index");
 requireText(pilot, "USER_SAVED_INDEX: user-saved-at-index");
-const obsoleteSavedIndex = `USER_SAVED_INDEX: ${[
-    "user",
-    "saved",
-    "index",
-].join("-")}`;
-if (template.includes(obsoleteSavedIndex) || pilot.includes(obsoleteSavedIndex)) {
+const obsoleteSavedIndex = `USER_SAVED_INDEX: ${["user", "saved", "index"].join(
+    "-",
+)}`;
+if (
+    template.includes(obsoleteSavedIndex) ||
+    pilot.includes(obsoleteSavedIndex)
+) {
     errors.push("Data export references an obsolete saved-stands index name.");
 }
 requireText(
@@ -117,7 +118,9 @@ requireText(deployScript, "FINAL_APP_URL");
 requireText(deployScript, 'backend_deploy "$FINAL_APP_URL"');
 requireText(deployScript, "PRODUCT_PAYMENT_MODE");
 if (deployScript.includes("PaymentMode=stripe")) {
-    errors.push("Pilot deployment must not hard-code visitor product checkout.");
+    errors.push(
+        "Pilot deployment must not hard-code visitor product checkout.",
+    );
 }
 const stagingWorkflow = fs.readFileSync(
     path.join(root, ".github", "workflows", "staging.yml"),
@@ -125,13 +128,22 @@ const stagingWorkflow = fs.readFileSync(
 );
 requireText(stagingWorkflow, "npm run pilot:evidence");
 requireText(stagingWorkflow, ".artifacts/evidence/**");
-requireText(stagingWorkflow, "python -m playwright install --with-deps chromium");
+requireText(
+    stagingWorkflow,
+    "python -m playwright install --with-deps chromium",
+);
 const ciWorkflow = fs.readFileSync(
     path.join(root, ".github", "workflows", "ci.yml"),
     "utf8",
 );
-requireText(ciWorkflow, "sam validate --lint --template-file infrastructure/backend-pilot.yaml");
-requireText(ciWorkflow, "sam build --template-file infrastructure/backend-pilot.yaml");
+requireText(
+    ciWorkflow,
+    "sam validate --lint --template-file infrastructure/backend-pilot.yaml",
+);
+requireText(
+    ciWorkflow,
+    "sam build --template-file infrastructure/backend-pilot.yaml",
+);
 const browserRunner = fs.readFileSync(
     path.join(root, "scripts", "dev", "run-browser-e2e.sh"),
     "utf8",

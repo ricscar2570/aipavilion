@@ -1,5 +1,7 @@
 "use strict";
 
+const { assertSyntheticWriteAllowed } = require("./write-guard");
+
 const fs = require("fs");
 const path = require("path");
 const {
@@ -13,6 +15,9 @@ const {
     QueryCommand,
 } = require("@aws-sdk/lib-dynamodb");
 const { readStackOutputs } = require("./stack-outputs");
+const {
+    assertCanonicalStand,
+} = require("../../backend/lambda/common/stand-domain");
 
 const outputs = readStackOutputs();
 const region =
@@ -59,6 +64,7 @@ async function putAll(tableName, items, keyName) {
 }
 
 async function main() {
+    assertSyntheticWriteAllowed("seed-dev");
     await Promise.all([
         assertTable(outputs.StandsTableName, [
             "category-index",
@@ -103,7 +109,10 @@ async function main() {
         fixtures.entitlements,
         "organizationId",
     );
-    await putAll(outputs.StandsTableName, fixtures.stands, "stand_id");
+    const canonicalStands = fixtures.stands.map((stand) =>
+        assertCanonicalStand(stand),
+    );
+    await putAll(outputs.StandsTableName, canonicalStands, "stand_id");
 
     const canonical = fixtures.stands[0];
     const [byId, byCategory, byEvent, publicEvents] = await Promise.all([

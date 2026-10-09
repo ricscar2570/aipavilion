@@ -1,0 +1,39 @@
+{
+  "version": "0.8.6-legacy.1",
+  "milestone": "Sprint 4.5E.1 Core Correctness",
+  "status": "SOURCE_COMPLETE_STATIC_AND_CONTRACT_GATES_PASS_DEPENDENCY_AND_AWS_PROOF_RECORDED_SEPARATELY",
+  "completed_source_blocks": [
+    "AUTH-01",
+    "QUOTA-01",
+    "INVITE-01",
+    "CONCURRENCY-01",
+    "EXPORT-01",
+    "LEGACY-01"
+  ],
+  "open_source_blocks": [],
+  "next_milestone": "0.8.7 / Sprint 4.5F UX Privacy and Accessibility",
+  "production_authorized": false,
+  "customer_data_authorized": false,
+  "canonical_writer_inventory": "config/writer-inventory.json",
+  "platform_admin_stand_mode": "read-only",
+  "distributed_proof": "PENDING",
+  "required_external_evidence": [
+    "public dependency installation and complete Jest/lint/format/build gates for the exact commit",
+    "SAM validate/build and disposable AWS deployment",
+    "live Cognito and API Gateway scope proof",
+    "DynamoDB quota invitation and revision concurrency proof",
+    "live IAM denial of platform-admin stand mutations",
+    "migration and reconciliation evidence on an isolated copy",
+    "tenant-escape and failure-injection assessment",
+    "manual WCAG 2.2 AA review",
+    "privacy/legal approval",
+    "restore drill with measured RPO/RTO",
+    "independent security assessment"
+  ],
+  "local_dependency_free_proof": [
+    "writer inventory",
+    "canonical stand fixtures",
+    "synthetic writer production guard",
+    "runtime admin mutation rejection"
+  ]
+}

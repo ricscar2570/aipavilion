@@ -4,7 +4,7 @@
 
 This runbook operates the persistent AI Pavilion staging environment. Staging is retained, protected and migration-aware. It is not the disposable development stack and must never contain production customer data until the external assurance gates are complete.
 
-Version 0.8.5 retains the first-deployment URL fix, deployed evidence suite and scheduled reconciliation. It also applies the fail-closed public-catalogue migration, opt-in contact projection and a CSP without inline allowances. The wrapper can create CloudFront without a pre-existing `APP_URL`, discover the final site origin, reapply backend CORS/Cognito configuration and then test the actual deployed application.
+Version 0.8.6-auth.1 retains the first-deployment URL fix, deployed evidence suite and scheduled reconciliation. It also applies the fail-closed public-catalogue migration, opt-in contact projection, a CSP without inline allowances and the AUTH-01 scoped Cognito access-token contract. The wrapper can create CloudFront without a pre-existing `APP_URL`, discover the final site origin, reapply backend CORS/Cognito configuration and then test the actual deployed application.
 
 ## Stacks
 
@@ -91,13 +91,14 @@ From a clean clone:
 ```bash
 node scripts/check-lockfile-portability.js
 node scripts/check-infrastructure-contracts.js
+npm run check:auth
 npm run ci:install
 npm run verify
 npm run pilot:check
 npm run pilot:preflight
 ```
 
-The first check rejects private registry hosts, embedded registry credentials and package/lock dependency drift. The infrastructure check validates every Lambda handler, DynamoDB table environment reference, policy table reference, index name and table output in both development and pilot templates.
+The first check rejects private registry hosts, embedded registry credentials and package/lock dependency drift. `npm run check:auth` validates source/SAM/OpenAPI scope parity before deployment. The staging evidence wrapper later runs `npm run test:auth:deployed` against Cognito and API Gateway. The infrastructure check validates every Lambda handler, DynamoDB table environment reference, policy table reference, index name and table output in both development and pilot templates.
 
 ## Deployment
 

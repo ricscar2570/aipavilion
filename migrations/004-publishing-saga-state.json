@@ -1,0 +1,10 @@
+{
+  "id": "004-publishing-saga-state",
+  "version": "0.8.8-4.5g.2",
+  "description": "Backfill explicit fail-closed publication saga states and hide ambiguous legacy events.",
+  "dryRunCommand": "npm run pilot:migrate:plan",
+  "applyCommand": "npm run pilot:migrate",
+  "verifyCommand": "npm run pilot:migrate:verify",
+  "requiresMaintenanceWindow": true,
+  "rollback": "Restore the pre-migration DynamoDB recovery point; no permissive in-place rollback is provided."
+}

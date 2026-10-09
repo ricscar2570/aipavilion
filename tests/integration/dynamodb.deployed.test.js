@@ -216,6 +216,7 @@ describeIntegration(
                 status: "published",
                 visibility: "public",
                 publicStatus: "published",
+                publicationState: "published",
                 publishedAt: now,
                 startsAt,
                 endsAt: new Date(Date.now() + 172800000).toISOString(),

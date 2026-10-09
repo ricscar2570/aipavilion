@@ -13,7 +13,9 @@ const requireFile = (relative) => {
     }
 };
 const requireText = (text, needle, label = needle) => {
-    if (!text.includes(needle)) errors.push(`Missing 4.5E contract: ${label}`);
+    if (!text.includes(needle)) {
+        errors.push(`Missing 4.5E contract: ${label}`);
+    }
 };
 
 for (const file of [
@@ -40,7 +42,9 @@ const frontendFiles = [
     "frontend/src/stands/search.js",
     "frontend/src/tenant/portal-templates.js",
     "frontend/src/ui/ui.js",
-].map(read).join("\n");
+]
+    .map(read)
+    .join("\n");
 
 for (const condition of [
     'stand.status === "published"',
@@ -53,16 +57,19 @@ for (const condition of [
     requireText(catalog, condition);
 }
 requireText(catalog, "publicContact(stand)");
-requireText(catalog, "product.status === \"hidden\"");
-requireText(domain, 'event.publicStatus !== "published"');
-requireText(domain, "!event.publishedAt");
+requireText(catalog, 'product.status === "hidden"');
+requireText(domain, "isEventPublic(event)");
+requireText(domain, 'const { isEventPublic } = require("./publication-state")');
 requireText(search, "while (matches.length < limit)");
 requireText(search, "searchableText(item)");
 requireText(search, "scannedCount");
 requireText(exhibitor, "validPublicContact");
 requireText(exhibitor, 'moderationStatus = "draft"');
 requireText(events, "synchronizeEventStandPublication");
-requireText(events, 'moderationStatus = status === "published" ? "approved" : "rejected"');
+requireText(
+    events,
+    'moderationStatus = status === "published" ? "approved" : "rejected"',
+);
 
 for (const forbidden of [
     "coming soon",
@@ -76,7 +83,9 @@ for (const forbidden of [
     ".style.",
 ]) {
     if (frontendFiles.includes(forbidden)) {
-        errors.push(`Frontend still contains incomplete or CSP-unsafe pattern: ${forbidden}`);
+        errors.push(
+            `Frontend still contains incomplete or CSP-unsafe pattern: ${forbidden}`,
+        );
     }
 }
 if (frontendPolicy.includes("'unsafe-inline'")) {
@@ -86,15 +95,18 @@ if (frontendPolicy.includes("'unsafe-inline'")) {
 const fixture = JSON.parse(read("data/dev-fixtures.json"));
 for (const stand of fixture.stands || []) {
     if (stand.status === "published" && stand.moderationStatus !== "approved") {
-        errors.push(`Published fixture ${stand.stand_id} lacks approved moderation status.`);
+        errors.push(
+            `Published fixture ${stand.stand_id} lacks approved moderation status.`,
+        );
     }
 }
 
-const { isPublicStand, toPublicStand, searchableText } = require(path.join(
-    root,
-    "backend/lambda/common/catalog.js",
-));
-const { publicEvent } = require(path.join(root, "backend/lambda/common/domain.js"));
+const { isPublicStand, toPublicStand, searchableText } = require(
+    path.join(root, "backend/lambda/common/catalog.js"),
+);
+const { publicEvent } = require(
+    path.join(root, "backend/lambda/common/domain.js"),
+);
 const publicStandFixture = {
     stand_id: "stand-check",
     eventId: "event-check",
@@ -125,7 +137,9 @@ for (const field of [
     const incomplete = { ...publicStandFixture };
     delete incomplete[field];
     if (isPublicStand(incomplete)) {
-        errors.push(`Public stand eligibility does not fail closed when ${field} is missing.`);
+        errors.push(
+            `Public stand eligibility does not fail closed when ${field} is missing.`,
+        );
     }
 }
 const privateProjection = toPublicStand(publicStandFixture);
@@ -146,7 +160,9 @@ if (
     optedInProjection?.contact?.email !== "private@example.test" ||
     optedInProjection?.contact?.website !== "https://example.test"
 ) {
-    errors.push("Explicit public contact consent is not reflected in the projection.");
+    errors.push(
+        "Explicit public contact consent is not reflected in the projection.",
+    );
 }
 if (
     publicEvent({
@@ -162,14 +178,19 @@ if (
 }
 
 const openapi = JSON.parse(read("docs/api/openapi.json"));
-const update = openapi.components?.schemas?.StandUpdateRequest?.properties || {};
+const update =
+    openapi.components?.schemas?.StandUpdateRequest?.properties || {};
 for (const field of ["contactPhone", "publicContact"]) {
-    if (!update[field]) errors.push(`OpenAPI StandUpdateRequest lacks ${field}.`);
+    if (!update[field]) {
+        errors.push(`OpenAPI StandUpdateRequest lacks ${field}.`);
+    }
 }
 
 if (errors.length) {
     console.error("Sprint 4.5E asset check failed:\n");
-    for (const error of errors) console.error(`- ${error}`);
+    for (const error of errors) {
+        console.error(`- ${error}`);
+    }
     process.exit(1);
 }
 

@@ -242,7 +242,6 @@ describe("templates — loginFormHTML", () => {
     });
 });
 
-
 describe("templates — authentication challenges", () => {
     test("renders reset, MFA and temporary-password forms", () => {
         expect(passwordResetFormHTML("a@example.com")).toMatch(/reset-submit/);
@@ -276,8 +275,12 @@ describe("templates — cartHTML", () => {
 
 describe("templates — shellHTML", () => {
     test("hides the cart entry when visitor payments are disabled", () => {
-        expect(shellHTML({ paymentsEnabled: false })).not.toMatch(/aria-label="Cart"/);
-        expect(shellHTML({ paymentsEnabled: true })).toMatch(/aria-label="Cart"/);
+        expect(shellHTML({ paymentsEnabled: false })).not.toMatch(
+            /aria-label="Cart"/,
+        );
+        expect(shellHTML({ paymentsEnabled: true })).toMatch(
+            /aria-label="Cart"/,
+        );
     });
 });
 

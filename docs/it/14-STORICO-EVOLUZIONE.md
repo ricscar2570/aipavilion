@@ -44,6 +44,18 @@ Audit transazionale, lease webhook, watermark temporali, riconciliazione Stripe,
 
 Catalogo fail-closed, contatti opt-in, ricerca paginata corretta, prodotti nascosti esclusi, CSP senza inline e rimozione delle funzioni incompiute.
 
+## Sprint 4.5E.1 / AUTH-01 — 0.8.6-auth.1
+
+Contratto Cognito con access token e scope custom, trigger Pre Token Generation V2.0, 46 rotte protette con scope esplicito, separazione tra scope e autorizzazione tenant, identità inviti risolta dal profilo server-side e prova AWS dedicata. La consegna è una prerelease: QUOTA-01 e gli altri blocchi di Core Correctness restano aperti.
+
+## Core Correctness — 0.8.6-invite.1 / 0.8.6-export.1
+
+Sono stati implementati i protocolli atomici delle quote e degli inviti, le revisioni monotone e gli export completi/sicuri. Le prerelease hanno mantenuto separato lo stato source-complete dalle prove AWS ancora aperte.
+
+## LEGACY-01 — 0.8.6-legacy.1
+
+È stato censito ogni writer mutante, eliminato il writer globale degli stand, resa read-only la relativa superficie admin, introdotto il dominio canonico degli stand e protetti i writer sintetici/migrazione. La revisione ha corretto anche regressioni ereditate nei writer di eventi e stand prima del consolidamento.
+
 ## Snapshot completo
 
-La presente consegna non introduce nuove funzioni. Riunisce codice, storico e documentazione per fornire una base unica da cui eseguire 4.5F, 4.5G e il pilot.
+La presente consegna chiude a livello sorgente AUTH-01, QUOTA-01, INVITE-01, CONCURRENCY-01, EXPORT-01 e LEGACY-01. La fase successiva è 0.8.7 / 4.5F; le prove distribuite AWS, sicurezza, privacy, WCAG e restore restano obbligatorie prima del pilot.

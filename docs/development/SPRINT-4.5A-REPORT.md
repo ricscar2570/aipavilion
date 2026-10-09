@@ -24,21 +24,21 @@ Remove the first blockers identified by the 0.8.0 re-evaluation before adding pr
 
 - Added a zero-dependency CloudFormation contract parser for the canonical and pilot backend templates.
 - It verifies:
-  - Lambda `CodeUri`, handler files and esbuild entry points;
-  - every environment table reference points to a declared DynamoDB table;
-  - every referenced table has a matching DynamoDB policy;
-  - every index environment value exists and belongs to a table used by the function;
-  - table outputs reference real DynamoDB resources;
-  - development and pilot resource sets remain aligned.
+    - Lambda `CodeUri`, handler files and esbuild entry points;
+    - every environment table reference points to a declared DynamoDB table;
+    - every referenced table has a matching DynamoDB policy;
+    - every index environment value exists and belongs to a table used by the function;
+    - table outputs reference real DynamoDB resources;
+    - development and pilot resource sets remain aligned.
 - Added a built-in regression fixture proving that an undeclared index is rejected.
 
 ### First-deployment staging flow
 
 - Removed the requirement to know the generated CloudFront URL before the first backend deployment.
 - Added a two-pass deployment path:
-  - backend bootstrap;
-  - frontend creation and `SiteUrl` discovery;
-  - backend finalization with exact CORS and Cognito callback origin.
+    - backend bootstrap;
+    - frontend creation and `SiteUrl` discovery;
+    - backend finalization with exact CORS and Cognito callback origin.
 - Added strict HTTPS-origin validation and custom-domain/certificate consistency checks.
 - Added a permission-restricted, non-secret deployment context artifact.
 

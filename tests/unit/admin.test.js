@@ -183,87 +183,33 @@ describe("admin Lambda", () => {
         expect(missing.statusCode).toBe(404);
     });
 
-    test("validates and creates a stand", async () => {
-        const malformed = await handler(
-            adminEvent({
-                httpMethod: "POST",
-                path: "/admin/stands",
-                body: "{",
-            }),
-        );
-        expect(malformed.statusCode).toBe(400);
-
-        const incomplete = await handler(
-            adminEvent({
+    test("keeps the platform-admin stand surface read-only", async () => {
+        for (const request of [
+            {
                 httpMethod: "POST",
                 path: "/admin/stands",
                 body: JSON.stringify({ name: "Alpha" }),
-            }),
-        );
-        expect(incomplete.statusCode).toBe(400);
-
-        mockDynamoSend.mockResolvedValue({});
-        const created = await handler(
-            adminEvent({
-                httpMethod: "POST",
-                path: "/admin/stands",
-                body: JSON.stringify({ name: " Alpha ", booth_number: " A1 " }),
-            }),
-        );
-        const body = JSON.parse(created.body);
-        expect(created.statusCode).toBe(201);
-        expect(body.name).toBe("Alpha");
-        expect(body.stand_id).toMatch(/^stand_/);
-    });
-
-    test("updates and deletes only existing stands", async () => {
-        const missingError = new Error("missing");
-        missingError.name = "ConditionalCheckFailedException";
-        mockDynamoSend.mockRejectedValueOnce(missingError);
-        const updateMissing = await handler(
-            adminEvent({
-                httpMethod: "PUT",
-                path: "/admin/stands/missing",
-                pathParameters: { standId: "missing" },
-                body: JSON.stringify({ name: "Updated" }),
-            }),
-        );
-        expect(updateMissing.statusCode).toBe(404);
-
-        mockDynamoSend.mockResolvedValueOnce({
-            Attributes: { stand_id: "s1", name: "Updated" },
-        });
-        const updated = await handler(
-            adminEvent({
+            },
+            {
                 httpMethod: "PUT",
                 path: "/admin/stands/s1",
                 pathParameters: { standId: "s1" },
                 body: JSON.stringify({ name: "Updated" }),
-            }),
-        );
-        expect(updated.statusCode).toBe(200);
-
-        mockDynamoSend.mockResolvedValueOnce({});
-        const deleteMissing = await handler(
-            adminEvent({
-                httpMethod: "DELETE",
-                path: "/admin/stands/missing",
-                pathParameters: { standId: "missing" },
-            }),
-        );
-        expect(deleteMissing.statusCode).toBe(404);
-
-        mockDynamoSend.mockResolvedValueOnce({
-            Attributes: { stand_id: "s1" },
-        });
-        const deleted = await handler(
-            adminEvent({
+            },
+            {
                 httpMethod: "DELETE",
                 path: "/admin/stands/s1",
                 pathParameters: { standId: "s1" },
-            }),
-        );
-        expect(deleted.statusCode).toBe(200);
+            },
+        ]) {
+            const response = await handler(adminEvent(request));
+            const body = JSON.parse(response.body);
+            expect(response.statusCode).toBe(405);
+            expect(response.headers.Allow).toBe("GET, OPTIONS");
+            expect(body.error.code).toBe("ADMIN_STAND_MUTATIONS_DISABLED");
+            expect(body.error.message).toMatch(/mutations are disabled/i);
+        }
+        expect(mockDynamoSend).not.toHaveBeenCalled();
     });
 
     test("lists Cognito users without arbitrary attributes", async () => {

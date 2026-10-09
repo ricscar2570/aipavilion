@@ -62,3 +62,12 @@ config/secrets.json
 .artifacts/
 playwright-report/
 test-results/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+# Runtime evidence is environment-specific and packaged separately
+evidence/phase4.5g/runtime/
+evidence/internal-pilot/runtime/
+evidence/internal-pilot/approvals/
+evidence/internal-pilot/promotion/

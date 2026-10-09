@@ -9,13 +9,13 @@ Report vulnerabilities privately to the repository owner with the affected route
 ## Current security invariants
 
 - Secrets remain outside source control and frontend configuration.
-- Protected APIs use Cognito access tokens.
+- Protected APIs use Cognito access tokens and route-specific coarse scopes. Scopes select an API family; they do not replace active membership, application role, ownership, assignment or entitlement checks.
 - Platform administration independently verifies token signature, use and `admin` group.
 - Tenant authorization is resolved server-side from an active membership.
 - Browser-supplied organization IDs or role names do not grant access.
 - Organizations, events, invitations, stands, leads, audit events and billing data are checked against membership or ownership.
 - Cross-tenant resources are rejected or concealed as not found.
-- Invitation acceptance is bound to the invited email and uses a DynamoDB transaction.
+- Invitation acceptance identifies the actor by `sub`, loads the normalized email from the server-side profile and uses a DynamoDB transaction.
 - Organizer moderation accepts only valid stand-state transitions.
 - Public routes expose only published public events and stands through field allowlists.
 - Product prices, currency and purchasability are determined by the backend.
@@ -32,7 +32,7 @@ Report vulnerabilities privately to the repository owner with the affected route
 - Request lifecycle logs exclude authorization headers and request bodies.
 - Cognito confirmation creates an application profile without trusting browser role data.
 - Staging CI uses short-lived AWS credentials through GitHub OIDC.
-- Pilot templates enable point-in-time recovery and retain stateful resources.
+- Pilot templates enable point-in-time recovery, retain stateful resources and retain the full Cognito authentication plane together.
 - Dependency installation is pinned to the public npm registry and private registry URLs are rejected before `npm ci`.
 - Lambda table/index environment contracts and matching table policies are checked semantically in both development and pilot templates.
 - A scheduled payment reconciler expires abandoned webhook leases and compares stale orders and Stripe-backed entitlements with Stripe test or live state according to the configured environment.
@@ -70,3 +70,7 @@ Persistent staging and the first customer pilot default to `PRODUCT_PAYMENT_MODE
 - Organization ownership transfer and stand reassignment use DynamoDB transactions with audit records.
 - Account deletion is denied while the user owns an organization or remains assigned to a stand.
 - Successful deletion removes saved stands, anonymizes orders, removes ordinary memberships and deletes the Cognito identity.
+
+## Access-token lifetime and revocation
+
+Token revocation does not promise instantaneous invalidation of every already-issued JWT. The current access-token lifetime is 60 minutes. Sensitive operations must therefore continue to check current server-side membership, ownership, account and entitlement state. Any future requirement for materially shorter revocation latency must be implemented and tested explicitly rather than inferred from logout behavior.

@@ -34,9 +34,14 @@ function validateLockfile(lock, packageJson = {}) {
         );
     }
     if (!lock.packages || !lock.packages[""]) {
-        errors.push("package-lock.json does not contain the root package entry");
+        errors.push(
+            "package-lock.json does not contain the root package entry",
+        );
     }
-    if (lock.name !== packageJson.name || lock.version !== packageJson.version) {
+    if (
+        lock.name !== packageJson.name ||
+        lock.version !== packageJson.version
+    ) {
         errors.push(
             "package.json and package-lock.json name/version are not aligned",
         );
@@ -83,7 +88,9 @@ function validateLockfile(lock, packageJson = {}) {
                 `${packagePath || "root"} resolves from non-portable host ${host}`,
             );
         }
-        if (forbiddenHostFragments.some((fragment) => host.includes(fragment))) {
+        if (
+            forbiddenHostFragments.some((fragment) => host.includes(fragment))
+        ) {
             errors.push(
                 `${packagePath || "root"} resolves from forbidden host ${host}`,
             );
@@ -143,7 +150,9 @@ function main() {
     }
     if (errors.length) {
         console.error("Lockfile portability check failed:\n");
-        for (const error of errors) console.error(`- ${error}`);
+        for (const error of errors) {
+            console.error(`- ${error}`);
+        }
         process.exit(1);
     }
     console.log(
@@ -151,6 +160,8 @@ function main() {
     );
 }
 
-if (require.main === module) main();
+if (require.main === module) {
+    main();
+}
 
 module.exports = { collectResolvedEntries, validateLockfile };

@@ -1,0 +1,9 @@
+{
+  "id": "003-atomic-entitlement-quotas",
+  "version": "0.8.6-invite.1",
+  "description": "Initialize quota counters and invitation reservations without permissive defaults.",
+  "dryRunCommand": "npm run quota:migrate:plan",
+  "applyCommand": "npm run quota:migrate",
+  "verifyCommand": "npm run quota:reconcile:plan",
+  "requiresMaintenanceWindow": true
+}

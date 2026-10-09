@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "kind": "REPLACE_WITH_APPROVAL_KIND",
+  "release": "0.9.0-internal-pilot.1",
+  "commit": "REPLACE_WITH_EXACT_COMMIT_SHA",
+  "environment": "staging",
+  "status": "PENDING",
+  "startedAt": "2026-08-24T00:00:00.000Z",
+  "completedAt": "2026-08-24T00:00:00.000Z",
+  "approval": {
+    "approver": "REPLACE_WITH_NAMED_APPROVER",
+    "role": "REPLACE_WITH_APPROVER_ROLE",
+    "scope": "REPLACE_WITH_REVIEW_SCOPE",
+    "approvedAt": null,
+    "expiresAt": null,
+    "reportSha256": "REPLACE_WITH_REPORT_SHA256"
+  },
+  "summary": {
+    "reason": "Templates remain PENDING. A review process, not a source edit, changes the status to PASS."
+  }
+}

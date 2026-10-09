@@ -1,5 +1,7 @@
 "use strict";
 
+const { assertSyntheticWriteAllowed } = require("./write-guard");
+
 const crypto = require("crypto");
 const fs = require("fs");
 const {
@@ -70,6 +72,20 @@ async function request(path, options = {}) {
     return result;
 }
 
+async function expectOneOfStatuses(path, expectedStatuses, options = {}) {
+    const result = await rawRequest(path, options);
+    if (!expectedStatuses.includes(result.response.status)) {
+        throw new Error(
+            `${options.method || "GET"} ${path} returned ${
+                result.response.status
+            }; expected one of ${expectedStatuses.join(", ")}: ${JSON.stringify(
+                result.body,
+            )}`,
+        );
+    }
+    return result;
+}
+
 async function expectStatus(path, expectedStatus, options = {}) {
     const result = await rawRequest(path, options);
     if (result.response.status !== expectedStatus) {
@@ -98,6 +114,50 @@ async function login(email, password) {
 
 function bearer(token) {
     return { Authorization: `Bearer ${token}` };
+}
+
+function decodeJwtPayload(token) {
+    const parts = String(token || "").split(".");
+    if (parts.length !== 3) {
+        throw new Error("Cognito returned a malformed JWT");
+    }
+    return JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
+}
+
+function assertAccessTokenContract(
+    token,
+    expectedScopes,
+    forbiddenScopes = [],
+) {
+    const payload = decodeJwtPayload(token);
+    const scopes = new Set(
+        String(payload.scope || "")
+            .split(/\s+/)
+            .filter(Boolean),
+    );
+    if (payload.token_use !== "access") {
+        throw new Error(
+            `Expected an access token, received ${payload.token_use || "unknown"}`,
+        );
+    }
+    if (payload.client_id !== outputs.UserPoolClientId) {
+        throw new Error(
+            "Access token was issued to an unexpected Cognito app client",
+        );
+    }
+    for (const scope of expectedScopes) {
+        if (!scopes.has(scope)) {
+            throw new Error(`Access token is missing required scope ${scope}`);
+        }
+    }
+    for (const scope of forbiddenScopes) {
+        if (scopes.has(scope)) {
+            throw new Error(
+                `Access token unexpectedly contains scope ${scope}`,
+            );
+        }
+    }
+    return payload;
 }
 
 function cognitoAttribute(user, name) {
@@ -166,6 +226,7 @@ async function assertDeletedCognitoUser(email) {
 }
 
 async function main() {
+    assertSyntheticWriteAllowed("smoke-deployed");
     const runProductCheckout = process.env.SMOKE_PRODUCT_CHECKOUT !== "false";
     const credentials = readCredentials();
     const visitor = credentials.find((item) => item.group === "visitor");
@@ -210,6 +271,32 @@ async function main() {
     const organizerToken = organizerTokens.accessToken;
     const atlasExhibitorToken = atlasExhibitorTokens.accessToken;
     const rivalExhibitorToken = rivalExhibitorTokens.accessToken;
+
+    const USER_SCOPE = outputs.CognitoUserScope || "aipavilion/user";
+    const TENANT_SCOPE = outputs.CognitoTenantScope || "aipavilion/tenant";
+    const ADMIN_SCOPE =
+        outputs.CognitoPlatformAdminScope || "aipavilion/platform-admin";
+    assertAccessTokenContract(
+        visitorToken,
+        [USER_SCOPE, TENANT_SCOPE],
+        [ADMIN_SCOPE],
+    );
+    assertAccessTokenContract(
+        organizerToken,
+        [USER_SCOPE, TENANT_SCOPE],
+        [ADMIN_SCOPE],
+    );
+    assertAccessTokenContract(adminToken, [
+        USER_SCOPE,
+        TENANT_SCOPE,
+        ADMIN_SCOPE,
+    ]);
+    if (decodeJwtPayload(organizerTokens.idToken).token_use !== "id") {
+        throw new Error("Cognito ID token contract is malformed");
+    }
+    await expectOneOfStatuses("/me/memberships", [401, 403], {
+        headers: bearer(organizerTokens.idToken),
+    });
 
     const { body: publicEventsBody } = await request("/events");
     if (
@@ -557,6 +644,7 @@ async function main() {
                 adminTotalStands: dashboardBody.totalStands,
                 tenantIsolation: "passed",
                 organizerMemberships: membershipsBody.count,
+                authenticationContract: "scoped-access-token-passed",
             },
             null,
             2,

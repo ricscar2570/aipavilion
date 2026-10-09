@@ -81,6 +81,7 @@ jobs:
 
       - name: Validate and build SAM application
         run: |
+          export PATH="$PWD/node_modules/.bin:$PATH"
           sam validate --lint --template-file template.yaml
           sam build --template-file template.yaml
 
@@ -112,6 +113,9 @@ jobs:
             --output json > .artifacts/dev-stack-outputs.json
 
       - name: Seed canonical fixtures and test identities
+        env:
+          ALLOW_SYNTHETIC_FIXTURES: "true"
+          TEST_USER_ENVIRONMENT: dev
         run: |
           node scripts/dev/write-dev-env.js
           node scripts/validate-config.js --env .env.development.local
@@ -121,7 +125,13 @@ jobs:
       - name: Test every DynamoDB table and index
         run: RUN_DEPLOYED_INTEGRATION=1 npm run test:integration
 
+      - name: Prove the scoped Cognito access-token contract
+        run: npm run test:auth:deployed
+
       - name: Run deployed API and administrator smoke tests
+        env:
+          ALLOW_SYNTHETIC_FIXTURES: "true"
+          TEST_USER_ENVIRONMENT: dev
         run: npm run test:smoke:deployed
 
       - name: Run deployed browser vertical test

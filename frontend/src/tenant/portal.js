@@ -342,7 +342,9 @@ class TenantPortal {
                         const newOwnerUserId = window.prompt(
                             "Enter the Cognito user ID of an active organization member:",
                         );
-                        if (!newOwnerUserId) return;
+                        if (!newOwnerUserId) {
+                            return;
+                        }
                         await apiService.patch(
                             `/organizations/${target.dataset.organizationId}/events/${target.dataset.eventId}/stands/${button.dataset.standId}/assignment`,
                             { newOwnerUserId: newOwnerUserId.trim() },
@@ -350,7 +352,9 @@ class TenantPortal {
                         const result = await apiService.get(
                             `/organizations/${target.dataset.organizationId}/events/${target.dataset.eventId}/stands`,
                         );
-                        target.innerHTML = moderationStandsHTML(result.stands || []);
+                        target.innerHTML = moderationStandsHTML(
+                            result.stands || [],
+                        );
                         feedback("Stand reassigned.");
                     }
                     if (action === "moderate-stand") {
@@ -389,7 +393,9 @@ class TenantPortal {
                         const confirmed = window.confirm(
                             "Transfer ownership to this organizer? Your role will become organizer.",
                         );
-                        if (!confirmed) return;
+                        if (!confirmed) {
+                            return;
+                        }
                         await apiService.post(
                             `/organizations/${organizationId}/ownership-transfer`,
                             { newOwnerUserId: button.dataset.userId },

@@ -21,7 +21,10 @@ const ENTITLEMENTS_TABLE = process.env.ENTITLEMENTS_TABLE;
 const PAYMENT_MODE = process.env.PAYMENT_MODE || "disabled";
 const BILLING_MODE = process.env.BILLING_MODE || "disabled";
 const MAX_ITEMS = Math.min(
-    Math.max(Number.parseInt(process.env.RECONCILIATION_MAX_ITEMS || "100", 10), 1),
+    Math.max(
+        Number.parseInt(process.env.RECONCILIATION_MAX_ITEMS || "100", 10),
+        1,
+    ),
     500,
 );
 const STALE_ORDER_MINUTES = Math.min(
@@ -29,20 +32,27 @@ const STALE_ORDER_MINUTES = Math.min(
     1440,
 );
 const MAX_SCAN_PAGES = Math.min(
-    Math.max(Number.parseInt(process.env.RECONCILIATION_MAX_SCAN_PAGES || "20", 10), 1),
+    Math.max(
+        Number.parseInt(process.env.RECONCILIATION_MAX_SCAN_PAGES || "20", 10),
+        1,
+    ),
     100,
 );
 
 let stripeClient;
 
 async function stripe() {
-    if (stripeClient) return stripeClient;
+    if (stripeClient) {
+        return stripeClient;
+    }
     const secret = await secrets.send(
         new GetSecretValueCommand({
             SecretId: process.env.STRIPE_SECRET_KEY_ARN,
         }),
     );
-    if (!secret.SecretString) throw new Error("Stripe secret is empty");
+    if (!secret.SecretString) {
+        throw new Error("Stripe secret is empty");
+    }
     const configuration = JSON.parse(secret.SecretString);
     if (!configuration.stripeSecretKey) {
         throw new Error("Stripe secret has an invalid shape");
@@ -54,13 +64,14 @@ async function stripe() {
 }
 
 function subscriptionStatus(status) {
-    if (["active", "trialing"].includes(status)) return "active";
+    if (["active", "trialing"].includes(status)) {
+        return "active";
+    }
     if (["past_due", "unpaid", "incomplete"].includes(status)) {
         return "past_due";
     }
     return "suspended";
 }
-
 
 async function scanCandidates(params) {
     const items = [];
@@ -77,23 +88,25 @@ async function scanCandidates(params) {
         items.push(...(result.Items || []));
         lastKey = result.LastEvaluatedKey;
         pages += 1;
-    } while (
-        lastKey &&
-        items.length < MAX_ITEMS &&
-        pages < MAX_SCAN_PAGES
-    );
+    } while (lastKey && items.length < MAX_ITEMS && pages < MAX_SCAN_PAGES);
     return items.slice(0, MAX_ITEMS);
 }
 function paymentIntentTarget(status) {
-    if (status === "succeeded") return "paid";
-    if (status === "canceled") return "cancelled";
+    if (status === "succeeded") {
+        return "paid";
+    }
+    if (status === "canceled") {
+        return "cancelled";
+    }
     if (["requires_payment_method", "requires_action"].includes(status)) {
         return "failed";
     }
     return null;
 }
 
-async function expireAbandonedEventLeases(nowEpoch = Math.floor(Date.now() / 1000)) {
+async function expireAbandonedEventLeases(
+    nowEpoch = Math.floor(Date.now() / 1000),
+) {
     const items = await scanCandidates({
         TableName: PAYMENT_EVENTS_TABLE,
         FilterExpression:
@@ -127,14 +140,18 @@ async function expireAbandonedEventLeases(nowEpoch = Math.floor(Date.now() / 100
             );
             expired += 1;
         } catch (error) {
-            if (error.name !== "ConditionalCheckFailedException") throw error;
+            if (error.name !== "ConditionalCheckFailedException") {
+                throw error;
+            }
         }
     }
     return expired;
 }
 
 async function reconcileOrders() {
-    if (PAYMENT_MODE !== "stripe") return { checked: 0, updated: 0, failed: 0 };
+    if (PAYMENT_MODE !== "stripe") {
+        return { checked: 0, updated: 0, failed: 0 };
+    }
     const cutoff = new Date(
         Date.now() - STALE_ORDER_MINUTES * 60 * 1000,
     ).toISOString();
@@ -154,7 +171,9 @@ async function reconcileOrders() {
     let failed = 0;
     for (const order of items) {
         if (!order.paymentIntentId) {
-            if (order.status !== "creating") continue;
+            if (order.status !== "creating") {
+                continue;
+            }
             try {
                 await client.send(
                     new UpdateCommand({
@@ -176,7 +195,9 @@ async function reconcileOrders() {
                 );
                 updated += 1;
             } catch (error) {
-                if (error.name !== "ConditionalCheckFailedException") throw error;
+                if (error.name !== "ConditionalCheckFailedException") {
+                    throw error;
+                }
             }
             continue;
         }
@@ -188,7 +209,9 @@ async function reconcileOrders() {
             continue;
         }
         const target = paymentIntentTarget(intent.status);
-        if (!target || target === order.status) continue;
+        if (!target || target === order.status) {
+            continue;
+        }
         try {
             await client.send(
                 new UpdateCommand({
@@ -209,14 +232,18 @@ async function reconcileOrders() {
             );
             updated += 1;
         } catch (error) {
-            if (error.name !== "ConditionalCheckFailedException") throw error;
+            if (error.name !== "ConditionalCheckFailedException") {
+                throw error;
+            }
         }
     }
     return { checked: items.length, updated, failed };
 }
 
 async function reconcileEntitlements() {
-    if (BILLING_MODE !== "stripe") return { checked: 0, updated: 0, failed: 0 };
+    if (BILLING_MODE !== "stripe") {
+        return { checked: 0, updated: 0, failed: 0 };
+    }
     const items = await scanCandidates({
         TableName: ENTITLEMENTS_TABLE,
         FilterExpression:
@@ -264,7 +291,9 @@ async function reconcileEntitlements() {
             );
             updated += 1;
         } catch (error) {
-            if (error.name !== "ConditionalCheckFailedException") throw error;
+            if (error.name !== "ConditionalCheckFailedException") {
+                throw error;
+            }
         }
     }
     return { checked: items.length, updated, failed };

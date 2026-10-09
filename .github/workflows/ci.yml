@@ -82,5 +82,6 @@ jobs:
 
       - name: Build development and pilot Lambda artifacts
         run: |
+          export PATH="$PWD/node_modules/.bin:$PATH"
           sam build --template-file template.yaml --build-dir .aws-sam-dev
           sam build --template-file infrastructure/backend-pilot.yaml --build-dir .aws-sam-pilot

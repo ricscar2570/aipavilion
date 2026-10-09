@@ -1,6 +1,7 @@
 "use strict";
 
 const { GetCommand, QueryCommand } = require("@aws-sdk/lib-dynamodb");
+const { parseScopes } = require("./auth-scopes");
 
 const ORGANIZER_ROLES = new Set(["owner", "organizer"]);
 const MEMBER_ROLES = new Set(["owner", "organizer", "exhibitor"]);
@@ -20,10 +21,19 @@ function identity(event = {}) {
               .filter(Boolean);
     return {
         userId: value.sub || null,
+        username:
+            String(value.username || value["cognito:username"] || "").trim() ||
+            null,
+        // Identity attributes are exposed for display/diagnostics only.
+        // Authorization and invitation binding must not depend on an email
+        // claim being present in an access token.
         email:
             String(value.email || "")
                 .trim()
                 .toLowerCase() || null,
+        tokenUse: value.token_use || null,
+        clientId: value.client_id || value.aud || null,
+        scopes: parseScopes(value.scope),
         groups,
     };
 }

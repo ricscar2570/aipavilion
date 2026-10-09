@@ -2,11 +2,23 @@
 
 ## Autenticazione
 
-Cognito gestisce password, conferma, MFA, password temporanea, reset, cambio password e logout globale. La policy richiede dodici caratteri, maiuscola, minuscola, numero e simbolo.
+Cognito gestisce password, conferma, TOTP MFA, password temporanea, reset e cambio password. La policy richiede dodici caratteri, maiuscola, minuscola, numero e simbolo. Il frontend invia esclusivamente l’access token alle API protette.
+
+Il User Pool usa esplicitamente il piano `ESSENTIALS` e un trigger Pre Token Generation V2.0 che aggiunge scope custom anche ai token ottenuti dai flussi SRP/password e refresh.
 
 ## Autorizzazione
 
-Le rotte protette usano access token e controlli server-side. I gruppi Cognito non sostituiscono la membership tenant-scoped.
+API Gateway richiede uno scope grossolano:
+
+- `aipavilion/user`;
+- `aipavilion/tenant`;
+- `aipavilion/platform-admin`.
+
+Gli scope non sostituiscono la membership tenant-scoped. Il backend verifica ancora stato della membership, ruolo, ownership, assegnazione ed entitlement. Il gruppo Cognito `admin` rimane una protezione separata per l’amministrazione globale.
+
+L’identità canonica è `sub`. L’accettazione degli inviti recupera l’email dal profilo applicativo server-side e non dipende dalla presenza dell’email nell’access token.
+
+La revoca dei refresh token e il logout non implicano l’invalidazione istantanea di ogni JWT già emesso. Le operazioni sensibili continuano quindi a verificare lo stato server-side corrente.
 
 ## Protezione pubblica
 
@@ -34,3 +46,12 @@ I prezzi sono server-owned. Gli eventi Stripe sono firmati, deduplicati, dotati 
 - approvazione privacy e legale;
 - restore drill misurato;
 - accessibilità manuale.
+
+## Verifica AUTH-01
+
+```bash
+npm run check:auth
+npm run test:auth:deployed
+```
+
+Il primo comando verifica sorgente, SAM, OpenAPI e logica del trigger senza dipendenze esterne. Il secondo è il gate AWS obbligatorio e dimostra contenuto dei token, rifiuto dell’ID token, scope amministrativo e permanenza del controllo membership.

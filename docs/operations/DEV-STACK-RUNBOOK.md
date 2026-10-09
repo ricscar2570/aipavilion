@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The `ai-pavilion-dev` stack proves the multi-tenant system against real AWS services. It creates its own Cognito User Pool, public web client, role groups, API Gateway stage, 22 Lambda functions, 14 DynamoDB tables, 17 GSIs, Lambda log groups and a Stripe development secret.
+The `ai-pavilion-dev` stack proves the multi-tenant system against real AWS services. It creates its own Cognito User Pool, public web client, role groups, API Gateway stage, 24 Lambda functions, 14 DynamoDB tables, 17 GSIs, Lambda log groups and a Stripe development secret.
 
 The template accepts only `Environment=dev` and uses deletion policies intended for teardown. Never use this stack for customer or production data.
 
@@ -30,7 +30,7 @@ export STRIPE_WEBHOOK_SECRET=whsec_not_configured
 npm run dev:deploy
 ```
 
-The wrapper performs the local gate, SAM validation/build, deployment, output capture, canonical two-tenant seed, six development identities, DynamoDB integration tests and deployed API smoke tests.
+The wrapper performs the local gate, SAM validation/build, deployment, output capture, canonical two-tenant seed, six development identities, DynamoDB integration tests, the scoped Cognito access-token proof and deployed API smoke tests.
 
 Generated local files are ignored and permission restricted:
 
@@ -43,11 +43,12 @@ Do not paste them into issues, commits or public logs.
 ## Verify the deployed system
 
 ```bash
+npm run test:auth:deployed
 npm run test:smoke:deployed
 npm run test:e2e:deployed
 ```
 
-The API smoke suite verifies:
+The dedicated authentication proof first verifies custom access-token scopes, ID-token rejection, admin-scope enforcement and the continuing membership boundary. The API smoke suite then verifies:
 
 1. public event and stand discovery;
 2. visitor, administrator, two organizer and two exhibitor identities;

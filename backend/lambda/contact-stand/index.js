@@ -14,6 +14,11 @@ const {
     GetSecretValueCommand,
 } = require("@aws-sdk/client-secrets-manager");
 const { isPublicStand } = require("../common/catalog");
+const { standEventIsPublic } = require("../common/public-event-barrier");
+const {
+    pseudonymizeIp,
+    validateTurnstileResult,
+} = require("../common/lead-protection");
 const {
     parseJsonBody,
     hasExactShape,
@@ -24,8 +29,22 @@ const client = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const secrets = new SecretsManagerClient({});
 const STANDS_TABLE = process.env.STANDS_TABLE || "ai-pavilion-stands";
 const LEADS_TABLE = process.env.LEADS_TABLE || "ai-pavilion-leads";
+const EVENTS_TABLE = process.env.EVENTS_TABLE || "ai-pavilion-events";
 const CHALLENGE_MODE = process.env.BOT_CHALLENGE_MODE || "disabled";
+const CHALLENGE_EXPECTED_HOSTNAME =
+    process.env.BOT_CHALLENGE_EXPECTED_HOSTNAME || "";
+const CHALLENGE_EXPECTED_ACTION =
+    process.env.BOT_CHALLENGE_EXPECTED_ACTION || "lead-submit";
+const parsedChallengeMaxAge = Number.parseInt(
+    process.env.BOT_CHALLENGE_MAX_AGE_SECONDS || "300",
+    10,
+);
+const CHALLENGE_MAX_AGE_SECONDS = Number.isFinite(parsedChallengeMaxAge)
+    ? Math.max(30, parsedChallengeMaxAge)
+    : 300;
+const LEAD_IP_MODE = process.env.LEAD_IP_PSEUDONYMIZATION_MODE || "disabled";
 let challengeSecret;
+let leadIpHmacSecret;
 
 async function loadChallengeSecret() {
     if (challengeSecret) {
@@ -46,19 +65,20 @@ async function loadChallengeSecret() {
 
 async function verifyChallenge(token, event) {
     if (CHALLENGE_MODE === "disabled") {
-        return true;
+        return { valid: true, reason: "disabled" };
     }
     if (CHALLENGE_MODE === "simulated") {
-        return token === "test-pass";
+        return {
+            valid: token === "test-pass",
+            reason: token === "test-pass" ? "simulated" : "challenge_failed",
+        };
     }
     if (!token || typeof fetch !== "function") {
-        return false;
+        return { valid: false, reason: "challenge_failed" };
     }
     const secret = await loadChallengeSecret();
     const body = new URLSearchParams({ secret, response: token });
-    const sourceIp =
-        event.requestContext?.identity?.sourceIp ||
-        event.requestContext?.http?.sourceIp;
+    const sourceIp = sourceIpFor(event);
     if (sourceIp) {
         body.set("remoteip", sourceIp);
     }
@@ -72,10 +92,51 @@ async function verifyChallenge(token, event) {
         },
     );
     if (!response.ok) {
-        return false;
+        return { valid: false, reason: "challenge_service_error" };
     }
     const result = await response.json();
-    return result.success === true;
+    return validateTurnstileResult(result, {
+        hostname: CHALLENGE_EXPECTED_HOSTNAME || undefined,
+        action: CHALLENGE_EXPECTED_ACTION || undefined,
+        maxAgeSeconds: CHALLENGE_MAX_AGE_SECONDS,
+    });
+}
+
+function sourceIpFor(event) {
+    return (
+        event.requestContext?.identity?.sourceIp ||
+        event.requestContext?.http?.sourceIp ||
+        null
+    );
+}
+
+async function loadLeadIpHmacSecret() {
+    if (leadIpHmacSecret) {
+        return leadIpHmacSecret;
+    }
+    const secretId = process.env.LEAD_IP_HMAC_SECRET_ARN;
+    if (!secretId) {
+        throw new Error("Lead IP HMAC secret is not configured");
+    }
+    const result = await secrets.send(
+        new GetSecretValueCommand({ SecretId: secretId }),
+    );
+    const parsed = JSON.parse(result.SecretString || "{}");
+    if (!parsed.leadIpHmacSecret) {
+        throw new Error("Lead IP HMAC secret is not configured");
+    }
+    leadIpHmacSecret = parsed.leadIpHmacSecret;
+    return leadIpHmacSecret;
+}
+
+async function sourcePseudonym(event) {
+    if (String(LEAD_IP_MODE).toLowerCase() === "disabled") {
+        return null;
+    }
+    return pseudonymizeIp(sourceIpFor(event), {
+        mode: LEAD_IP_MODE,
+        secret: await loadLeadIpHmacSecret(),
+    });
 }
 
 function cleanText(value, maxLength) {
@@ -97,14 +158,6 @@ function leadIdFor(standId, email, clientRequestId) {
         .update(`${standId}:${email}:${clientRequestId}`)
         .digest("hex")
         .slice(0, 32)}`;
-}
-
-function sourceHash(event) {
-    const source =
-        event.requestContext?.identity?.sourceIp ||
-        event.requestContext?.http?.sourceIp ||
-        "unknown";
-    return createHash("sha256").update(source).digest("hex").slice(0, 16);
 }
 
 const handler = async (event) => {
@@ -181,12 +234,19 @@ const handler = async (event) => {
             event,
         );
     }
-    const challengeValid = await verifyChallenge(
+    const challenge = await verifyChallenge(
         cleanText(body.challengeToken, 2048),
         event,
     );
-    if (!challengeValid) {
-        return respond(403, { error: "BOT_CHALLENGE_FAILED" }, event);
+    if (!challenge.valid) {
+        return respond(
+            403,
+            {
+                error: "BOT_CHALLENGE_FAILED",
+                details: { reason: challenge.reason },
+            },
+            event,
+        );
     }
 
     try {
@@ -196,7 +256,10 @@ const handler = async (event) => {
                 Key: { stand_id: standId },
             }),
         );
-        if (!isPublicStand(stand.Item)) {
+        if (
+            !isPublicStand(stand.Item) ||
+            !(await standEventIsPublic(client, EVENTS_TABLE, stand.Item))
+        ) {
             return respond(
                 404,
                 { error: "STAND_NOT_FOUND", message: "Stand not found" },
@@ -206,6 +269,7 @@ const handler = async (event) => {
 
         const now = new Date().toISOString();
         const leadId = leadIdFor(standId, email, clientRequestId);
+        const ipPseudonym = await sourcePseudonym(event);
         const lead = {
             leadId,
             clientRequestId,
@@ -219,8 +283,8 @@ const handler = async (event) => {
             message,
             status: "new",
             source: "stand-contact-form",
-            sourceHash: sourceHash(event),
-            schemaVersion: 3,
+            ...(ipPseudonym ? { sourcePseudonym: ipPseudonym } : {}),
+            schemaVersion: 4,
             privacyAcceptedAt: now,
             ttl: Math.floor(Date.now() / 1000) + 365 * 24 * 60 * 60,
             createdAt: now,
