@@ -59,7 +59,7 @@ npm run ci:install
 npm run pilot:generate
 npm run verify
 sam validate --lint --template-file infrastructure/backend-pilot.yaml
-sam build --template-file infrastructure/backend-pilot.yaml
+sam build --template-file infrastructure/backend-pilot.yaml --base-dir .
 
 backend_deploy() {
     local site_origin="$1"

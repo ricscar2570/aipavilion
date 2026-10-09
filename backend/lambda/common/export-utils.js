@@ -27,7 +27,10 @@ function positiveInteger(
 }
 
 function normalizeCsvText(value) {
-    return String(value ?? "").split("\u0000").join("").replace(/\r\n|\r|\n/g, " ");
+    return String(value ?? "")
+        .split("\u0000")
+        .join("")
+        .replace(/\r\n|\r|\n/g, " ");
 }
 
 function hasDangerousSpreadsheetPrefix(value) {
