@@ -192,7 +192,6 @@ describe("public stand endpoints", () => {
                     publicationKey: "published#2026-01-01T00:00:00.000Z",
                 },
             })
-            .mockResolvedValueOnce({ Responses: { "ai-pavilion-events": [] } })
             .mockResolvedValueOnce({
                 Items: [
                     publicStand({
@@ -223,7 +222,7 @@ describe("public stand endpoints", () => {
         const body = JSON.parse(response.body);
         expect(body.stands.map((stand) => stand.stand_id)).toEqual(["s2"]);
         expect(body.scannedCount).toBe(2);
-        expect(mockSend).toHaveBeenCalledTimes(4);
+        expect(mockSend).toHaveBeenCalledTimes(3);
     });
 
     test("handles validation and backend errors safely", async () => {

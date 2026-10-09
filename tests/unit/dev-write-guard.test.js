@@ -31,6 +31,7 @@ describe("synthetic writer guard", () => {
 
     test("requires an explicit non-production environment", () => {
         process.env.ALLOW_SYNTHETIC_FIXTURES = "true";
+        delete process.env.NODE_ENV;
         expect(() => assertSyntheticWriteAllowed("seed")).toThrow(
             /requires an explicit/,
         );

@@ -22,7 +22,7 @@
     "format": "prettier --write \"**/*.{js,json,md,yml,yaml}\"",
     "format:check": "prettier --check \"**/*.{js,json,md,yml,yaml}\"",
     "check:syntax": "node scripts/check-syntax.js",
-    "verify": "npm run check:lockfile && npm run format:check && npm run lint && npm run check:syntax && npm run check:auth && npm run check:legacy && npm run check:contracts && npm run check:openapi && npm run check:bundles && npm run check:infrastructure && npm run check:phase3 && npm run check:phase4 && npm run check:phase45c && npm run check:phase45d && npm run check:phase45e && npm run test:coverage -- --silent && npm run build",
+    "verify": "npm run check:lockfile && npm run format:check && npm run lint && npm run check:syntax && npm run check:auth && npm run check:legacy && npm run check:contracts && npm run check:openapi && npm run check:bundles && npm run check:infrastructure && npm run check:phase3 && npm run check:phase4 && npm run check:phase45c && npm run check:phase45d && npm run check:phase45e && npm run test:coverage -- --silent && npm run test:foundations && npm run test:internal-pilot && npm run build",
     "sam:validate": "sam validate --lint --template-file template.yaml",
     "sam:build": "sam build --template-file template.yaml",
     "deploy:guided": "npm run verify && npm run sam:validate && sam deploy --guided",
@@ -119,6 +119,9 @@
     "testMatch": [
       "**/tests/**/*.test.js",
       "**/__tests__/**/*.test.js"
+    ],
+    "testPathIgnorePatterns": [
+      "/tests/node/"
     ],
     "collectCoverageFrom": [
       "backend/lambda/**/*.js",

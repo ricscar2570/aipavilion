@@ -49,13 +49,33 @@ const CATALOGUE_RESPONSE = {
                 publicationKey: "published#2026-01-01T00:00:00.000Z",
                 eventId: "event-1",
                 products: [
-                    { id: "prod-1", name: "Game", price: 59.99 },
+                    {
+                        id: "prod-1",
+                        name: "Game",
+                        price: 59.99,
+                        status: "active",
+                    },
                     {
                         productId: "prod-2",
                         name: "Controller",
                         priceInCents: 3499,
+                        status: "active",
                     },
                 ],
+            },
+        ],
+    },
+};
+const EVENT_RESPONSE = {
+    Responses: {
+        "ai-pavilion-events-test": [
+            {
+                eventId: "event-1",
+                status: "published",
+                visibility: "public",
+                publicStatus: "published",
+                publicationState: "published",
+                publishedAt: "2026-01-01T00:00:00.000Z",
             },
         ],
     },
@@ -117,6 +137,7 @@ describe("Checkout Lambda", () => {
         process.env.ALLOWED_ORIGIN = "https://test.cloudfront.net";
         process.env.ORDERS_TABLE = "ai-pavilion-orders-test";
         process.env.STANDS_TABLE = "ai-pavilion-stands-test";
+        process.env.EVENTS_TABLE = "ai-pavilion-events-test";
         process.env.PAYMENT_EVENTS_TABLE = "payment-events-test";
         process.env.STRIPE_SECRET_KEY_ARN = "secret-arn";
         process.env.PAYMENT_MODE = "stripe";
@@ -162,6 +183,7 @@ describe("Checkout Lambda", () => {
     test("creates one intent from authoritative public catalogue prices", async () => {
         mockDynamoSend
             .mockResolvedValueOnce(CATALOGUE_RESPONSE)
+            .mockResolvedValueOnce(EVENT_RESPONSE)
             .mockResolvedValueOnce({})
             .mockResolvedValueOnce({});
         mockStripeCreate.mockResolvedValue({
@@ -180,11 +202,11 @@ describe("Checkout Lambda", () => {
                 idempotencyKey: `ai-pavilion-user-123-${REQUEST_ID}`,
             }),
         );
-        expect(mockDynamoSend.mock.calls[1][0].input.Item.status).toBe(
+        expect(mockDynamoSend.mock.calls[2][0].input.Item.status).toBe(
             "creating",
         );
         expect(
-            mockDynamoSend.mock.calls[2][0].input.UpdateExpression,
+            mockDynamoSend.mock.calls[3][0].input.UpdateExpression,
         ).toContain("paymentIntentId");
     });
 
@@ -209,22 +231,26 @@ describe("Checkout Lambda", () => {
     });
 
     test("rejects draft stands and missing products", async () => {
-        mockDynamoSend.mockResolvedValueOnce({
-            Responses: {
-                "ai-pavilion-stands-test": [
-                    {
-                        ...CATALOGUE_RESPONSE.Responses[
-                            "ai-pavilion-stands-test"
-                        ][0],
-                        status: "draft",
-                    },
-                ],
-            },
-        });
+        mockDynamoSend
+            .mockResolvedValueOnce({
+                Responses: {
+                    "ai-pavilion-stands-test": [
+                        {
+                            ...CATALOGUE_RESPONSE.Responses[
+                                "ai-pavilion-stands-test"
+                            ][0],
+                            status: "draft",
+                        },
+                    ],
+                },
+            })
+            .mockResolvedValueOnce(EVENT_RESPONSE);
         const draft = await handler(makeEvent({ body: createBody() }));
         expect(draft.statusCode).toBe(409);
 
-        mockDynamoSend.mockResolvedValueOnce(CATALOGUE_RESPONSE);
+        mockDynamoSend
+            .mockResolvedValueOnce(CATALOGUE_RESPONSE)
+            .mockResolvedValueOnce(EVENT_RESPONSE);
         const missing = await handler(
             makeEvent({
                 body: createBody({
@@ -270,6 +296,7 @@ describe("Checkout Lambda", () => {
         });
         mockDynamoSend
             .mockResolvedValueOnce(CATALOGUE_RESPONSE)
+            .mockResolvedValueOnce(EVENT_RESPONSE)
             .mockRejectedValueOnce(conditionalError())
             .mockResolvedValueOnce({ Item: existing });
 
@@ -282,6 +309,7 @@ describe("Checkout Lambda", () => {
     test("rejects reuse of an idempotency key for a different cart", async () => {
         mockDynamoSend
             .mockResolvedValueOnce(CATALOGUE_RESPONSE)
+            .mockResolvedValueOnce(EVENT_RESPONSE)
             .mockRejectedValueOnce(conditionalError())
             .mockResolvedValueOnce({
                 Item: orderRecord({
@@ -377,6 +405,7 @@ describe("Checkout Lambda", () => {
         process.env.PAYMENT_MODE = "simulated";
         mockDynamoSend
             .mockResolvedValueOnce(CATALOGUE_RESPONSE)
+            .mockResolvedValueOnce(EVENT_RESPONSE)
             .mockResolvedValueOnce({})
             .mockResolvedValueOnce({});
         const created = await handler(makeEvent({ body: createBody() }));
@@ -451,6 +480,7 @@ describe("Checkout Lambda", () => {
                 },
             })
             .mockResolvedValueOnce(CATALOGUE_RESPONSE)
+            .mockResolvedValueOnce(EVENT_RESPONSE)
             .mockResolvedValueOnce({})
             .mockResolvedValueOnce({});
         mockStripeCreate.mockResolvedValue({
