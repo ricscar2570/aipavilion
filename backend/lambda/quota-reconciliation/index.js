@@ -18,7 +18,7 @@ async function desiredForCounter(counter) {
             await readEntitlement(counter.organizationId),
             "events",
         );
-        const used = await calculateEventUsage(counter.organizationId);
+        const used = await calculateEventUsage(counter.organizationId, true);
         return {
             limit,
             used,
@@ -30,7 +30,7 @@ async function desiredForCounter(counter) {
         await readEntitlement(counter.organizationId),
         "stands",
     );
-    const usage = await calculateStandUsage(counter.eventId);
+    const usage = await calculateStandUsage(counter.eventId, true);
     return {
         limit,
         ...usage,
@@ -47,8 +47,9 @@ function differs(current, desired) {
 async function expireReservations(apply) {
     const items = await scanAll({
         TableName: requiredEnv("QUOTA_RESERVATIONS_TABLE"),
+        ConsistentRead: true,
         FilterExpression:
-            "#status = :reserved AND (reservationExpiresAt < :now OR invitationExpiresAt < :now)",
+            "#status = :reserved AND (reservationExpiresAt <= :now OR invitationExpiresAt <= :now)",
         ExpressionAttributeNames: { "#status": "status" },
         ExpressionAttributeValues: {
             ":reserved": "reserved",
@@ -78,13 +79,34 @@ async function expireReservations(apply) {
 }
 
 async function reconcile({ apply = false } = {}) {
+    // Release expired capacity before taking the counter snapshot; doing this
+    // after repair would decrement capacity that has already been corrected.
+    const expiredReservations = await expireReservations(apply);
     const counters = await scanAll({
         TableName: requiredEnv("QUOTA_COUNTERS_TABLE"),
+        ConsistentRead: true,
     });
+    const activeSources = await scanAll({
+        TableName: requiredEnv("QUOTA_RESERVATIONS_TABLE"),
+        ConsistentRead: true,
+        FilterExpression:
+            "#status = :reserved AND begins_with(reservationId, :source)",
+        ExpressionAttributeNames: { "#status": "status" },
+        ExpressionAttributeValues: {
+            ":reserved": "reserved",
+            ":source": "RES#",
+        },
+    });
+    const busyCounters = new Set(activeSources.map((item) => item.counterKey));
+    const deferredCounters = [];
     const drift = [];
     const conflicts = [];
     const errors = [];
     for (const counter of counters) {
+        if (busyCounters.has(counter.counterKey)) {
+            deferredCounters.push(counter.counterKey);
+            continue;
+        }
         try {
             const desired = await desiredForCounter(counter);
             if (!differs(counter, desired)) {
@@ -114,7 +136,6 @@ async function reconcile({ apply = false } = {}) {
             });
         }
     }
-    const expiredReservations = await expireReservations(apply);
     const overLimit = drift.filter(
         (item) =>
             item.desired.used + item.desired.reserved > item.desired.limit,
@@ -126,6 +147,7 @@ async function reconcile({ apply = false } = {}) {
         conflicts,
         errors,
         expiredReservations,
+        deferredCounters,
         overLimit,
     };
 }

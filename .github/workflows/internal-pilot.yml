@@ -99,6 +99,7 @@ jobs:
           use-installer: true
 
       - uses: aws-actions/configure-aws-credentials@v4
+        if: inputs.suite != 'source-ci' && inputs.suite != 'sam-build' && inputs.suite != 'status'
         with:
           role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
@@ -115,6 +116,7 @@ jobs:
           python -m playwright install --with-deps chromium
 
       - name: Preflight
+        if: inputs.suite != 'source-ci' && inputs.suite != 'sam-build' && inputs.suite != 'status'
         run: npm run internal-pilot:preflight
 
       - name: Source CI proof
@@ -127,7 +129,7 @@ jobs:
         if: inputs.suite == 'all' || inputs.suite == 'sam-build'
         run: >-
           node scripts/internal-pilot/command-proof.js --kind sam-build --
-          bash -lc 'sam validate --lint --template-file template.yaml && sam validate --lint --template-file infrastructure/backend-pilot.yaml && sam build --template-file template.yaml --build-dir .aws-sam-internal-dev && sam build --template-file infrastructure/backend-pilot.yaml --build-dir .aws-sam-internal-pilot'
+          bash -lc 'export PATH="$PWD/node_modules/.bin:$PATH"; sam validate --lint --template-file template.yaml && sam validate --lint --template-file infrastructure/backend-pilot.yaml && sam build --template-file template.yaml --build-dir .aws-sam-internal-dev && sam build --template-file infrastructure/backend-pilot.yaml --base-dir . --build-dir .aws-sam-internal-pilot'
 
       - name: Deployment proof
         if: inputs.suite == 'all' || inputs.suite == 'deploy'

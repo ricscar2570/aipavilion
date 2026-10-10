@@ -1,5 +1,7 @@
 # AI Pavilion 0.8.6-legacy.1 — Documentazione completa dello stato attuale
 
+> Documento storico della baseline 0.8.6. Per lo stato corrente consultare [la documentazione consolidata](../../DOCUMENTAZIONE-COMPLETA-IT.md) e [il rapporto del 10 ottobre 2026](../development/CONSOLIDATION-2026-10-10.md).
+
 **Data dello snapshot:** 23 agosto 2026
 **Versione applicativa:** 0.8.6-legacy.1
 **Tipo di consegna:** prerelease completa AUTH-01 costruita sulla baseline 0.8.5

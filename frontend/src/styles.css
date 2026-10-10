@@ -1,8 +1,29 @@
-@import "../public/css/styles.css";
+@layer theme, legacy, base, components, utilities;
+@import "../public/css/styles.css" layer(legacy);
+@import "tailwindcss";
+@config "../../tailwind.config.cjs";
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Preserve the existing v3 baseline while using the patched v4 toolchain. */
+@layer base {
+    *,
+    ::before,
+    ::after,
+    ::backdrop,
+    ::file-selector-button {
+        border-color: var(--color-gray-200, currentColor);
+    }
+    input::placeholder,
+    textarea::placeholder {
+        color: var(--color-gray-400);
+    }
+    button,
+    [role="button"] {
+        cursor: pointer;
+    }
+    dialog {
+        margin: auto;
+    }
+}
 
 :focus-visible {
     outline: 3px solid #facc15;

@@ -144,8 +144,14 @@ async function scanAll(params) {
     return items;
 }
 
-async function queryOrScan({ tableName, indexName, keyName, keyValue }) {
-    if (indexName) {
+async function queryOrScan({
+    tableName,
+    indexName,
+    keyName,
+    keyValue,
+    consistentRead = false,
+}) {
+    if (indexName && !consistentRead) {
         try {
             return await queryAll({
                 TableName: tableName,
@@ -166,6 +172,7 @@ async function queryOrScan({ tableName, indexName, keyName, keyValue }) {
     }
     return scanAll({
         TableName: tableName,
+        ConsistentRead: consistentRead,
         FilterExpression: "#key = :value",
         ExpressionAttributeNames: { "#key": keyName },
         ExpressionAttributeValues: { ":value": keyValue },
@@ -182,14 +189,34 @@ function standCountsAsUsed(stand) {
     return !["deleted", "archived", "removed"].includes(status);
 }
 
+function expirySeconds(value, fallback = 0) {
+    if (value === undefined || value === null || value === "") {
+        return fallback;
+    }
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) {
+        return numeric;
+    }
+    const parsed = Date.parse(String(value));
+    if (!Number.isFinite(parsed)) {
+        throw new QuotaError(
+            "INVITATION_EXPIRY_INVALID",
+            "Invalid invitation expiry.",
+            400,
+        );
+    }
+    return Math.floor(parsed / 1000);
+}
+
 function invitationCountsAsReserved(invitation, at = nowSeconds()) {
     const status = String(invitation.status || "pending").toLowerCase();
-    const expiry = Number(invitation.expiresAt || 0);
+    const expiry = expirySeconds(invitation.expiresAt);
     return status === "pending" && (!expiry || expiry > at);
 }
 
-async function calculateEventUsage(organizationId) {
+async function calculateEventUsage(organizationId, consistentRead = false) {
     const items = await queryOrScan({
+        consistentRead,
         tableName: requiredEnv("EVENTS_TABLE"),
         indexName: process.env.ORGANIZATION_EVENTS_INDEX,
         keyName: "organizationId",
@@ -198,14 +225,16 @@ async function calculateEventUsage(organizationId) {
     return items.filter(eventCountsAsActive).length;
 }
 
-async function calculateStandUsage(eventId) {
+async function calculateStandUsage(eventId, consistentRead = false) {
     const stands = await queryOrScan({
+        consistentRead,
         tableName: requiredEnv("STANDS_TABLE"),
         indexName: process.env.EVENT_STANDS_INDEX,
         keyName: "eventId",
         keyValue: eventId,
     });
     const invitations = await queryOrScan({
+        consistentRead,
         tableName: requiredEnv("INVITATIONS_TABLE"),
         indexName: process.env.EVENT_INVITATIONS_INDEX,
         keyName: "eventId",
@@ -213,7 +242,9 @@ async function calculateStandUsage(eventId) {
     });
     return {
         used: stands.filter(standCountsAsUsed).length,
-        reserved: invitations.filter(invitationCountsAsReserved).length,
+        reserved: invitations.filter((invitation) =>
+            invitationCountsAsReserved(invitation),
+        ).length,
     };
 }
 
@@ -361,7 +392,10 @@ async function reserveUnit({
     const id = reservationId(kind, scopeId, idempotencyKey);
     const existing = await getReservation(id);
     if (existing) {
-        if (existing.requestHash !== requestHash) {
+        if (
+            existing.requestHash !== requestHash ||
+            existing.actorUserId !== actorUserId
+        ) {
             throw new QuotaError(
                 "IDEMPOTENCY_KEY_REUSED",
                 "The idempotency key was reused with a different request.",
@@ -446,7 +480,11 @@ async function reserveUnit({
             ].includes(error.name)
         ) {
             const raced = await getReservation(id);
-            if (raced && raced.requestHash === requestHash) {
+            if (
+                raced &&
+                raced.requestHash === requestHash &&
+                raced.actorUserId === actorUserId
+            ) {
                 return { reservation: raced, replay: true };
             }
             throw new QuotaError(
@@ -700,8 +738,11 @@ async function linkInvitationReservation(sourceReservationId, invitation) {
         resourceType: "invitation",
         invitationId,
         status: "reserved",
-        invitationExpiresAt:
-            invitation.expiresAt || source.reservationExpiresAt,
+        invitationExpiresAt: expirySeconds(
+            invitation.expiresAt,
+            source.reservationExpiresAt,
+        ),
+        reservationExpiresAt: undefined,
         updatedAt: timestamp,
     };
     await documentClient.send(
@@ -915,7 +956,7 @@ async function ensureInvitationOccupancy({
         actorUserId,
         ttlSeconds: Math.max(
             60,
-            Number(expiresAt || nowSeconds() + 900) - nowSeconds(),
+            expirySeconds(expiresAt, nowSeconds() + 900) - nowSeconds(),
         ),
     });
     const linked = await linkInvitationReservation(
@@ -934,7 +975,7 @@ async function setCounterAbsolute(counter, expected, desired) {
             UpdateExpression:
                 "SET #limit = :limit, #used = :used, #reserved = :reserved, #available = :available, #overLimit = :overLimit, #updatedAt = :now ADD #revision :one",
             ConditionExpression:
-                "#limit = :expectedLimit AND #used = :expectedUsed AND #reserved = :expectedReserved AND #available = :expectedAvailable",
+                "#revision = :expectedRevision AND #limit = :expectedLimit AND #used = :expectedUsed AND #reserved = :expectedReserved AND #available = :expectedAvailable",
             ExpressionAttributeNames: {
                 "#limit": "limit",
                 "#used": "used",
@@ -952,6 +993,7 @@ async function setCounterAbsolute(counter, expected, desired) {
                 ":overLimit": desired.used + desired.reserved > desired.limit,
                 ":now": timestamp,
                 ":one": 1,
+                ":expectedRevision": expected.revision,
                 ":expectedLimit": expected.limit,
                 ":expectedUsed": expected.used,
                 ":expectedReserved": expected.reserved,
@@ -978,6 +1020,7 @@ module.exports = {
     queryOrScan,
     eventCountsAsActive,
     standCountsAsUsed,
+    expirySeconds,
     invitationCountsAsReserved,
     calculateEventUsage,
     calculateStandUsage,

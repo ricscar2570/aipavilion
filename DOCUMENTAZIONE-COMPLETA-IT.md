@@ -1,9 +1,11 @@
 # AI Pavilion 0.9.0-internal-pilot.1 — Documentazione completa dello stato attuale
 
-**Data dello snapshot:** 24 agosto 2026
+**Data dello snapshot:** 10 ottobre 2026
 **Versione applicativa:** 0.9.0-internal-pilot.1
 **Tipo di consegna:** prerelease cumulativa con gate di promozione verso il pilot interno
 **Stato dichiarato:** pre-produzione, predisposto per staging controllato, non ancora autorizzato per dati o clienti reali
+
+Aggiornamento operativo: [consolidamento del 10 ottobre 2026](docs/development/CONSOLIDATION-2026-10-10.md), con 332 test Jest passati, coverage sopra tutte le soglie, build riuscita e audit dipendenze a zero. Le evidenze AWS e le approvazioni indipendenti restano aperte.
 
 ## 1. Scopo di questo documento
 
@@ -567,7 +569,7 @@ npm run pilot:restore-drill
 
 Questa prerelease aggiunge il contratto AUTH-01 alla baseline 0.8.5. Non dichiara completato l’intero Sprint 4.5E.1: QUOTA-01, INVITE-01, CONCURRENCY-01, EXPORT-01 e LEGACY-01 restano successivi.
 
-Nell’ambiente di preparazione sono eseguibili i controlli statici che non richiedono dipendenze esterne. La repository non deve essere considerata validata per il pilot finché una CI pubblica non completa installazione, lint, test, coverage, build e SAM, e uno staging AWS non produce prove di Cognito, SES, Stripe, WAF, backup e browser.
+Nell’ambiente di preparazione sono stati eseguiti anche installazione delle dipendenze, lint, test Jest con coverage, test Node, build Vite e audit; i risultati aggiornati sono nel rapporto di consolidamento. La repository non deve essere considerata validata per il pilot finché una CI pubblica non completa installazione, lint, test, coverage, build e SAM, e uno staging AWS non produce prove di Cognito, SES, Stripe, WAF, backup e browser.
 
 ## 27. Fonti interne autorevoli
 

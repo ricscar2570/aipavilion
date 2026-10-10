@@ -56,7 +56,7 @@ config/secrets.json
 *.backup
 *.bak
 
-.aws-sam/
+.aws-sam*/
 
 # Disposable development stack artifacts
 .artifacts/

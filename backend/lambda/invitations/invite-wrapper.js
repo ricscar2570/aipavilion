@@ -8,6 +8,8 @@ const {
     ScanCommand,
 } = require("@aws-sdk/lib-dynamodb");
 const quota = require("../common/quota-store");
+const { authorizeQuotaMutation } = require("../common/quota-authorization");
+const { respond, corsHeaders } = require("../common/cors");
 const {
     InvitePolicyError,
     normalizeEmail,
@@ -104,27 +106,24 @@ function isSuccess(response) {
     return status >= 200 && status < 300;
 }
 
-function jsonError(error) {
+function jsonError(error, event) {
     const statusCode = Number(error.statusCode || 500);
     const publicMessage =
         statusCode >= 500
             ? "The invitation operation could not be completed."
             : error.message;
-    return {
+    return respond(
         statusCode,
-        headers: {
-            "Content-Type": "application/json",
-            "Cache-Control": "no-store",
-        },
-        body: JSON.stringify({
+        {
             error: {
                 code: error.code || "INVITATION_INTERNAL_ERROR",
                 message: publicMessage,
                 retryable: statusCode >= 500,
                 details: statusCode < 500 ? error.details : undefined,
             },
-        }),
-    };
+        },
+        event,
+    );
 }
 
 function requestKey(event, prefix) {
@@ -270,23 +269,25 @@ async function loadMembership(organizationId, userId) {
     return undefined;
 }
 
-function replayResponse(reservation, type) {
+function replayResponse(reservation, type, event) {
     const stored = quota.replayResponse(reservation);
     if (stored) {
-        return stored;
-    }
-    if (reservation?.resourceId) {
         return {
-            statusCode: 200,
+            ...stored,
             headers: {
-                "Content-Type": "application/json",
+                ...stored.headers,
+                ...corsHeaders(event),
                 "Idempotency-Replayed": "true",
             },
-            body: JSON.stringify({
-                [`${type}Id`]: reservation.resourceId,
-                idempotentReplay: true,
-            }),
         };
+    }
+    if (reservation?.resourceId) {
+        return respond(
+            200,
+            { [`${type}Id`]: reservation.resourceId, idempotentReplay: true },
+            event,
+            { "Idempotency-Replayed": "true" },
+        );
     }
     return jsonError(
         new InvitePolicyError(
@@ -294,6 +295,7 @@ function replayResponse(reservation, type) {
             "The previous request is still being reconciled.",
             409,
         ),
+        event,
     );
 }
 
@@ -309,6 +311,7 @@ async function handleCreate(baseHandler, event, context) {
                 "Organization, event and recipient email are required.",
                 400,
             ),
+            event,
         );
     }
     const key = requestKey(event, "invitation-create");
@@ -321,7 +324,14 @@ async function handleCreate(baseHandler, event, context) {
         }),
     );
     let source;
+    let writerSucceeded = false;
     try {
+        await authorizeQuotaMutation(
+            event,
+            documentClient,
+            organizationId,
+            eventId,
+        );
         const reserved = await quota.reserveStandSlot({
             organizationId,
             eventId,
@@ -333,11 +343,8 @@ async function handleCreate(baseHandler, event, context) {
             ),
         });
         source = reserved.reservation;
-        if (reserved.replay && source.status !== "reserved") {
-            return replayResponse(source, "invitation");
-        }
-        if (reserved.replay && source.responseStatusCode) {
-            return replayResponse(source, "invitation");
+        if (reserved.replay) {
+            return replayResponse(source, "invitation", event);
         }
 
         const response = await baseHandler(event, context);
@@ -348,19 +355,17 @@ async function handleCreate(baseHandler, event, context) {
             );
             return response;
         }
+        writerSucceeded = true;
         const payload = parseResponseBody(response);
         const invitationId = findId(payload, ["invitationId", "id"]);
         if (!invitationId) {
-            await quota.releaseSourceReservation(
-                source.reservationId,
-                "invitation_id_missing",
-            );
             return jsonError(
                 new InvitePolicyError(
                     "INVITATION_ID_MISSING",
                     "The invitation writer returned no identifier.",
                     500,
                 ),
+                event,
             );
         }
         const expiresAt =
@@ -375,6 +380,7 @@ async function handleCreate(baseHandler, event, context) {
         return response;
     } catch (error) {
         if (
+            !writerSucceeded &&
             source?.reservationId &&
             !["QUOTA_EXCEEDED", "IDEMPOTENCY_KEY_REUSED"].includes(error.code)
         ) {
@@ -387,7 +393,7 @@ async function handleCreate(baseHandler, event, context) {
                 /* reconciler */
             }
         }
-        return jsonError(error);
+        return jsonError(error, event);
     }
 }
 
@@ -395,6 +401,13 @@ async function handleAccept(baseHandler, event, context) {
     const invitationId = event.pathParameters?.invitationId;
     const userId = actorUserId(event);
     try {
+        if (!userId) {
+            throw new InvitePolicyError(
+                "AUTHENTICATION_REQUIRED",
+                "Authentication is required.",
+                401,
+            );
+        }
         if (!invitationId) {
             throw new InvitePolicyError(
                 "INVITATION_ID_REQUIRED",
@@ -442,6 +455,7 @@ async function handleAccept(baseHandler, event, context) {
                     "Invitation acceptance returned no stand identifier.",
                     500,
                 ),
+                event,
             );
         }
         await quota.consumeInvitationReservation(invitationId, standId);
@@ -458,7 +472,7 @@ async function handleAccept(baseHandler, event, context) {
                 /* reconciler */
             }
         }
-        return jsonError(error);
+        return jsonError(error, event);
     }
 }
 
@@ -477,8 +491,25 @@ async function handleRevoke(baseHandler, event, context) {
 async function handleResend(baseHandler, event, context) {
     const invitationId = event.pathParameters?.invitationId;
     try {
+        await authorizeQuotaMutation(
+            event,
+            documentClient,
+            event.pathParameters?.organizationId,
+            event.pathParameters?.eventId,
+        );
         const invitation = await loadInvitation(invitationId);
         if (!invitation) {
+            throw new InvitePolicyError(
+                "INVITATION_NOT_FOUND",
+                "The invitation does not exist.",
+                404,
+            );
+        }
+        if (
+            invitation.organizationId !==
+                event.pathParameters?.organizationId ||
+            invitation.eventId !== event.pathParameters?.eventId
+        ) {
             throw new InvitePolicyError(
                 "INVITATION_NOT_FOUND",
                 "The invitation does not exist.",
@@ -503,7 +534,7 @@ async function handleResend(baseHandler, event, context) {
         });
         return baseHandler(event, context);
     } catch (error) {
-        return jsonError(error);
+        return jsonError(error, event);
     }
 }
 

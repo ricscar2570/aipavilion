@@ -14,7 +14,11 @@
   "localValidation": {
     "contract": "PASS",
     "promotionRegressionTests": "PASS",
-    "preflight": "PENDING_MISSING_AWS_SAM_TARGET_CONFIGURATION"
+    "preflight": "PENDING_MISSING_AWS_SAM_TARGET_CONFIGURATION",
+    "dependencyTests": "PASS_332_JEST_TESTS",
+    "coverage": "PASS_UNCHANGED_THRESHOLDS",
+    "frontendBuild": "PASS",
+    "dependencyAudit": "PASS_ZERO_VULNERABILITIES"
   },
   "distributedEvidence": "PENDING",
   "manualApprovals": "PENDING",
@@ -22,5 +26,6 @@
     "internalPilotReady": false,
     "production": false,
     "customerData": false
-  }
+  },
+  "consolidationReport": "docs/development/CONSOLIDATION-2026-10-10.md"
 }

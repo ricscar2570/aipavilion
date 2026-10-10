@@ -6,7 +6,9 @@ Version `0.9.0-internal-pilot.1` is the **internal-pilot promotion prerelease** 
 
 > **Snapshot documentale completo:** la descrizione italiana consolidata dell’intero progetto è disponibile in [`DOCUMENTAZIONE-COMPLETA-IT.md`](DOCUMENTAZIONE-COMPLETA-IT.md) e nell’indice [`docs/it/00-INDICE-GENERALE.md`](docs/it/00-INDICE-GENERALE.md).
 
-The repository is still pre-production. It is suitable for a controlled AWS staging deployment and evidence run, but customer pilot use remains gated by public CI, deployed AWS consistency evidence, independent security review, manual accessibility assessment, legal/privacy approval and operational exercises.
+The 10 October 2026 consolidation passes local quality gates: 332 Jest tests, coverage above all unchanged thresholds, frontend build and zero reported dependency vulnerabilities. See [the consolidation report](docs/development/CONSOLIDATION-2026-10-10.md) for fixes, evidence limits and remaining AWS work.
+
+The repository is still pre-production. It is suitable for a controlled AWS staging deployment and evidence run, but customer pilot use remains gated by successful CI on the release commit, deployed AWS consistency evidence, independent security review, manual accessibility assessment, legal/privacy approval and operational exercises.
 
 ## Implemented product foundation
 
@@ -64,7 +66,7 @@ The repository is still pre-production. It is suitable for a controlled AWS stag
 
 ### Frontend and accessibility foundation
 
-- Tailwind is compiled locally; it is no longer loaded from a CDN.
+- Tailwind 4 targets Safari 16.4+, Chrome 111+ and Firefox 128+ and is compiled locally; it is no longer loaded from a CDN.
 - Stripe and Turnstile scripts load only when required.
 - Skip navigation, visible focus, reduced-motion rules and live status regions.
 - Manual WCAG 2.2 AA and assistive-technology verification checklist.

@@ -10,7 +10,7 @@ export default defineConfig(({ mode }) => {
 
     return {
         root: "frontend",
-        publicDir: "frontend/public",
+        publicDir: "public",
 
         define: {
             __APP_CONFIG__: JSON.stringify({

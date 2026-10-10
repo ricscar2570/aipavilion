@@ -19,7 +19,7 @@ export function shellHTML({ paymentsEnabled = true } = {}) {
                 <div class="flex justify-between items-center h-16">
                     <div class="flex items-center space-x-8">
                         <a href="#/" class="flex items-center space-x-2">
-                            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+                            <div class="w-10 h-10 rounded-xl bg-linear-to-br from-purple-500 to-pink-500 flex items-center justify-center">
                                 <span class="text-white font-bold text-xl">AI</span>
                             </div>
                             <span class="text-xl font-bold gradient-text">Pavilion</span>
@@ -73,19 +73,19 @@ export function loginFormHTML(mode) {
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Name</label>
                 <input id="auth-name" type="text" placeholder="Your name"
-                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"/>
+                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-hidden"/>
             </div>`
                     : ""
             }
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
                 <input id="auth-email" type="email" placeholder="you@example.com"
-                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"/>
+                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-hidden"/>
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
                 <input id="auth-password" type="password" placeholder="${isLogin ? "Your password" : "12+ chars, upper/lower, number, symbol"}"
-                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"/>
+                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-hidden"/>
             </div>
             <button id="auth-submit" class="btn-primary w-full py-3">
                 ${isLogin ? "Sign In" : "Create Account"}
@@ -107,7 +107,7 @@ export function confirmationFormHTML(email) {
         <p class="text-gray-600 mb-4">We sent a verification code to <strong>${escapeHtml(email)}</strong>.</p>
         <div class="space-y-4">
             <input id="confirm-code" type="text" placeholder="6-digit code" maxlength="6"
-                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none text-center text-2xl tracking-widest"/>
+                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-hidden text-center text-2xl tracking-widest"/>
             <div id="confirm-error" class="hidden p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm"></div>
             <button id="confirm-submit" class="btn-primary w-full py-3">Verify</button>
         </div>`;
@@ -118,7 +118,7 @@ export function forgotPasswordFormHTML() {
         <h2 class="text-2xl font-bold gradient-text mb-4">Reset Password</h2>
         <div class="space-y-4">
             <input id="forgot-email" type="email" placeholder="your@email.com"
-                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none"/>
+                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-hidden"/>
             <div id="forgot-error" class="hidden p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm"></div>
             <button id="forgot-submit" class="btn-primary w-full py-3">Send Reset Code</button>
         </div>`;

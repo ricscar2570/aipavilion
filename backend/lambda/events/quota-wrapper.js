@@ -2,6 +2,8 @@
 
 const { QuotaError } = require("../common/quota-model");
 const quota = require("../common/quota-store");
+const { authorizeQuotaMutation } = require("../common/quota-authorization");
+const { respond, corsHeaders } = require("../common/cors");
 
 function method(event) {
     return String(
@@ -88,18 +90,14 @@ function findId(value, keys) {
     return undefined;
 }
 
-function jsonError(error) {
+function jsonError(error, event) {
     const statusCode = Number(
         error.statusCode ||
             (error instanceof QuotaError ? error.statusCode : 500),
     );
-    return {
+    return respond(
         statusCode,
-        headers: {
-            "Content-Type": "application/json",
-            "Cache-Control": "no-store",
-        },
-        body: JSON.stringify({
+        {
             error: {
                 code: error.code || "QUOTA_INTERNAL_ERROR",
                 message:
@@ -108,8 +106,9 @@ function jsonError(error) {
                         : error.message,
                 retryable: statusCode >= 500,
             },
-        }),
-    };
+        },
+        event,
+    );
 }
 
 function requestKey(event, prefix) {
@@ -143,34 +142,37 @@ function isArchiveEvent(event) {
     );
 }
 
-function recoveryResponse(reservation, resourceType) {
+function recoveryResponse(reservation, resourceType, event) {
     const replay = quota.replayResponse(reservation);
     if (replay) {
-        return replay;
-    }
-    if (reservation?.resourceId) {
         return {
-            statusCode: 200,
+            ...replay,
             headers: {
-                "Content-Type": "application/json",
+                ...replay.headers,
+                ...corsHeaders(event),
                 "Idempotency-Replayed": "true",
             },
-            body: JSON.stringify({
-                [resourceType + "Id"]: reservation.resourceId,
-                idempotentReplay: true,
-            }),
         };
     }
-    return {
-        statusCode: 409,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            error: {
-                code: "IDEMPOTENCY_RECOVERY_REQUIRED",
-                message: "The previous request is still being reconciled.",
+    if (reservation?.resourceId) {
+        return respond(
+            200,
+            {
+                [resourceType + "Id"]: reservation.resourceId,
+                idempotentReplay: true,
             },
-        }),
-    };
+            event,
+            { "Idempotency-Replayed": "true" },
+        );
+    }
+    return jsonError(
+        new QuotaError(
+            "IDEMPOTENCY_RECOVERY_REQUIRED",
+            "The previous request is still being reconciled.",
+            409,
+        ),
+        event,
+    );
 }
 
 function wrap(baseHandler) {
@@ -210,7 +212,14 @@ function wrap(baseHandler) {
             }),
         );
         let reservation;
+        let writerSucceeded = false;
         try {
+            await authorizeQuotaMutation(
+                event,
+                quota.documentClient,
+                organizationId,
+                event.pathParameters?.eventId,
+            );
             const result = await quota.reserveEventSlot({
                 organizationId,
                 idempotencyKey: key,
@@ -218,11 +227,8 @@ function wrap(baseHandler) {
                 actorUserId: actorUserId(event),
             });
             reservation = result.reservation;
-            if (result.replay && reservation.status !== "reserved") {
-                return recoveryResponse(reservation, "event");
-            }
-            if (result.replay && reservation.responseStatusCode) {
-                return recoveryResponse(reservation, "event");
+            if (result.replay) {
+                return recoveryResponse(reservation, "event", event);
             }
 
             const response = await baseHandler(event, context);
@@ -233,21 +239,19 @@ function wrap(baseHandler) {
                 );
                 return response;
             }
+            writerSucceeded = true;
             const eventId = findId(parseResponseBody(response), [
                 "eventId",
                 "id",
             ]);
             if (!eventId) {
-                await quota.releaseSourceReservation(
-                    reservation.reservationId,
-                    "event_id_missing",
-                );
                 return jsonError(
                     new QuotaError(
                         "EVENT_ID_MISSING",
                         "The event writer returned no event identifier.",
                         500,
                     ),
+                    event,
                 );
             }
             await quota.consumeEventReservation(
@@ -258,6 +262,7 @@ function wrap(baseHandler) {
             return response;
         } catch (error) {
             if (
+                !writerSucceeded &&
                 reservation?.reservationId &&
                 !["QUOTA_EXCEEDED", "IDEMPOTENCY_KEY_REUSED"].includes(
                     error.code,
@@ -272,7 +277,7 @@ function wrap(baseHandler) {
                     /* reconciler owns recovery */
                 }
             }
-            return jsonError(error);
+            return jsonError(error, event);
         }
     };
 }

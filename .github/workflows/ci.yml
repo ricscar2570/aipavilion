@@ -34,7 +34,7 @@ jobs:
           npm run ci:install
 
       - name: Verify source, contracts, tests, and frontend build
-        run: npm run verify
+        run: npm run verify && npm run verify:source && npm run manifest:verify
 
       - name: Audit dependencies
         run: npm audit --audit-level=high

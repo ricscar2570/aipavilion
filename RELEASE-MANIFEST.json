@@ -1,9 +1,9 @@
 {
   "project": "AI Pavilion",
   "version": "0.9.0-internal-pilot.1",
-  "snapshotDate": "2026-08-24",
-  "snapshotName": "internal-pilot-promotion-harness",
-  "status": "PROMOTION_HARNESS_COMPLETE_DISTRIBUTED_EVIDENCE_PENDING",
+  "snapshotDate": "2026-10-10",
+  "snapshotName": "aws-source-consolidation",
+  "status": "source-consolidated-distributed-evidence-pending",
   "manifestExcludes": [
     "MANIFEST.json",
     "MANIFEST.sha256",
@@ -11,8 +11,8 @@
     "RELEASE-MANIFEST.md",
     "RELEASE-MANIFEST.sha256"
   ],
-  "fileCount": 315,
-  "totalBytes": 2580919,
+  "fileCount": 320,
+  "totalBytes": 2664991,
   "files": [
     {
       "path": ".editorconfig",
@@ -41,8 +41,8 @@
     },
     {
       "path": ".github/workflows/ci.yml",
-      "sizeBytes": 2282,
-      "sha256": "8fd05531e842a7cd88ea2517cfd1f7683b62be5b80694c12523d1fd99fa8c734"
+      "sizeBytes": 2334,
+      "sha256": "57f9b5b243431eaa096a562565042a96467494019ed697024e65cea5af30306e"
     },
     {
       "path": ".github/workflows/deploy.yml",
@@ -51,8 +51,8 @@
     },
     {
       "path": ".github/workflows/internal-pilot.yml",
-      "sizeBytes": 8550,
-      "sha256": "0d50a73e07fc536f6a37ce7ba3f2a1cff28de426d2f1b96de86a2293b1e19a2a"
+      "sizeBytes": 8805,
+      "sha256": "a6c096ef17b60467e1dcc9dbbaa97564990fd6a73842b143effdd8dea0743c33"
     },
     {
       "path": ".github/workflows/phase-4.5g.yml",
@@ -81,8 +81,8 @@
     },
     {
       "path": ".gitignore",
-      "sizeBytes": 796,
-      "sha256": "85caea68bb8893cd23dcc1991e85c07cf4c743a63eb7c835e02c8060a4adb091"
+      "sizeBytes": 797,
+      "sha256": "dcbeaadcc9ddfaa88638b1c58e7dd87d95f1099fcc119a892e2e7d93648d48a7"
     },
     {
       "path": ".npmrc",
@@ -200,14 +200,19 @@
       "sha256": "09c6a6f4f8d9d15d70545acdddd2fdb17496d6a3047bfc7dca1b9fbd43fb5f5d"
     },
     {
+      "path": "backend/lambda/common/quota-authorization.js",
+      "sizeBytes": 1368,
+      "sha256": "9178c6d1f5c7c1151b55ee1cd24a81df321b35a104ece0e8c4916b43443f10d2"
+    },
+    {
       "path": "backend/lambda/common/quota-model.js",
       "sizeBytes": 3326,
       "sha256": "398ec910d795446ec7aeae463ee7a72366e2bb8aecd713063729ef0fe5f2c6f5"
     },
     {
       "path": "backend/lambda/common/quota-store.js",
-      "sizeBytes": 34117,
-      "sha256": "b2332574894114e2154ef98cfff16fb10509c16476cc5b6cbffb0fe8189f2163"
+      "sizeBytes": 35270,
+      "sha256": "0dc205ec77dfc0e20bbe552a214af3204d92b55ff7f8d6ac8e5757dec8c7cfd7"
     },
     {
       "path": "backend/lambda/common/retry.js",
@@ -251,8 +256,8 @@
     },
     {
       "path": "backend/lambda/events/quota-wrapper.js",
-      "sizeBytes": 8094,
-      "sha256": "ded0ee9dc3e579fcf7d8342cfd0e9181eefdde54796cfbaf0be2a971d6011697"
+      "sizeBytes": 8114,
+      "sha256": "d7af81bf18d3c4a5c33d6992923dc5c93e68ba97aeffff382743496a8489de33"
     },
     {
       "path": "backend/lambda/exhibitor-leads/index.js",
@@ -281,8 +286,8 @@
     },
     {
       "path": "backend/lambda/invitations/invite-wrapper.js",
-      "sizeBytes": 15928,
-      "sha256": "863aa7b18d20e683c6d60a95074504e4e3fa29906528af6cdc60c62293ebd34f"
+      "sizeBytes": 16806,
+      "sha256": "f565c266e66c3210d896d7946f9d112c376fd260d63056a659f9b7368c6a619f"
     },
     {
       "path": "backend/lambda/organizations/index.js",
@@ -311,8 +316,8 @@
     },
     {
       "path": "backend/lambda/quota-reconciliation/index.js",
-      "sizeBytes": 5784,
-      "sha256": "e2ed8740cc5d0e69240fbc5006269d76faa553dd81a04d6444b73755028509f5"
+      "sizeBytes": 6709,
+      "sha256": "8b2dc0cee6a1e27983d3013c08935b8f218d7242d274c67390630394642c46e0"
     },
     {
       "path": "backend/lambda/search-stands/index.js",
@@ -585,6 +590,11 @@
       "sha256": "cd9520f9bcb0453871a1a7de138a6fa3aea8d45b4471bf7803320fc3a9ff5d2b"
     },
     {
+      "path": "docs/development/CONSOLIDATION-2026-10-10.md",
+      "sizeBytes": 4764,
+      "sha256": "11d9199c7273e3bb1d378b22b0c38db5c26139a6fa32f1aef1e916957ee4fb43"
+    },
+    {
       "path": "docs/development/EXPORT-01.md",
       "sizeBytes": 1974,
       "sha256": "5703151a93cafcc5ad5dc86a7932943bc4198d8ffc36bd68d940b2061008ab32"
@@ -636,8 +646,8 @@
     },
     {
       "path": "docs/development/RELEASE-0.9.0-INTERNAL-PILOT.1.md",
-      "sizeBytes": 1069,
-      "sha256": "7e2bfba4a0a3dc186fa1a49b675256598fea23defdfe8cc058703fba730cc441"
+      "sizeBytes": 1153,
+      "sha256": "7155ab5dc66af259728093f6599684b93b52b8137a85814badc2a6adc6a5d3e0"
     },
     {
       "path": "docs/development/RELEASE-STATE-0.8.6-export.1.json",
@@ -661,8 +671,8 @@
     },
     {
       "path": "docs/development/RELEASE-STATE-0.9.0-INTERNAL-PILOT.1.json",
-      "sizeBytes": 776,
-      "sha256": "817012de2aca50282318cb5921971ae72b308e8f6ae847b1ebd86901548e851c"
+      "sizeBytes": 1021,
+      "sha256": "2a7afa59bfedefa5199bab0dea6f20d49ee4083a487d90202f051df6cf0c84fc"
     },
     {
       "path": "docs/development/SPRINT-2.5-REPORT.md",
@@ -721,8 +731,8 @@
     },
     {
       "path": "docs/it/01-STATO-COMPLETO-PROGETTO.md",
-      "sizeBytes": 90612,
-      "sha256": "973419ab2e6f0b0732ed2dfb885fa870de1270017713e4ff4e97079c0c60ed91"
+      "sizeBytes": 90838,
+      "sha256": "f8184788b242fcd2d75a27bfad1758da3457123b4469274d145f7d7379cb7684"
     },
     {
       "path": "docs/it/02-ARCHITETTURA-SISTEMA.md",
@@ -821,8 +831,8 @@
     },
     {
       "path": "docs/operations/INTERNAL-PILOT-RUNBOOK.md",
-      "sizeBytes": 5935,
-      "sha256": "5d7eac1f390d129a4983957aee7d9a4076c4001ea1df58a3e6f349bfb0c6438f"
+      "sizeBytes": 5941,
+      "sha256": "a5599d4cac4e9e403e56580ee135b9b6c666bdd7f4fdba148f06cb5de7c3597b"
     },
     {
       "path": "docs/operations/PILOT-SERVICE-OBJECTIVES.md",
@@ -866,8 +876,8 @@
     },
     {
       "path": "DOCUMENTAZIONE-COMPLETA-IT.md",
-      "sizeBytes": 90596,
-      "sha256": "15de94396dce66e21392a12777fd6185551c896412dc4818a79d1fdf120fd940"
+      "sizeBytes": 90975,
+      "sha256": "4e318364b97f472ab6b2d65a2f4a78009c7e43b0ec1fccb880a8967e81ee7f9d"
     },
     {
       "path": "evidence/internal-pilot/README.md",
@@ -956,8 +966,8 @@
     },
     {
       "path": "frontend/src/core/templates.js",
-      "sizeBytes": 18778,
-      "sha256": "dc6932e751dd5006d2b560e9ff0fec18a8c8807824763bf86aa705fd0df9fd04"
+      "sizeBytes": 18786,
+      "sha256": "1a972e7a4bdc03d708dbed565803bb1155c4f5ebc4e559a30f4794eb1d280649"
     },
     {
       "path": "frontend/src/core/validators.js",
@@ -986,8 +996,8 @@
     },
     {
       "path": "frontend/src/styles.css",
-      "sizeBytes": 1767,
-      "sha256": "03e5a43f3943859315ae3be213317ae1ae3ca3f59150f96d5f760b4f73ea50d2"
+      "sizeBytes": 2273,
+      "sha256": "7b2fc55b04c7773e2097b2267c664a2aa987aacbeb70bde7ef1c515781c8c841"
     },
     {
       "path": "frontend/src/tenant/portal-templates.js",
@@ -1036,23 +1046,23 @@
     },
     {
       "path": "package-lock.json",
-      "sizeBytes": 315467,
-      "sha256": "82bc79cd2289bc22372382e55a2668cccdf58097cda34c0cfb9fd590e72a0294"
+      "sizeBytes": 348332,
+      "sha256": "7b1fe606750296f6bace82dba92b21bcbef6297b5179e1f51faf6a1928ed4c83"
     },
     {
       "path": "package.json",
-      "sizeBytes": 8067,
-      "sha256": "a980036f8c07f3a5b20b36c1fc98abffdce76d5099077eb1dd137aec500b9dc8"
+      "sizeBytes": 8314,
+      "sha256": "cf37f94bcc75dc57eab682a9ee8fc77f432bb95f244c3ba406972c0644498915"
     },
     {
       "path": "postcss.config.cjs",
-      "sizeBytes": 95,
-      "sha256": "4272033ff06b407e7ff7b64345e1585e0764ae3b89e8811b89c572d1834b64a8"
+      "sizeBytes": 106,
+      "sha256": "a15d320ec5054a82b5a3baafea950da81f299f72e96d35b76866e5342786155e"
     },
     {
       "path": "PROJECT-STATUS.json",
-      "sizeBytes": 2841,
-      "sha256": "ddd3b74548824e849acf6a27a3a672a0c40899845134901109273b7a3d128b1e"
+      "sizeBytes": 3142,
+      "sha256": "e1cf059b52604b32c3c4df51a5a809aba7f87a3d859aafd9ac9d5ffdd7950154"
     },
     {
       "path": "QUICKSTART.md",
@@ -1061,8 +1071,8 @@
     },
     {
       "path": "README.md",
-      "sizeBytes": 13757,
-      "sha256": "518731fa37a92ac8c1e37313ab13889598245945ea3f56eace22759e1aa90b2f"
+      "sizeBytes": 14149,
+      "sha256": "550b5009c32a070b370e0131fe0bceeb8344811bab44a1b4725251576ad932e2"
     },
     {
       "path": "requirements-dev.txt",
@@ -1096,8 +1106,8 @@
     },
     {
       "path": "scripts/check-internal-pilot.js",
-      "sizeBytes": 2974,
-      "sha256": "5330a3db08ed53b859d2b8236b9341348ad4fbb0313b9bfeba5d05941ffd3b62"
+      "sizeBytes": 2993,
+      "sha256": "439f9269b70d16308d4fae4995af133af40c95f276904585cf346c9fd621d28b"
     },
     {
       "path": "scripts/check-lambda-bundles.js",
@@ -1216,8 +1226,8 @@
     },
     {
       "path": "scripts/internal-pilot/export-test-context.js",
-      "sizeBytes": 3175,
-      "sha256": "b09e8d50e37f7458f2dbadc07f82afcbbcf7e7f76f8ab0c8fb8b64eb5bd20487"
+      "sizeBytes": 3096,
+      "sha256": "f11ee1498067b02cd6c2da22b87a66d4a76e4c207305d2998fa666bb6f3fa11e"
     },
     {
       "path": "scripts/internal-pilot/lib.js",
@@ -1406,8 +1416,8 @@
     },
     {
       "path": "scripts/release/manifest.js",
-      "sizeBytes": 6266,
-      "sha256": "188f056074cc99f15431a74f37b006ca5168372a71ab0844f8f8d933863b5d5b"
+      "sizeBytes": 6433,
+      "sha256": "915a6779b0e0bb5627095c0c5d47b9beecd39825c4c699a6c389e43711dfad8e"
     },
     {
       "path": "scripts/validate-config.js",
@@ -1481,8 +1491,8 @@
     },
     {
       "path": "tests/unit/api-endpoints.test.js",
-      "sizeBytes": 16863,
-      "sha256": "84a76eab752d7a645274cd7f3d0e5535f8e7cdca140e2f1ddbecfc6aa5c3090d"
+      "sizeBytes": 16783,
+      "sha256": "c3741d6e309265099b4e883f6fa0ba1784d620bfd0d81d3066fd45be64a75e87"
     },
     {
       "path": "tests/unit/audit.test.js",
@@ -1506,13 +1516,13 @@
     },
     {
       "path": "tests/unit/checkout.test.js",
-      "sizeBytes": 18415,
-      "sha256": "593723a3312284c4b0cdef5e875d054f1d75e949e2886fef60cb95d13653daed"
+      "sizeBytes": 19504,
+      "sha256": "974d70ef2530a59421e968f6224ca1129bdbe663f7156e6d40b6014d77e12a7f"
     },
     {
       "path": "tests/unit/dev-write-guard.test.js",
-      "sizeBytes": 2352,
-      "sha256": "9fbc0ceb1c4fe136be4b9073cab8561e50fe9c5f95e7d9a0459e623297bf2a74"
+      "sizeBytes": 2389,
+      "sha256": "4dc57156ce19489403b09614afb1f15465f7bcc8c9010199c416f3e3524179a6"
     },
     {
       "path": "tests/unit/frontend.test.js",
@@ -1536,13 +1546,13 @@
     },
     {
       "path": "tests/unit/phase3-endpoints.test.js",
-      "sizeBytes": 51231,
-      "sha256": "71a91aa0ddb57c6a5748ab103cf85ecab07126647225df99010104de523cd8e5"
+      "sizeBytes": 52288,
+      "sha256": "3d81d6bd34a7e0a41079e87f09dd8b2d81fdb4fd307458ffcb48480302c3655e"
     },
     {
       "path": "tests/unit/phase4-endpoints.test.js",
-      "sizeBytes": 15941,
-      "sha256": "e30ab3b2d6a1d53de14107f7a4d9adb9c7134a78ac8d2e51fe520adbc0fc464f"
+      "sizeBytes": 16022,
+      "sha256": "c75c27e8a08b0790d97813c29cd12c2e5f1d29950e55c472b8e0b2d6d2fa112e"
     },
     {
       "path": "tests/unit/phase4.5g-tools.test.js",
@@ -1565,6 +1575,21 @@
       "sha256": "583aeca3051f26c944eeb953f0dc270b0313afdcfed8debdf7099c55982caecf"
     },
     {
+      "path": "tests/unit/quota-reconciliation.test.js",
+      "sizeBytes": 5990,
+      "sha256": "4ba721401038430dec5cf27b56e6eef896c577a63681c8bea75d110d8909a371"
+    },
+    {
+      "path": "tests/unit/quota-store-regressions.test.js",
+      "sizeBytes": 6440,
+      "sha256": "a316db1e5d7a3758899ac6f3873eac930a1d565545dab2f9e9b75b9ff277ae12"
+    },
+    {
+      "path": "tests/unit/quota-wrappers.test.js",
+      "sizeBytes": 23765,
+      "sha256": "c27a5169e2be75006943e2ed889f5a1eab4affb3a917fa2e207dc5752dc1dbb3"
+    },
+    {
       "path": "tests/unit/stand-domain.test.js",
       "sizeBytes": 2299,
       "sha256": "f0e1a5450d40a65a337d83c188d469a41c4d4d9ce5a3a635e1107c4b30f9af40"
@@ -1576,8 +1601,8 @@
     },
     {
       "path": "tests/unit/user-endpoints.test.js",
-      "sizeBytes": 6944,
-      "sha256": "b965a56ddc74289b265b8f7c87e9cde869f03b03bd5d8deb2a0dfad3e9349256"
+      "sizeBytes": 7853,
+      "sha256": "932ab6f8560f75b57fce0fad9bb393824768cf863b6c90c0be373392623e1e44"
     },
     {
       "path": "tests/unit/validate-config.test.js",
@@ -1586,8 +1611,8 @@
     },
     {
       "path": "vite.config.js",
-      "sizeBytes": 2948,
-      "sha256": "c85d1bb214f61691d451f92ebd52f6ee4a899879fd8f2e37d00f6595030bd8c2"
+      "sizeBytes": 2939,
+      "sha256": "3270e32737587973113b937c47c063b2854f325193650a0f99a1448d3f0e1a1a"
     }
   ]
 }
