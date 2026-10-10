@@ -88,7 +88,8 @@
     "internal-pilot:preflight": "node scripts/internal-pilot/preflight.js",
     "internal-pilot:run": "node scripts/internal-pilot/run.js",
     "internal-pilot:status": "node scripts/internal-pilot/status.js",
-    "internal-pilot:promote": "node scripts/internal-pilot/promote.js"
+    "internal-pilot:promote": "node scripts/internal-pilot/promote.js",
+    "test:frontend": "node tests/browser/frontend-smoke.js"
   },
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.600.0",
@@ -110,6 +111,7 @@
     "esbuild": "^0.28.1",
     "eslint": "^8.57.0",
     "jest": "^30.5.2",
+    "playwright": "1.57.0",
     "postcss": "^8.5.19",
     "prettier": "^3.2.5",
     "tailwindcss": "^4.3.3",

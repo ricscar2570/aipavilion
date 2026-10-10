@@ -13,26 +13,30 @@ Stato: consolidamento sorgente verificato; pilot e produzione ancora subordinati
 - Riconciliazione: rilascio delle scadenze prima dello snapshot, rinvio dei contatori con writer in corso, letture consistenti dalle tabelle e controllo della revisione per impedire sovrascritture concorrenti.
 - Jest 30 e Tailwind 4; migrazione PostCSS, utilità CSS e compatibilità della cascata. Directory degli asset pubblici Vite corretta, incluso il placeholder degli stand.
 - Override limitato a `@istanbuljs/load-nyc-config -> js-yaml ^4.3.0`: elimina la catena vulnerabile `argparse 1 -> sprintf-js`. Verificato il caricamento YAML tramite l'API effettivamente usata, oltre alla suite completa con coverage.
+- Avvio frontend corretto: alias `globalThis` per la dipendenza Cognito e configurazione dei timer UI ripristinata. Titolo hero reso leggibile sullo sfondo. Smoke test del bundle reale aggiunto alla CI.
 - CI estesa a `verify:source` e alla verifica dei manifest. Build SAM del pilot con base del repository e `esbuild` locale. Le suite sorgente/SAM non richiedono credenziali AWS; deploy e prove online mantengono il preflight.
 - Manifest: metadati ricavati da `PROJECT-STATUS.json`; directory generate `.aws-sam-*` escluse.
 
 ## Verifiche locali
 
-| Controllo                          | Risultato                                                                         |
-| ---------------------------------- | --------------------------------------------------------------------------------- |
-| `npm run verify`                   | PASS: formattazione, lint, sintassi, contratti, bundle, test e build              |
-| Jest                               | 332 test passati; 7 test DynamoDB distribuiti saltati perché manca l'ambiente AWS |
-| Coverage                           | Statement 77,17%; branch 65,12%; funzioni 79,90%; righe 77,22%                    |
-| Soglie mantenute                   | Statement/righe 75%; branch 65%; funzioni 70%                                     |
-| `npm run verify:source`            | PASS, inclusi gate AUTH, LEGACY, quote, runtime, template pilot e promozione      |
-| Test Node foundations / promozione | 16 + 7 passati; ulteriori controlli del comando sorgente passati                  |
-| `npm audit`                        | 0 vulnerabilità segnalate al 10 ottobre 2026                                      |
-| Build Vite                         | PASS; asset statici inclusi                                                       |
-| Preflight AWS                      | PENDING: CLI AWS/SAM, identità e URL staging non disponibili localmente           |
+| Controllo                          | Risultato                                                                                            |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `npm run verify`                   | PASS: formattazione, lint, sintassi, contratti, bundle, test e build                                 |
+| Jest                               | 332 test passati; 7 test DynamoDB distribuiti saltati perché manca l'ambiente AWS                    |
+| Coverage                           | Statement 77,17%; branch 65,12%; funzioni 79,90%; righe 77,22%                                       |
+| Soglie mantenute                   | Statement/righe 75%; branch 65%; funzioni 70%                                                        |
+| `npm run verify:source`            | PASS, inclusi gate AUTH, LEGACY, quote, runtime, template pilot e promozione                         |
+| Test Node foundations / promozione | 16 + 7 passati; ulteriori controlli del comando sorgente passati                                     |
+| `npm audit`                        | 0 vulnerabilità segnalate al 10 ottobre 2026                                                         |
+| `npm run test:frontend`            | PASS in Chromium: avvio desktop/mobile, CSS, login, ricerca e asset pubblico; richieste API simulate |
+| Build Vite                         | PASS; asset statici inclusi                                                                          |
+| Preflight AWS                      | PENDING: CLI AWS/SAM, identità e URL staging non disponibili localmente                              |
 
 Questi test usano mock o contratti locali dove previsto: non dimostrano il comportamento distribuito di DynamoDB, Cognito o altri servizi reali. La CI GitHub verifica il commit pubblicato, inclusi entrambi i template SAM. I risultati associati al commit sono la fonte per lo stato della CI; questo documento non sostituisce una ricevuta di promozione legata a commit, ambiente e data.
 
 ## Browser
+
+Lo smoke locale esercita il bundle compilato su viewport 1365×900 e 390×844, senza errori JavaScript né overflow orizzontale. Non esegue il login Cognito reale.
 
 Tailwind 4 richiede almeno Safari 16.4, Chrome 111 o Firefox 128. I controlli browser sullo staging e l'audit manuale WCAG restano necessari.
 

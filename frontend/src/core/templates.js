@@ -170,7 +170,7 @@ export function homepageHTML() {
             <div class="max-w-7xl mx-auto text-center">
                 <h1 class="text-5xl md:text-7xl font-extrabold text-white mb-6">
                     Welcome to the Future of
-                    <span class="block gradient-text bg-white">Gaming Expos</span>
+                    <span class="block text-white">Gaming Expos</span>
                 </h1>
                 <p class="text-xl md:text-2xl text-white/90 mb-8 max-w-3xl mx-auto">
                     Discover public events, explore exhibitor stands and contact the teams behind them.

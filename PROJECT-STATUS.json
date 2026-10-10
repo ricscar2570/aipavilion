@@ -51,7 +51,8 @@
       "total_vulnerabilities": 0
     },
     "source_contracts": "passed_local_verify_source",
-    "frontend_build": "passed_local_tailwind4_vite8"
+    "frontend_build": "passed_local_tailwind4_vite8",
+    "frontend_browser_smoke": "passed_local_chromium_desktop_mobile_api_stubbed"
   },
   "open_gates": [
     "disposable AWS deployment",

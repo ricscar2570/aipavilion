@@ -9,8 +9,8 @@
     "RELEASE-MANIFEST.md",
     "RELEASE-MANIFEST.sha256"
   ],
-  "fileCount": 320,
-  "totalBytes": 2664991,
+  "fileCount": 321,
+  "totalBytes": 2672354,
   "files": [
     {
       "path": ".editorconfig",
@@ -39,8 +39,8 @@
     },
     {
       "path": ".github/workflows/ci.yml",
-      "bytes": 2334,
-      "sha256": "57f9b5b243431eaa096a562565042a96467494019ed697024e65cea5af30306e"
+      "bytes": 2552,
+      "sha256": "124b4ec2d22e948223aefacdf77d143451614b81677f2964dffdd851b7d07470"
     },
     {
       "path": ".github/workflows/deploy.yml",
@@ -589,8 +589,8 @@
     },
     {
       "path": "docs/development/CONSOLIDATION-2026-10-10.md",
-      "bytes": 4764,
-      "sha256": "11d9199c7273e3bb1d378b22b0c38db5c26139a6fa32f1aef1e916957ee4fb43"
+      "bytes": 5483,
+      "sha256": "c66f251d9379f404ca889bf4357e994acdeba57914f3277efe2272170d9ba0b6"
     },
     {
       "path": "docs/development/EXPORT-01.md",
@@ -669,8 +669,8 @@
     },
     {
       "path": "docs/development/RELEASE-STATE-0.9.0-INTERNAL-PILOT.1.json",
-      "bytes": 1021,
-      "sha256": "2a7afa59bfedefa5199bab0dea6f20d49ee4083a487d90202f051df6cf0c84fc"
+      "bytes": 1084,
+      "sha256": "4e9d403bcb64fa3a1f959fb8ce9b4d944e0ef2d0d875b4b738ee986d1da03b81"
     },
     {
       "path": "docs/development/SPRINT-2.5-REPORT.md",
@@ -939,8 +939,8 @@
     },
     {
       "path": "frontend/src/core/config.js",
-      "bytes": 2664,
-      "sha256": "4955b07a7a708c5b503681640a2368d03f1ed31a62438e0a6b1e0d3f58f53c03"
+      "bytes": 2743,
+      "sha256": "6a710e8ad3e71b5177e53e357b88e58dc3fd3382e63af760f82c18e3519c62c9"
     },
     {
       "path": "frontend/src/core/constants.js",
@@ -964,8 +964,8 @@
     },
     {
       "path": "frontend/src/core/templates.js",
-      "bytes": 18786,
-      "sha256": "1a972e7a4bdc03d708dbed565803bb1155c4f5ebc4e559a30f4794eb1d280649"
+      "bytes": 18774,
+      "sha256": "e17b6e7eea451463fc4f2ce7b15928e48b55174986bea1ee0c8b4410f4206990"
     },
     {
       "path": "frontend/src/core/validators.js",
@@ -1044,13 +1044,13 @@
     },
     {
       "path": "package-lock.json",
-      "bytes": 348332,
-      "sha256": "7b1fe606750296f6bace82dba92b21bcbef6297b5179e1f51faf6a1928ed4c83"
+      "bytes": 349867,
+      "sha256": "94c8c2a9d9890a0886e22c8843d4f0e6daddfc98ffc47b82abb7acb97ea8282b"
     },
     {
       "path": "package.json",
-      "bytes": 8314,
-      "sha256": "cf37f94bcc75dc57eab682a9ee8fc77f432bb95f244c3ba406972c0644498915"
+      "bytes": 8403,
+      "sha256": "554e8a4ded09f0d304422851d8c6e560ebffc1777a3c8335651e4dfcd42830dd"
     },
     {
       "path": "postcss.config.cjs",
@@ -1059,8 +1059,8 @@
     },
     {
       "path": "PROJECT-STATUS.json",
-      "bytes": 3142,
-      "sha256": "e1cf059b52604b32c3c4df51a5a809aba7f87a3d859aafd9ac9d5ffdd7950154"
+      "bytes": 3224,
+      "sha256": "5ca2701363fe852325c32714226c78b67a9ff7ef5b1679ac170434b096431c0d"
     },
     {
       "path": "QUICKSTART.md",
@@ -1438,6 +1438,11 @@
       "sha256": "256821950d0abfd24f58d4dbf07b1c2e51375e4cd01d52faab9b596507a8f4cf"
     },
     {
+      "path": "tests/browser/frontend-smoke.js",
+      "bytes": 4482,
+      "sha256": "94ea125f9306497edd0adbf9bd5db0999c553c48ee98f110e4b9f8b6fe8b0f5e"
+    },
+    {
       "path": "tests/e2e/test_deployed.py",
       "bytes": 10734,
       "sha256": "e2e9d6a85279d56c8de10b95e9df715fe6038879e0fc4af12580e9800c4e5227"
@@ -1609,8 +1614,8 @@
     },
     {
       "path": "vite.config.js",
-      "bytes": 2939,
-      "sha256": "3270e32737587973113b937c47c063b2854f325193650a0f99a1448d3f0e1a1a"
+      "bytes": 3047,
+      "sha256": "99cdea5fdcbf6ceff474006c11393a5874b28db65c1bcd3c7e313f4001c68be6"
     }
   ]
 }

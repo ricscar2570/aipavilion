@@ -18,7 +18,8 @@
     "dependencyTests": "PASS_332_JEST_TESTS",
     "coverage": "PASS_UNCHANGED_THRESHOLDS",
     "frontendBuild": "PASS",
-    "dependencyAudit": "PASS_ZERO_VULNERABILITIES"
+    "dependencyAudit": "PASS_ZERO_VULNERABILITIES",
+    "frontendBrowserSmoke": "PASS_DESKTOP_MOBILE_API_STUBBED"
   },
   "distributedEvidence": "PENDING",
   "manualApprovals": "PENDING",

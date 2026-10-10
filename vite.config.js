@@ -13,6 +13,8 @@ export default defineConfig(({ mode }) => {
         publicDir: "public",
 
         define: {
+            // Cognito's buffer dependency expects the Node global alias.
+            global: "globalThis",
             __APP_CONFIG__: JSON.stringify({
                 apiEndpoint: env.API_GATEWAY_URL || "",
                 cognitoUserPoolId: env.COGNITO_USER_POOL_ID || "",
