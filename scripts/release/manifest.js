@@ -36,7 +36,11 @@ function posixRelative(file) {
 
 function collectFiles(directory = ROOT, output = []) {
     for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
-        if (entry.isDirectory() && EXCLUDED_DIRECTORIES.has(entry.name)) {
+        if (
+            entry.isDirectory() &&
+            (EXCLUDED_DIRECTORIES.has(entry.name) ||
+                entry.name.startsWith(".aws-sam-"))
+        ) {
             continue;
         }
         const absolute = path.join(directory, entry.name);
@@ -80,6 +84,9 @@ function generate() {
     const packageJson = JSON.parse(
         fs.readFileSync(path.join(ROOT, "package.json"), "utf8"),
     );
+    const projectStatus = JSON.parse(
+        fs.readFileSync(path.join(ROOT, "PROJECT-STATUS.json"), "utf8"),
+    );
     const items = records();
     const totalBytes = items.reduce((sum, item) => sum + item.bytes, 0);
     const excludes = [...MANIFEST_FILES].sort();
@@ -96,9 +103,9 @@ function generate() {
     const releaseManifest = {
         project: "AI Pavilion",
         version: packageJson.version,
-        snapshotDate: "2026-08-24",
-        snapshotName: "internal-pilot-promotion-harness",
-        status: "PROMOTION_HARNESS_COMPLETE_DISTRIBUTED_EVIDENCE_PENDING",
+        snapshotDate: projectStatus.snapshot_date,
+        snapshotName: projectStatus.snapshot_type,
+        status: projectStatus.product_state,
         manifestExcludes: excludes,
         fileCount: items.length,
         totalBytes,
@@ -128,8 +135,8 @@ function generate() {
             "# AI Pavilion release manifest",
             "",
             `- Version: \`${packageJson.version}\``,
-            "- Snapshot date: `2026-08-24`",
-            "- State: promotion harness complete; distributed evidence and approvals pending.",
+            `- Snapshot date: \`${projectStatus.snapshot_date}\``,
+            `- State: ${projectStatus.product_state}`,
             `- Files covered: **${items.length}**`,
             `- Bytes covered: **${totalBytes}**`,
             "",

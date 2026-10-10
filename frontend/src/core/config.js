@@ -70,6 +70,11 @@ export const CONFIG = {
             : "",
     },
 
+    ui: {
+        toastDuration: 5000,
+        animationDuration: 300,
+    },
+
     cart: {
         storageKey: "ai_pavilion_cart",
         maxItems: 50,

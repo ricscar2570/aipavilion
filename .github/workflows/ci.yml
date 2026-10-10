@@ -34,7 +34,13 @@ jobs:
           npm run ci:install
 
       - name: Verify source, contracts, tests, and frontend build
-        run: npm run verify
+        run: npm run verify && npm run verify:source && npm run manifest:verify
+
+      - name: Install browser for production bundle smoke test
+        run: npx playwright install --with-deps chromium
+
+      - name: Exercise frontend bundle on desktop and mobile
+        run: npm run test:frontend
 
       - name: Audit dependencies
         run: npm audit --audit-level=high

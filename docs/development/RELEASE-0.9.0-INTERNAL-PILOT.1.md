@@ -4,7 +4,7 @@
 
 ```text
 PROMOTION_HARNESS_COMPLETE
-LOCAL_CONTRACT_TESTS_REQUIRED
+LOCAL_QUALITY_GATES_PASSED
 STAGING_PREFLIGHT_PENDING
 DISTRIBUTED_EVIDENCE_PENDING
 INTERNAL_PILOT_NOT_YET_APPROVED
@@ -32,3 +32,5 @@ This prerelease adds a deterministic promotion gate above the 4.5G evidence harn
 ## Current result
 
 In an environment without AWS credentials, SAM CLI, staging URLs and controlled service fixtures, preflight must report `PENDING` and promotion must remain blocked. This is the expected and correct result.
+
+Aggiornamento: [consolidamento AWS del 10 ottobre 2026](CONSOLIDATION-2026-10-10.md).
