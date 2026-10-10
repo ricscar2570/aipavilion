@@ -84,5 +84,14 @@
     "docs/operations/INTERNAL-PILOT-RUNBOOK.md",
     "docs/development/RELEASE-0.9.0-INTERNAL-PILOT.1.md",
     "docs/development/CONSOLIDATION-2026-10-10.md"
-  ]
+  ],
+  "aws_activation_checkpoint": {
+    "checked_on": "2026-10-10",
+    "source_commit": "2490032fe08761105eab8d010d440834d738076b",
+    "latest_inspected_staging_run": 37810113032,
+    "observed_failure": "AWS credentials unavailable in configure-aws-credentials; application checks skipped",
+    "current_remote_secret_configuration": "not_inspected",
+    "next_action": "verify GitHub environments and AWS OIDC roles before deployment",
+    "report": "docs/operations/AWS-ACTIVATION-STATUS-2026-10-10.md"
+  }
 }

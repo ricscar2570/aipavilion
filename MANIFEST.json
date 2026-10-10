@@ -9,8 +9,8 @@
     "RELEASE-MANIFEST.md",
     "RELEASE-MANIFEST.sha256"
   ],
-  "fileCount": 321,
-  "totalBytes": 2672354,
+  "fileCount": 322,
+  "totalBytes": 2676520,
   "files": [
     {
       "path": ".editorconfig",
@@ -818,6 +818,11 @@
       "sha256": "00027be168347c4797f95838546d652b3cfaa173900fb34d58c6ab34462fb7cc"
     },
     {
+      "path": "docs/operations/AWS-ACTIVATION-STATUS-2026-10-10.md",
+      "bytes": 3656,
+      "sha256": "30e9ce507522eb3cf43d9389dd9cc64f45b93b2f7154fca5053630762fab23b8"
+    },
+    {
       "path": "docs/operations/DEV-STACK-RUNBOOK.md",
       "bytes": 4629,
       "sha256": "e11dd932838a83ed4bf1bc5438572d1716a40fb408dc4fe1ae97879b0b18b08f"
@@ -1059,8 +1064,8 @@
     },
     {
       "path": "PROJECT-STATUS.json",
-      "bytes": 3224,
-      "sha256": "5ca2701363fe852325c32714226c78b67a9ff7ef5b1679ac170434b096431c0d"
+      "bytes": 3734,
+      "sha256": "b2cbd1dbde10141f6776687dfadc42d2df3a35c53ec332cb7e94fc4a8bf407f4"
     },
     {
       "path": "QUICKSTART.md",
